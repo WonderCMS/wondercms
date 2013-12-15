@@ -1,0 +1,6 @@
+RedirectMatch 404 ^.*/files/
+Options +FollowSymLinks
+Options -Indexes
+RewriteEngine on
+RewriteCond %{SCRIPT_FILENAME} !-d
+RewriteRule ^([^\.]+)$ ?page=$1 [NC,L]
