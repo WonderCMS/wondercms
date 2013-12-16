@@ -3,16 +3,14 @@
 	
 	$fieldname = $_REQUEST['fieldname'];
 	$encrypt_pass = @file_get_contents('files/password');
-	if ($_SESSION['l']!=$encrypt_pass){
+	if($_SESSION['l']!=$encrypt_pass){
 		echo 'Please login first. ;)';
 		exit;
 	}
 	
-	$content = nl2br(trim(rtrim(stripslashes($_REQUEST['content']))));
+	$content = trim(rtrim(stripslashes($_REQUEST['content'])));
 
-	if(!$content) $content = 'Please enter some content.';
-
-	$file = @fopen("files/$fieldname.txt", "w");
+	$file = @fopen("files/$fieldname", "w");
 	if(!$file){
 		echo "<h2>Unable to open $fieldname</h2>".
 		"Set correct permissions (755) to the 'files' folder.<br />
