@@ -1,12 +1,11 @@
-Thank you for downloading WonderCMS!
-WonderCMS 0.5 (founder: Robert Isoski - robiso.com)
+Thank you for downloading WonderCMS 0.5.1 BETA
+(founder: Robert Isoski - robiso.com)
 
 - Setup
-1. Unzip wondercms-0.5.zip.
+1. Unzip wondercms-0.5.1-BETA.zip.
 2. Upload all the files to your website.
 
-That's it.
-For support visit: wondercms.com/forum
+Support: wondercms.com/forum
 
 Contributors
 - WonderCMS community
