@@ -10,19 +10,11 @@ body {
 	font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
 }
 
-.change select {
-	background: #16a6b6;
-	border: none;
-	width: 20%;
-	padding: 10px;
-	color: #fff;
-	font-weight: bold;
-}
 
 a {
-		color: #fff;
-		text-decoration: none;
-		border-bottom: 1px #fff dotted;
+	color: #fff;
+	text-decoration: none;
+	border-bottom: 1px #fff dotted;
 }
 
 .clear {
@@ -44,7 +36,7 @@ h3 {
 	font-size: 32px;
 	margin: 0 0 0 11%;
 	font-weight: normal;
-	padding: 13px 0 0 0;
+	padding-top: 13px 0 0 0;
 }
 
 #main-title a {
@@ -147,33 +139,6 @@ span.editText textarea {
 	background-color: transparent;
 }
 
-.change {
-	width: 100%;
-	height: auto;
-	padding: 20px;
-	margin: 5px 0 10px 0;
-	border-radius: 5px;
-	background: #1F2B33;
-	-moz-border-radius: 5px;
-	-webkit-border-radius: 5px;
-}
-
-.settings {
-	width: 100%;
-	clear: both;
-	color: #fff;
-	height: auto;
-	text-align: center;
-	background: #16a6b6;
-	padding: 5px 0;
-}
-
-div.settings div.change {
-	width: 52%;
-	text-align: left;
-	margin-left: 10%;
-}
-
 .toggle{
 	cursor: pointer;
 }
@@ -182,6 +147,42 @@ div.settings div.change {
 	margin: 0;
 	width: 100%;
 	display: none;
+}
+
+.change {
+	width: 100%;
+	height: auto;
+	padding: 20px;
+	border-radius: 5px;
+	background: #1F2B33;
+	margin: 5px 0 10px 0;
+	-moz-border-radius: 5px;
+	-webkit-border-radius: 5px;
+}
+
+.change select {
+	width: 20%;
+	color: #fff;
+	border: none;
+	padding: 10px;
+	font-weight: bold;
+	background: #16a6b6;
+}
+
+.settings {
+	width: 100%;
+	clear: both;
+	color: #fff;
+	height: auto;
+	padding: 5px 0;
+	text-align: center;
+	background: #16a6b6;
+}
+
+div.settings div.change {
+	width: 52%;
+	text-align: left;
+	margin-left: 10%;
 }
 
 footer {
