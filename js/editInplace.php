@@ -11,8 +11,15 @@ $(document).ready(function($){
 	$('span.editText').click(function(){
 		if(changing)return;
 		a = $(this);
-		a.html("<textarea name=\"textarea\" id=\""+ a.attr('id') +"_field\" onblur=\"fieldSave(a.attr('id'),this.value);\">" + a.html().replace(/<br>/gi, "") + "</textarea>");
-		a.children(':first').focus().autosize().trigger('autosize.resize');
+		title=(a.attr('title'))?title="\""+a.attr('title')+"\" ":"";
+
+		if(a.hasClass('richText')){
+			<?php if(isset($_REQUEST['hook']))include($_REQUEST['hook']); ?>
+		}
+		else{
+			a.html("<textarea "+title+"name=\"textarea\" id=\""+ a.attr('id') +"_field\" onblur=\"fieldSave(a.attr('id'),nl2br(this.value));\">" + a.html().replace(/<br>/gi, "") + "</textarea>");
+			a.children(':first').focus().autosize().trigger('autosize.resize');
+		}
 		changing = true;
 	});
 
@@ -21,15 +28,15 @@ $(document).ready(function($){
 	});
 });
 
+function nl2br(s){
+	return (s + '').replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g, '$1<br />$2');
+}
+
 function fieldSave(key,val){
-	if (val=="")return;
 	$.post('editText.php', {fieldname: key, content: val}).done(function(data){
-		if(key == 'themeSelect'){
-			location.reload(true);
-		}
-		else{
-			$("#"+key).html(data);
-		}
+		if(key == 'themeSelect'){location.reload(true);}
+		else if(val==''){$('#'+key).html($('#'+key).attr('title'));}
+		else {$("#"+key).html(data);}
 		changing = false;
 	});
 }
