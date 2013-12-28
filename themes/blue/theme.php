@@ -11,7 +11,7 @@
 	editTags();
 ?>
 </head>
-<body>
+<body<?php if(is_loggedin())echo ' id="admin"';?>>
 	<header>
 		<nav id="nav">
 			<h1 id="main-title"><a href='./'><?php echo $c['title'];?></a></h1>
