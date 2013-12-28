@@ -77,10 +77,6 @@ function loadPlugins(){
 }
 
 function getSlug($p){
-	$p = strip_tags($p);
-	preg_match_all('/([a-z0-9A-Z-_]+)/', $p, $matches);
-	$matches = array_map('strtolower', $matches[0]);
-	$slug = implode('-', $matches);
 	return $slug;
 }
 
