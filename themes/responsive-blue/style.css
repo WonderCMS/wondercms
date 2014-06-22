@@ -1,0 +1,167 @@
+html{
+	min-height: 100%;
+	position: relative;
+}
+
+body{
+	margin: 0;
+	color: #fff;
+	background: #eee;
+	padding: 0 0 80px 0;
+	font-family: Verdana;
+}
+
+a{
+	color: #fff;
+	text-decoration: none;
+	border-bottom: 1px dotted #fff;
+}
+
+h3{margin: 0;}
+.clear{clear: both;}
+.pad{padding: 20px;}
+.hide{display: none;}
+*:focus{outline: none;}
+.toggle{cursor: pointer;}
+
+#nav{
+	width: 100%;
+	background: #1f2b33;
+}
+
+#nav h1{
+	font-size: 32px;
+	margin: 0 0 0 11%;
+	font-weight: normal;
+}
+
+#nav h1 a{
+	border: 0;
+	line-height: 67px;
+}
+
+#nav li{
+	float: left;
+	font-size: 14px;
+	list-style: none;
+}
+
+#nav li a{
+	border: 0;
+	padding: 25px;
+	color: #777;
+	display: block;
+	text-transform: uppercase;
+}
+
+#nav li a:hover{color: #fff;}
+#active a{color: #fff !important;}
+
+#wrapper {
+	color: #444;
+	font-size: 15px;
+	background: #fff;
+	line-height: 19px;
+}
+
+#wrapper a{
+	color: #444;
+	border-bottom: 1px dotted #444;
+}
+
+#side {
+	font-size: 14px;
+	background: #1ab;
+}
+
+span.editText{
+	display: block;
+	cursor: pointer;
+}
+
+span.editText textarea{
+	border: 0;
+	padding: 0;
+	width: 100%;
+	resize: none;
+	color: inherit;
+	display: block;
+	overflow: hidden;
+	font-size: inherit;
+	line-height: inherit;
+	font-family: inherit;
+	background-color: transparent;
+}
+
+.border{
+	margin: 10px;
+	border-radius: 5px;
+	-moz-border-radius: 5px;
+	-webkit-border-radius: 5px;
+}
+
+.settings{
+	clear: both;
+	padding: 5px 0;
+	cursor: pointer;
+	background: #1ab;
+	text-align: center;
+}
+
+.change{
+	padding: 20px;
+	text-align: left;
+	margin: 5px 10%;
+	background: #1f2b33;
+}
+
+.change select{
+	color: #fff;
+	border: none;
+	padding: 10px;
+	background: #1ab;
+	font-weight: bold;
+}
+
+footer{
+	bottom: 0;
+	width: 100%;
+	min-height: 60px;
+	position: absolute;
+	background: #1f2b33;
+}
+
+footer p{
+	padding: 20px;
+	font-size: 13px;
+	margin: 0 6% 0 0;
+	text-align: right;
+}
+
+@media screen and (min-width: 770px){
+	#nav{float: left;}
+	#nav h1{float: left;}
+
+	#nav ul{
+		float: right;
+		margin: 0 8% 0 0;
+	}
+
+	#wrapper{
+		width: 52%;
+		float: left;
+		margin: 40px 0 0 10%;
+	}
+
+	#side{
+		width: 26%;
+		float: right;
+		margin: 40px 10% 0 0;
+	}
+}
+
+@media screen and (max-width: 769px){
+	#nav ul{margin:0;}
+	#wrapper{margin: 5%;}
+	#side{margin: 5%;}
+}
