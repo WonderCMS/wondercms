@@ -1,6 +1,8 @@
-RedirectMatch 404 ^.*/files/
-Options +FollowSymLinks
-Options -Indexes
+RedirectMatch 403 ^.*/files/
+ErrorDocument 403 &nbsp;
 RewriteEngine on
-RewriteCond %{SCRIPT_FILENAME} !-d
-RewriteRule ^([^\.]+)$ ?page=$1 [NC,L]
+Options -Indexes
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond $1#%{REQUEST_URI} ([^#]*)#(.*)\1$
+RewriteRule ^([^\.]+)$ %2?page=$1 [QSA,L]
