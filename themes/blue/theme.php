@@ -2,34 +2,38 @@
 <html lang="en">
 <head>
 <?php
-	echo "	<script src='//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js'></script>
+	echo "	<meta charset='utf-8'>
 	<title>".$c['title']." - ".$c['page']."</title>
-	<meta charset='utf-8'>
+	<base href='$host'>
+	<meta name='viewport' content='width=device-width, initial-scale=1'>
+	<link rel='stylesheet' href='themes/".$c['themeSelect']."/style.css'>
 	<meta name='description' content='".$c['description']."'>
 	<meta name='keywords' content='".$c['keywords']."'>
-	<link rel='stylesheet' href='themes/".$c['themeSelect']."/style.css'>";
+	<script src='//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js'></script>";
 	editTags();
 ?>
-</head>
-<body<?php if(is_loggedin())echo ' id="admin"';?>>
-	<header>
-		<nav id="nav">
-			<h1 id="main-title"><a href='./'><?php echo $c['title'];?></a></h1>
-			<ul>
-				<?php menu("<li><a","</a></li>");?>
-			</ul>
-		</nav>
-	</header>
 
+</head>
+<body>
+	<nav id="nav">
+		<h1><a href='./'><?php echo $c['title'];?></a></h1>
+		<?php menu(); ?>
+		<div class="clear"></div>
+	</nav>
 	<?php if(is_loggedin()) settings();?>
 
-	<div class="clear"></div>
-	<div id="wrapper">
+	<div id="wrapper" class="border">
+		<div class="pad">
 			<?php content($c['page'],$c['content']);?>
+
+		</div>
 	</div>
 	
-	<div id="side">
+	<div id="side" class="border">
+		<div class="pad">
 			<?php content('subside',$c['subside']);?>
+
+		</div>
 	</div>
 
 	<div class="clear"></div>
