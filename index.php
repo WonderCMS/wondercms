@@ -151,7 +151,7 @@ function menu(){
 	$mlist = explode("<br />\n", $c['menu']);
 	?><ul>
 	<?php
-	foreach ($mlist as $cp){¸?>
+	foreach ($mlist as $cp){?>
 			<li<?php if($c['page'] == getSlug($cp)) echo ' id="active" '; ?>><a href='<?php echo getSlug($cp); ?>'><?php echo $cp; ?></a></li>
 	<?php } ?>
 	</ul>
