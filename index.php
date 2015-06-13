@@ -8,9 +8,9 @@ edit();
 $c['password'] = 'admin';
 $c['loggedin'] = false;
 $c['page'] = 'home';
-$d['page']['home'] = "<h3>It's alive! Your website is now powered by WonderCMS.</h3><br />\nLogin with the 'Login' link below. The password is admin.<br />\nChange the password as soon as possible.<br /><br />\n\nClick on the content to edit and click outside to save it.<br /><br />\n\nWonderCMS weights only around 15kB. (8kB zipped)";
+$d['page']['home'] = "<h3>It's alive! Your website is now powered by WonderCMS.</h3><br />\nLogin with the 'Login' link below. The default password is <i>admin</i>.<br />\nChange the password as soon as possible.<br /><br />\n\nClick on the content to edit and click outside to save it.<br /><br />\n\nWonderCMS weights only around 15kB. (8kB zipped)";
 $d['page']['example'] = "This is an example page.<br /><br />\n\nTo add a new one, click on the existing pages (in the admin panel) and enter a new one below the others.";
-$d['new_page']['admin'] = "Page <sb>".$rp."</b> created.<br /><br />\n\nClick here to start editing!";
+$d['new_page']['admin'] = "Page <b>".$rp."</b> has been created.<br /><br />\n\nClick here to start editing, once you are done click outside this box to view the changes!";
 $d['new_page']['visitor'] = "Sorry, but <b>".$rp."</b> doesn't exist. :(";
 $d['default']['content'] = 'Click to edit!';
 $c['themeSelect'] = 'responsive-blue';
@@ -20,7 +20,7 @@ $c['subside'] = "<h3>ABOUT YOUR WEBSITE</h3><br />\nYour photo, website descript
 $c['description'] = 'Your website description.';
 $c['keywords'] = 'enter, your website, keywords';
 $c['copyright'] = '&copy;'.date('Y').' Your website';
-$sig = "Powered by <a href='http://wondercms.com'>WonderCMS</a>";
+$sig = "Powered by <a href='http://wondercms.com'>WonderCMS</a> v0.8.3";
 $hook['admin-richText'] = "rte.php";
 
 if(!file_exists('files')){
@@ -212,7 +212,7 @@ function settings(){
 		}
 	}
 	echo "</select></span></div>
-	<div class='change border'><b>Menu <small>(add a page below and <a href='javascript:location.reload(true);'>refresh</a>)</small></b><span id='menu' title='Home' class='editText'>".$c['menu']."</span></div>";
+	<div class='change border'><b>Pages <small>(one per line, once complete please <a href='javascript:location.reload(true);'>refresh</a> the page)</small></b><span id='menu' title='Home' class='editText'>".$c['menu']."</span></div>";
 	foreach(array('title','description','keywords','copyright') as $key){
 		echo "<div class='change border'><span title='".$d['default'][$key]."' id='".$key."' class='editText'>".$c[$key]."</span></div>";
 	}
