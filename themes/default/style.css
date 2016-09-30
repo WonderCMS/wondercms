@@ -1,88 +1,125 @@
-html{
+html {
 	min-height: 100%;
 	position: relative;
 }
 
-body{
-	margin: 0;
+body {
 	color: #fff;
-	background: #eee;
-	padding: 0 0 80px 0;
-	font-family: Verdana;
+	margin: 0 0 100px;
+	background: #f3f3f3;
+	font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
 }
 
-a{
+a {
 	color: #fff;
 	text-decoration: none;
-	border-bottom: 1px dotted #fff;
+	border-bottom: 1px #fff dotted;
 }
 
-h3{margin: 0;}
-.clear{clear: both;}
-.pad{padding: 20px;}
-.hide{display: none;}
-*:focus{outline: none;}
-.toggle{cursor: pointer;}
+.clear {clear: both;}
+*:focus {outline: none;}
+.toggle {cursor: pointer;}
 
-#nav{
-	width: 100%;
-	background: #1f2b33;
+h3 {
+	margin: 0;
+	padding: 0;
 }
 
-#nav h1{
+#main-title {
+	float: left;
+	display: inline;
 	font-size: 32px;
 	margin: 0 0 0 11%;
 	font-weight: normal;
+	padding: 13px 0 0 0;
 }
 
-#nav h1 a{
+#main-title a {
 	border: 0;
-	line-height: 67px;
+	text-decoration: none;
 }
 
-#nav li{
+#subtitle {
+	font-size: 16px;
+	padding: 0 0 10px 0;
+	text-transform: uppercase;
+}
+
+#nav {
+	width: 100%;
+	float: left;
+	position: relative;
+	background: #1F2B33;
+}
+
+#nav ul {
+	float: right;
+	margin: 0 8% 0 0;
+}
+
+#nav li {
 	float: left;
 	font-size: 14px;
 	list-style: none;
 }
 
-#nav li a{
+#nav li a {
 	border: 0;
-	padding: 25px;
-	color: #777;
+	color: #fff;
 	display: block;
 	text-transform: uppercase;
+	padding: 25px 20px 25px 25px;
+
 }
 
-#nav li a:hover{color: #fff;}
-#active a{color: #fff !important;}
+#nav ul li.active a {
+	background: #16a6b6;
+}
+
+#nav li a:hover {
+	background: #16a6b6;
+}
 
 #wrapper {
+	width: 52%;
+	float: left;
 	color: #444;
+	height: auto;
+	padding: 20px;
 	font-size: 15px;
 	background: #fff;
+	margin-top: 40px;
+	margin-left: 10%;
 	line-height: 19px;
+	border: 1px solid #fff;
 }
 
-#wrapper a{
+#wrapper a {
 	color: #444;
-	border-bottom: 1px dotted #444;
+	border-bottom: 1px #444 dotted;
 }
 
 #side {
+	width: 20%;
+	float: left;
+	height: auto;
+	padding: 20px;
 	font-size: 14px;
-	background: #1ab;
+	margin-left: 2%;
+	margin-top: 40px;
+	background: #16a6b6;
 }
 
-span.editText{
+span.editText {
 	display: block;
 	cursor: pointer;
 }
 
-span.editText textarea{
+textarea.editText {
 	border: 0;
 	padding: 0;
 	width: 100%;
+	height: auto;
 	resize: none;
 	color: inherit;
 	display: block;
@@ -93,75 +130,68 @@ span.editText textarea{
 	background-color: transparent;
 }
 
-.border{
-	margin: 10px;
+.border {
 	border-radius: 5px;
+	margin-bottom: 10px;
 	-moz-border-radius: 5px;
 	-webkit-border-radius: 5px;
 }
 
-.settings{
-	clear: both;
-	padding: 5px 0;
-	cursor: pointer;
-	background: #1ab;
-	text-align: center;
+.hide {
+	margin: 0;
+	width: 100%;
+	display: none;
 }
 
-.change{
+.change {
+	width: 100%;
+	height: auto;
 	padding: 20px;
-	text-align: left;
-	margin: 5px 10%;
-	background: #1f2b33;
+	margin-top: 5px;
+	background: #1F2B33;
 }
 
-.change select{
+.change select, .change input {
+	width: 20%;
 	color: #fff;
 	border: none;
 	padding: 10px;
-	background: #1ab;
 	font-weight: bold;
+	background: #16a6b6;
 }
 
-footer{
+.change input {
+	width: 40%;
+}
+
+.settings {
+	width: 100%;
+	clear: both;
+	color: #fff;
+	height: auto;
+	padding: 5px 0;
+	text-align: center;
+	background: #16a6b6;
+}
+
+div.settings div.change {
+	width: 52%;
+	text-align: left;
+	margin-left: 10%;
+}
+
+footer {
+	left: 0;
 	bottom: 0;
 	width: 100%;
 	min-height: 60px;
 	position: absolute;
-	background: #1f2b33;
+	background: #1F2B33;
 }
 
-footer p{
+footer p {
 	padding: 20px;
 	font-size: 13px;
 	margin: 0 6% 0 0;
 	text-align: right;
-}
-
-@media screen and (min-width: 770px){
-	#nav{float: left;}
-	#nav h1{float: left;}
-
-	#nav ul{
-		float: right;
-		margin: 0 8% 0 0;
-	}
-
-	#wrapper{
-		width: 52%;
-		float: left;
-		margin: 40px 0 0 10%;
-	}
-
-	#side{
-		width: 26%;
-		float: right;
-		margin: 40px 10% 0 0;
-	}
-}
-
-@media screen and (max-width: 769px){
-	#nav ul{margin:0;}
-	#wrapper{margin: 5%;}
-	#side{margin: 5%;}
 }
