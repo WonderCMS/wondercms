@@ -1,4 +1,4 @@
-# wondercms
+# WonderCMS
 WonderCMS - re-built from scratch
 
 ## Improvements
