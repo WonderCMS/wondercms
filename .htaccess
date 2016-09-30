@@ -1,10 +1,6 @@
-RedirectMatch 403 ^.*/files/
-ErrorDocument 403 &nbsp;
-RewriteEngine on
 Options -Indexes
+RewriteEngine on
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond $1#%{REQUEST_URI} ([^#]*)#(.*)\1$
-RewriteRule ^([^\.]+)$ %2?page=$1 [QSA,L]
-RewriteCond %{THE_REQUEST} password($|\ |\?) [NC]
-RewriteRule .* - [F]
+RewriteRule ^(.+)$ index.php?object=$1 [QSA,L]
+RewriteRule (config|db).js - [F]
