@@ -264,7 +264,18 @@ function settings() {
 			<div class='padding20 toggle text-center' data-toggle='collapse' data-target='#settings'>&#9776;</div>
 			<div class='col-xs-12 col-sm-8 col-sm-offset-2'>
 				<div id='settings' class='collapse text-left'>
-					<a href='?delete=" . $wCMS->config->currentPage . "' class='btn btn-danger' onclick='return confirm(\"Really delete page?\");' type='button'>Delete current page (".$wCMS->config->currentPage.")</a><div class='marginTop20'></div>";
+					<a href='?delete=" . $wCMS->config->currentPage . "' class='btn btn-danger' onclick='return confirm(\"Really delete page?\");' type='button'>Delete current page (".$wCMS->config->currentPage.")</a><div class='marginTop20'></div>
+						<div class='form-group'><select class='form-control' name='themeSelect' onchange='fieldSave(\"themeSelect\",this.value);'>";
+						if(chdir('./themes/')){
+							$dirs = glob('*', GLOB_ONLYDIR);
+							foreach($dirs as $val){
+								$select = ($val == $wCMS->config->themeSelect) ? ' selected' : '';
+								echo "
+								<option value='".$val."'".$select.">".$val.'</option>';
+							}
+						}
+						echo "
+						</select></div>";
 				foreach (['description', 'keywords','title','copyright'] as $key) {
 					echo "
 					<div class='change'>
