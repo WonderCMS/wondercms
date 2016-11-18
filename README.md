@@ -1,7 +1,6 @@
 ### **WonderCMS** v0.8.3
 #### *the smallest CMS in the world*
-
-WonderCMS is a simple, secure flat file CMS (Content Management System).
+WonderCMS is small, simple and secure. It is also the smallest flat file CMS allowing you to create a website in seconds.
 - two step setup (unzip and upload to server)
 - lightweight (only 8kB zipped and based on only 7 files)
 - coded in PHP and jQuery (flat database and no configuration)
