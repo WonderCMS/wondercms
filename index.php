@@ -39,7 +39,7 @@ edit();
 
 $plugin['admin-richTextEditor'] = "richTextEditor.php";
 
-if (!is_dir('plugins')) mkdir('plugins', 0644, true);
+if (!is_dir('plugins')) mkdir('plugins', 0755, true);
 if (file_exists('functions.php')) include 'functions.php';
 
 foreach ($wCMS->config as $key => $val) {
