@@ -6,7 +6,10 @@ The smallest flat file CMS which enables you to create a website in seconds.
 1.  Unzip.
 2.  Upload the files wherever you wish WonderCMS to be installed at.
 
-## If any errors occur, please correct file permissions to 644 and folder permissions to 755.
+### If any errors occur, please correct file permissions to 644 and folder permissions to 755.
+
+### WonderCMS demo
+https://wondercms.com/demo
 
 ### Requirements
  - PHP 5.5 or higher
@@ -31,6 +34,6 @@ The smallest flat file CMS which enables you to create a website in seconds.
  - made with PHP, jQuery, HTML, CSS and a flat JSON database
 
 ### Links
-- [WonderCMS Website] (https://wondercms.com/)
-- [WonderCMS Forums] (https://wondercms.com/forum/)
-- [WonderCMS on Twitter] (https://twitter.com/wondercms)
+- [WonderCMS Website] https://wondercms.com/
+- [WonderCMS Forums] https://wondercms.com/forum/
+- [WonderCMS on Twitter] https://twitter.com/wondercms
