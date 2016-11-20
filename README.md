@@ -2,14 +2,14 @@
 WonderCMS is simple, small and secure.
 The smallest flat file CMS which enables you to create a website in seconds.
 
+### WonderCMS demo
+- https://wondercms.com/demo
+
 ### Installation
 1.  Unzip.
 2.  Upload the files wherever you wish WonderCMS to be installed at.
 
 ### If any errors occur, please correct file permissions to 644 and folder permissions to 755.
-
-### WonderCMS demo
-https://wondercms.com/demo
 
 ### Requirements
  - PHP 5.5 or higher
