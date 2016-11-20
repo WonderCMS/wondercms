@@ -9,8 +9,7 @@ The smallest flat file CMS which enables you to create a website in seconds.
 1.  Unzip.
 2.  Upload the files wherever you wish WonderCMS to be installed at.
 
-### If any errors occur, please correct file permissions to 644 and folder permissions to 755.
-- For errors such as as: 500 internal server error run the below script:
+### If any errors occur, please correct file permissions to 644 and folder permissions to 755. You can do this manually or with the script below (added by Bill Carson)
   - `find ./ -type d -exec chmod 755 {} \;`
   - `find ./ -type f -exec chmod 644 {} \;`
 
