@@ -82,7 +82,7 @@ foreach ($wCMS->config as $key => $val) {
 				}
 			}
 
-			if (strpos($_SERVER['REQUEST_URI'], 'password') !== false || strpos($_SERVER['REQUEST_URI'], 'PASSWORD') !== false)  {
+			if (strpos(strtolower($_SERVER['REQUEST_URI']), 'password') !== false)  {
 				header('Location: ./');
 				exit;
 			}
