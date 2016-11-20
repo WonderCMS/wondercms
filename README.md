@@ -1,4 +1,4 @@
-### WonderCMS v0.9.8 beta
+### WonderCMS v0.9.9 beta
 WonderCMS is simple, small and secure.
 The smallest flat file CMS which enables you to create a website in seconds.
 
@@ -26,8 +26,7 @@ The smallest flat file CMS which enables you to create a website in seconds.
  - custom homepage
  - rebuilt mostly from scratch + MIT license
  - better password protection
- - patched vulnerabilities (directory traversal, file inclusion)
- - no other known vulnerabilities
+ - no other known vulnerabilities (special thanks to yassineaddi and hypnito)
  - highlighted current page
  - mobile responsive, easy to theme, 404 pages, clean URLs
  - page deleting easier than ever
@@ -36,6 +35,8 @@ The smallest flat file CMS which enables you to create a website in seconds.
  - made with PHP, jQuery, HTML, CSS and a flat JSON database
 
 ### Links
-- [WonderCMS Website] https://wondercms.com/
-- [WonderCMS Forums] https://wondercms.com/forum/
-- [WonderCMS on Twitter] https://twitter.com/wondercms
+- WonderCMS website: https://wondercms.com/
+- WonderCMS forums: https://wondercms.com/forum/
+- WonderCMS on Twitter: https://twitter.com/wondercms
+- WonderCMS donations: https://wondercms.com - can donate from anywhere on the WonderCMS website
+- Special contributors: https://wondercms.com/special-contributors
