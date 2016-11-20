@@ -1,5 +1,5 @@
 <?php // v0.9.8 WonderCMS • wondercms.com • license: MIT
-//file permission change
+//file permission changes
 @ini_set('session.cookie_httponly', 1);
 @ini_set('session.use_only_cookies', 1);
 @ini_set('session.cookie_secure', 1);
