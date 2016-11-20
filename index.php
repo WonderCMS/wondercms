@@ -1,4 +1,4 @@
-<?php // v0.9.8 WonderCMS • wondercms.com • license: MIT
+<?php // v0.9.9 WonderCMS • wondercms.com • license: MIT
 
 @ini_set('session.cookie_httponly', 1);
 @ini_set('session.use_only_cookies', 1);
