@@ -36,5 +36,5 @@ function nl2br(s) {
 
 function fieldSave(key,val) {
 	$('#save').show();
-	$.post('index.php?page=<?php echo $_GET["page"]; ?>', {fieldname: key, content: val}, function(){window.location.reload();});
+	$.post('index.php?page=<?php echo htmlspecialchars($_GET["page"]); ?>', {fieldname: key, content: val}, function(){window.location.reload();});
 }
