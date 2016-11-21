@@ -82,11 +82,6 @@ foreach ($wCMS->config as $key => $val) {
 				}
 			}
 
-			if (strpos(strtolower($_SERVER['REQUEST_URI']), 'password') !== false)  {
-				header('Location: ./');
-				exit;
-			}
-
 			if (!isset($wCMS->config->content)) {
 				if (empty($wCMS->config->menu)) $wCMS->config->menu = "undeletable page";
 				if (!isset($wCMS->config->{$wCMS->config->currentPage})) {
@@ -243,6 +238,9 @@ function host() {
 
 	$wCMS->host = $host;
 	$wCMS->requestedPage = $rp;
+	if ($rp == 'password') {
+		$wCMS->requestedPage = '404';
+	}
 	$wCMS->config->currentPage = getSlug(($wCMS->requestedPage) ? $wCMS->requestedPage : $wCMS->config->page);
 }
 
