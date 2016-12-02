@@ -1,309 +1,350 @@
-<?php // v0.9.9 WonderCMS • wondercms.com • license: MIT
-
-@ini_set('session.cookie_httponly', 1);
-@ini_set('session.use_only_cookies', 1);
-@ini_set('session.cookie_secure', 1);
-
+<?php // WonderCMS 1.0.0 beta • wondercms.com • license: MIT
 session_start();
-
-if (file_exists('config.php')) {
-	include 'config.php';
-	$wCMS = json_decode(urldecode($wCMS));
-} else {
-	$wCMS = new stdClass();
-	$wCMS->config = new stdClass();
-	$wCMS->config->newPage = new stdClass();
-	$wCMS->config->pageMeta = new stdClass();
-
-	$wCMS->config->loggedIn = false;
-	$wCMS->config->loginURL = "loginURL";
-	$wCMS->config->password = password_hash('admin', PASSWORD_DEFAULT, ['cost' => 11]); 
-	$wCMS->config->page = "home";
-	$wCMS->config->themeSelect = "responsive-blue";
-	$wCMS->config->menu = "home<br />\nexample";
-	$wCMS->config->title = "Website title";
-	$wCMS->config->home = "<h3>It's alive! Your website is now powered by WonderCMS.</h3><br />\n<a href='?" . $wCMS->config->loginURL . "'>Click here to login (password = <b>admin</b>).</a><br /><br />\n\nClick on content to edit it, click outside to save it.<br />\nImportant: change your password as soon as possible.";
-	$wCMS->config->example = "Example page.<br /><br />\n\nTo add a new page, click on the existing pages in settings panel and enter a new one.";
-	$wCMS->config->subside = "<h3>ABOUT YOUR WEBSITE</h3><br />\nYour photo, website description, contact information, mini map or anything else.<br /><br />\n\nThis content is static and always visible.";
-	$wCMS->config->description = "Page description, unique for each page.";
-	$wCMS->config->keywords = "Page, keywords, unique, for, each, page.";
-	$wCMS->config->copyright = '&copy;' . date('Y') . ' Your website';
-	$wCMS->config->newPage->admin = "Click here to create some content.<br /><br />\n\nOnce you do that, this page will be eventually visited by search engines.";
-	$wCMS->config->newPage->visitor = "Sorry, page doesn't exist. :(";
-
-	save($wCMS);
-}
-
-host();
-edit();
-
-$plugin['admin-richTextEditor'] = "richTextEditor.php";
-
-if (!is_dir('plugins')) mkdir('plugins', 0755, true);
-if (file_exists('functions.php')) include 'functions.php';
-
-foreach ($wCMS->config as $key => $val) {
-	switch ($key) {
-		case 'loggedIn':
-			$wCMS->config->$key = (isset($_SESSION['l']) && ($_SESSION['l'] == $wCMS->config->password)) ? true : false;
-
-			if (isset($_REQUEST[$wCMS->config->loginURL])) {
-				if (isLoggedIn() && !isset($_POST['new'])) header('Location: ./');
-				if (isset($_POST['sub'])) login();
-				$wCMS->config->content = "
-				<form action='' method='POST'>
-					<div class='col-xs-5'><div class='form-group'><input class='form-control' type='password' name='password'></div></div>
-					<button class='btn btn-info' type='submit' name='" . $wCMS->config->loginURL . "'>Login</button>
-					<input type='hidden' name='sub' value='sub'>
-				</form>";
-			}
-
-			$loginStatus = (isLoggedIn()) ? " • Powered by <a href='http://wondercms.com'>WonderCMS</a> • <a href='$wCMS->host?logout'>Logout</a>" : " • Powered by <a href='http://wondercms.com'>WonderCMS</a> • <a href='$wCMS->host?" . $wCMS->config->loginURL . "'>Login</a>";
-			if ($wCMS->config->loginURL != "loginURL" && !isLoggedIn()) $loginStatus = " • Powered by <a href='http://wondercms.com'>WonderCMS</a>";
-			break;
-
-		case 'page':
-			if (isset($_REQUEST[$wCMS->config->loginURL])) continue;
-
-			if (isset($_REQUEST['logout'])) {
-				session_destroy();
-				header('Location: ./');
-				exit;
-			}
-
-			if (isset($_REQUEST['delete']) && !empty($_REQUEST['delete'])) {
-				if (isLoggedIn()) {
-					deletePage($_GET['delete']);
-					header('Location: ./');
-					exit;
-				} else {
-					header('Location: ./');
-					exit;
-				}
-			}
-
-			if (!isset($wCMS->config->content)) {
-				if (empty($wCMS->config->menu)) $wCMS->config->menu = "undeletable page";
-				if (!isset($wCMS->config->{$wCMS->config->currentPage})) {
-					header('HTTP/1.1 404 Not Found');
-					if (isLoggedIn()) echo "<div class='alert alert-danger' role='alert' style='margin-bottom: 0;'><b>This page (" . $wCMS->config->currentPage . ") doesn't exist yet.</b> Click inside the content below and make your first edit to create it.</div>";
-					$wCMS->config->content = (isLoggedIn()) ? $wCMS->config->newPage->admin : $wCMS->config->newPage->visitor;
-			} else {
-					$wCMS->config->content = $wCMS->config->{$wCMS->config->currentPage};
-				}
-			}
-			break;
-
-		default:
-			break;
+define('INC_ROOT', dirname(__FILE__));
+mb_internal_encoding('UTF-8');
+if (file_exists(INC_ROOT.'/functions.php')) require INC_ROOT.'/functions.php';
+class wCMS
+{
+	public static $loggedIn = false;
+	public static $currentPage;
+	public static $_currentPage;
+	public static $newPage = false;
+	public static $listeners = [];
+	public static function hook()
+	{
+		$numArgs = func_num_args();
+		$args    = func_get_args();
+		if ($numArgs < 2) trigger_error('Insufficient arguments', E_USER_ERROR);
+		$hookName = array_shift($args);
+		if ( ! isset(self::$listeners[$hookName])) return $args;
+		foreach (self::$listeners[$hookName] as $func) $args = $func($args);
+		return $args;
 	}
-}
-
-loadPlugins();
-require("themes/" . $wCMS->config->themeSelect . "/theme.php");
-
-function loadPlugins() {
-	global $wCMS, $plugin;
-	$cwd = getcwd();
-	if (chdir("./plugins/")) {
-		$dirs = glob('*', GLOB_ONLYDIR);
-		if (is_array($dirs))
-			foreach ($dirs as $dir) {
-				require_once($cwd . '/plugins/' . $dir . '/index.php');
-			}
+	public static function js()
+	{
+		$script = <<<'EOT'
+<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b){$("#save").show(),$.post("",{fieldname:a,content:b},function(a){window.location.reload()})}var changing=!1;$(document).ready(function(){$('[data-toggle="tooltip"]').tooltip(),$("span.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value);">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)})});</script>
+EOT;
+		$js = [$script];
+		$js = self::hook('js', $js);
+		if (is_array($js[0])) $js = $js[0];
+		$output = '';
+		foreach ($js as $j) $output .= $j;
+		return $output;
 	}
-
-	chdir($cwd);
-	$plugin['admin-head'][] = "\n\t\t<script src='".$wCMS->host."js/editInplace.php?page=" . $wCMS->config->currentPage . "&plugin=" . $plugin['admin-richTextEditor'] . "'></script>";
-}
-
-function getSlug($p) {
-	return mb_convert_case(preg_replace('!\s+!', '-', $p), MB_CASE_LOWER, "UTF-8");
-}
-
-function isLoggedIn() {
-	global $wCMS;
-	return $wCMS->config->loggedIn;
-}
-
-function editTags() {
-	global $plugin, $wCMS;
-	if (!isLoggedIn() && !isset($_REQUEST[$wCMS->config->loginURL])) return;
-	foreach ($plugin['admin-head'] as $o) {
-		echo $o . "\n";
+	public static function css()
+	{
+		$style = <<<'EOT'
+<style>#adminPanel{color:#fff;background:#1ab}.grayFont{color: #444;}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{border:0;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box;}#save{left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{margin:5px 0;padding:20px;border-radius:5px;background:#1f2b33}.marginTop20{margin-top:20px;}</style>
+EOT;
+		$css = [$style];
+		$css = self::hook('css', $css);
+		if (is_array($css[0])) $css = $css[0];
+		$output = '';
+		foreach ($css as $c) $output .= $c;
+		return $output;
 	}
-}
-
-function content($id, $content) {
-	global $wCMS;
-	echo (isLoggedIn()) ? "<span id='" . $id . "' class='editText richTextEditor'>\n" . $content . "</span>" : $content;
-}
-
-function edit() {
-	global $wCMS, $metaTags;
-	$metaTags = ["keywords", "description"];
-	$fieldname = isset($_REQUEST['fieldname']) ? $_REQUEST['fieldname'] : false;
-	$content = isset($_REQUEST['content']) ? trim(stripslashes($_REQUEST['content'])) : false;
-	if ($fieldname && $content) {
-		if (!isset($_SESSION['l']) && ($_SESSION['l'] != $wCMS->config->password)) {
-			header('HTTP/1.1 401 Unauthorized');
-			exit;
+	public static function addListener($hook, $functionName)
+	{
+		self::$listeners[$hook][] = $functionName;
+	}
+	public static function loadPlugins()
+	{
+		if ( ! is_dir(INC_ROOT.'/plugins')) mkdir(INC_ROOT.'/plugins');
+		foreach (glob(INC_ROOT.'/plugins/*', GLOB_ONLYDIR) as $dir) foreach (glob($dir.'/*.php') as $plugin) require_once $plugin;
+	}
+	public static function init()
+	{
+		self::loadPlugins();
+		self::createDatabase();
+		if (isset($_SESSION['l'], $_SESSION['p']) && $_SESSION['p'] == INC_ROOT) self::$loggedIn = true;
+		$loginPage = self::getConfig('login');
+		$extracted = [];
+		$pages = [];
+		foreach (self::getPage() as $key => $value) $pages[$key] = $value;
+		$_page = preg_replace('!-+!', ' ', (empty(self::parseUrl()) || is_null(self::parseUrl())) ? self::getConfig('defaultPage') : self::parseUrl());
+		self::$_currentPage = $_page;
+		$page = mb_strtolower($_page);
+		if ($page == 'logout') self::logout();
+		if ( ! in_array($page, array_keys($pages))) {
+			if ($_page == $loginPage) $extracted = self::loginPage();
+			elseif (self::$loggedIn) {
+				$extracted = (array) self::newPage($page);
+				self::$newPage = true;
+				self::alert('info', '<b>This page ('.$page.') doesn\'t exist yet.</b> Click inside the content below and make your first edit to create it.');
+			} else $extracted = self::notFoundPage();
+		} else $extracted = (array) $pages[$page];
+		$extracted = self::hook('extracted', $extracted);
+		if (@is_array($extracted[0])) $extracted = $extracted[0];
+		@extract($extracted);
+		$blackList = ['password', 'login'];
+		foreach (self::getConfig() as $key => $value) if ( ! in_array($key, $blackList)) $$key = $value;
+		foreach (self::getConfig() as $key => $value) property_exists(__CLASS__, $key) ? self::$$key = $value : null;
+		if (self::$loggedIn) {
+			if (empty($content)) $content = 'Empty content (this text is visible only the admin).';
+			if (empty($subside)) $subside = 'Empty content (this text is visible only the admin).';
+			$content = self::editable('content', $content);
+			$subside = self::editable('subside', $subside);
 		}
-		if (in_array($fieldname, $metaTags)) {
-			if (!isset($wCMS->config->pageMeta->{$wCMS->config->currentPage})) $wCMS->config->pageMeta->{$wCMS->config->currentPage} = new stdClass();
-			$pageMeta = $wCMS->config->pageMeta->{$wCMS->config->currentPage};
-			$pageMeta->$fieldname = $content;
+		list($content, $subside) = self::hook('editable', $content, $subside);
+		self::$currentPage = $page;
+		self::delete();
+		self::save();
+		self::login();
+		self::notify();
+		self::hook('before', []);
+		require INC_ROOT.'/themes/'.self::getConfig('theme').'/theme.php';
+		self::hook('after', []);
+	}
+	public static function editable($id, $html)
+	{
+		return '<span id="'.$id.'" class="editText editable">'.$html.'</span>';
+	}
+	public static function createPage($name)
+	{
+		$details = self::newPage($name);
+		$db = json_decode(self::db());
+		$db->pages->$name = new stdClass();
+		$db->pages->$name->title = $details['title'];
+		$db->pages->$name->description = $details['description'];
+		$db->pages->$name->keywords = $details['keywords'];
+		$db->pages->$name->content = $details['content'];
+		self::pushContents($db);
+	}
+	public static function alert($class, $message, $sticky = false)
+	{
+		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky'  => $sticky];
+	}
+	public static function displayMessages()
+	{
+		if ( ! isset($_SESSION['alert'])) return;
+		$s = $_SESSION['alert'];
+		$output = '';
+		unset($_SESSION['alert']);
+		foreach ($s as $key => $value)
+			foreach ($value as $key => $val) $output .= '<div style="margin-bottom:0" class="alert alert-'.$val['class'].( ! $val['sticky'] ? ' alert-dismissible' : '').'">'.( ! $val['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '').$val['message'].'</div>';
+		return $output;
+	}
+	public static function notify()
+	{
+		if ( ! self::$loggedIn) return;
+		if (self::getConfig('login') == 'loginURL') self::alert('warning', '<b>Warning:</b> change your default login URL.', true);
+		if (password_verify('admin', self::getConfig('password'))) self::alert('danger', '<b>Protect your website:</b> change your default password.', true);
+	}
+	public static function delete()
+	{
+		if (is_null(self::g('delete')) || ! self::getPage(self::g('delete'))) return;
+		$db = json_decode(self::db());
+		$page = self::g('delete');
+		unset($db->pages->$page);
+		$menuItems  = self::getConfig('menuItems');
+		$_menuItems = array_map('mb_strtolower', $menuItems);
+		if (in_array($page, $_menuItems)) {
+			$index = array_search($page, $_menuItems);
+			unset($menuItems[$index]);
+		}
+		$db->config->menuItems = array_values($menuItems);
+		self::pushContents($db);
+		self::redirect();
+	}
+	public static function save()
+	{
+		if (is_null(self::p('fieldname')) || is_null(self::p('content')) || ! self::$loggedIn) return;
+		$fieldname = self::p('fieldname');
+		$content   = trim(self::p('content'));
+		if ($fieldname == 'menuItems') {
+			$content = array_filter(array_map('trim', explode('<br>', $content)));
+		}
+		if ($fieldname == 'defaultPage') {
+			if ( ! self::getPage($content) || empty($content)) return;
+		}
+		if ($fieldname == 'login') {
+			if (empty($content)) return;
+			if (self::getPage($content) !== false) return;
+		}
+		if ($fieldname == 'theme')
+			if ( ! is_dir(INC_ROOT.'/themes/'.$content)) return;
+		if ($fieldname == 'password') {
+			$oldPassword = self::p('old_password');
+			if (is_null($oldPassword)) return;
+			if ( ! password_verify($oldPassword, self::getConfig('password'))) {
+				self::alert('danger', 'Password changing failed: wrong password.');
+				self::redirect(self::$currentPage);
+			}
+			$content = password_hash($content, PASSWORD_DEFAULT);
+		}
+		if (self::getConfig($fieldname) !== false) self::setConfig($fieldname, $content);
+		else if (self::getPage(self::$currentPage) !== false) self::setPage($fieldname, $content);
+		else {
+			self::createPage(self::$currentPage);
+			self::setPage($fieldname, $content);
+		}
+		if ($fieldname == 'password') {
+			self::alert('success', 'Password changed.');
+			self::redirect(self::$currentPage);
+		}
+	}
+	public static function login()
+	{
+		if (self::$_currentPage == self::getConfig('login') && self::$loggedIn) self::redirect();
+		if (is_null(self::p('password')) || self::$_currentPage != self::getConfig('login')) return;
+		if (password_verify(self::p('password'), self::getConfig('password'))) {
+            $_SESSION['l'] = true;
+			$_SESSION['p'] = INC_ROOT;
+			self::redirect();
 		} else {
-			$wCMS->config->$fieldname = $content;
+			self::alert('danger', 'Wrong password.');
+			self::redirect(self::getConfig('login'));
 		}
-
-		$wCMS->config->menu = mb_convert_case($wCMS->config->menu, MB_CASE_LOWER, "UTF-8");
-
-		save($wCMS);
-		echo $content;
-		exit;
 	}
-}
-
-function menu() {
-	global $wCMS;
-	$mlist = explode("<br />\n", $wCMS->config->menu);
-	foreach ($mlist as $cp) { ?>
-		<li<?php if ($wCMS->config->currentPage == getSlug($cp)) echo " id='active'"; ?>><a href='<?php echo $wCMS->host . getSlug($cp); ?>'><?php echo $cp; ?></a></li>
-	<?php }
-}
-
-function login() {
-	global $wCMS;
-	if (password_verify($_POST['password'], $wCMS->config->password)) {
-		if ($_POST['new']) {
-			if (isLoggedIn()) {
-				echo "<script>alert('Password changed. Login with your new password.'); window.location = '?" . $wCMS->config->loginURL . "';</script>";
-				savePassword($_POST['new']);
-				exit;
-			} else {
-				exit;
-			}
+	public static function logout()
+	{
+		unset($_SESSION['l']);
+		self::redirect();
+	}
+	public static function getConfig($key = false)
+	{
+		if ( ! $key) return json_decode(self::db())->config;
+		return isset(json_decode(self::db())->config->$key) ? json_decode(self::db())->config->$key : false;
+	}
+	public static function setConfig($key, $value)
+	{
+		$db = json_decode(self::db());
+		$db->config->$key = $value;
+		self::pushContents($db);
+	}
+	public static function getPage($page = false)
+	{
+		if ( ! $page) return json_decode(self::db())->pages;
+		return isset(json_decode(self::db())->pages->$page) ? json_decode(self::db())->pages->$page : false;
+	}
+	public static function setPage($key, $value, $page = false)
+	{
+		if ( ! $page) $page = self::$currentPage;
+		$db = json_decode(self::db());
+		$db->pages->$page->$key = $value;
+		self::pushContents($db);
+	}
+	public static function pushContents($db)
+	{
+		file_put_contents(INC_ROOT.'/database.js', json_encode($db));
+	}
+	public static function redirect($location = null) {
+		header('Location: '.self::url($location));
+		die();
+	}
+	public static function asset($location) {
+		return self::url('themes/'.self::getConfig('theme').'/'.$location);
+	}
+	public static function url($location = null) {
+		return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 'https://' : 'http://').$_SERVER['HTTP_HOST'].str_replace($_SERVER['DOCUMENT_ROOT'], '', str_replace('\\', '/', INC_ROOT))."/{$location}";
+	}
+	public static function db()
+	{
+		return file_exists(INC_ROOT.'/database.js') ? file_get_contents(INC_ROOT.'/database.js') : false;
+	}
+	public static function getSlug($string)
+	{
+		return mb_strtolower(preg_replace('!\s+!', '-', $string));
+	}
+	public static function g($key)
+	{
+		return isset($_GET[$key]) ? $_GET[$key] : null;
+	}
+	public static function p($key)
+	{
+		return isset($_POST[$key]) ? $_POST[$key] : null;
+	}
+	public static function escape($string)
+	{
+		return htmlentities($string, ENT_QUOTES, 'UTF-8');
+	}
+	public static function parseUrl()
+	{
+		if ( ! is_null(self::g('page'))) return array_slice(explode('/', $_GET['page']), -1)[0];
+	}
+	public static function navigation($activeCode = ' class="active"')
+	{
+		$output = '';
+		foreach (self::getConfig('menuItems') as $item) {
+			$output .= '<li'.((mb_strtolower($item) == self::$currentPage) ? $activeCode : '').'><a href="'.self::url(self::getSlug($item)).'">'.$item.'</a></li>';
 		}
-
-		$_SESSION['l'] = $wCMS->config->password;
-		header('Location: ./');
-		exit;
-	} else {
-		echo "<script>alert('Wrong password.'); window.location = window.location.href;</script>";
-		exit;
+		$output = self::hook('navigation', $output, $activeCode);
+		if (@is_array($output)) $output = $output[0];
+		return $output;
+	}
+	public static function footer()
+	{
+		$output = self::getConfig('copyright').' &bull; '.'Powered by <a href="http://wondercms.com">WonderCMS</a>'.( ! self::$loggedIn ? ((self::getConfig('login') == 'loginURL') ? ' &bull; <a href="'.self::url('loginURL').'">Login</a>' : '') : ' &bull; <a href="'.self::url('logout').'">Logout</a>');
+		$output = self::hook('footer', $output);
+		if (@is_array($output)) $output = $output[0];
+		return $output;
+	}
+	public static function settings()
+	{
+		if ( ! self::$loggedIn) return;
+		$output ='<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">&#9776;</div><div class="col-xs-12 col-sm-8 col-sm-offset-2"><div id="settings" class="collapse text-left"><a href="'.self::url('?delete='.self::$currentPage).'" class="btn btn-danger'.(self::$newPage ? ' hide' : '').'" onclick="return confirm(\'Really delete page?\')">Delete current page ('.self::$currentPage.')</a><div class="marginTop20"></div><div class="form-group"><select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value);">';
+		foreach (glob(INC_ROOT.'/themes/*', GLOB_ONLYDIR) as $dir) $output .= '<option value="'.basename($dir).'"'.(basename($dir) == self::getConfig('theme') ? ' selected' : '').'>'.basename($dir).' theme'.'</option>';
+		$output .= '</select></div>';
+		$output .= '<div class="change"><span id="siteTitle" class="editText">'.(self::getConfig('siteTitle') != '' ? self::getConfig('siteTitle') : '').'</span></div><div class="change"><span id="copyright" class="editText">'.(self::getConfig('copyright') != '' ? self::getConfig('copyright') : '').'</span></div><div class="marginTop20"></div>';
+		if ( ! self::$newPage)
+		foreach (['title', 'description', 'keywords'] as $key) $output .= '<div class="change">'.(($key == 'title') ? '<b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Page title, unique for each page."></b>' : '').'<span id="'.$key.'" class="editText">'.(@self::getPage(self::$currentPage)->$key != '' ? @self::getPage(self::$currentPage)->$key : 'Page '.$key.', unique for each page').'</span></div>';
+		$output .= '<div class="marginTop20"></div><div class="change"><b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Menu: enter a new page name in a new line."></b><span id="menuItems" class="editText">';
+		if (empty(self::getConfig('menuItems'))) $output .= mb_convert_case(self::getConfig('defaultPage'), MB_CASE_TITLE);
+		foreach (self::getConfig('menuItems') as $key) $output .= $key.'<br>';
+		$output = rtrim($output, '<br>');
+		$output .= '</span></div><div class="change"><b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Default homepage: to make another page your default homepage, rename this to another existing page."></b><span id="defaultPage" class="editText">'.self::getConfig('defaultPage').'</span></div><div class="change"><b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Login URL: change it and bookmark it (eg: your-domain.com/yourLoginURL)."></b><span id="login" class="editText">'.self::getConfig('login').'</span></div><div class="change"><form action="'.self::url(self::$currentPage).'" method="post"><div class="form-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"></div><div class="form-group"><input type="password" name="content" class="form-control" placeholder="New password"></div><input type="hidden" name="fieldname" value="password"><button type="submit" class="btn btn-info">Change password</button></form></div><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Close settings</div></div></div></div></div>';
+		$output = self::hook('settings', $output);
+		if (@is_array($output)) $output = $output[0];
+		return $output;
+	}
+	public static function notFoundPage()
+	{
+		$output = ['title' => 'Page not found', 'keywords' => '', 'description' => '', 'content' => 'Sorry, page not found. :('];
+		$output = self::hook('not_found', $output);
+		if (@is_array($output[0])) $output = $output[0];
+		return $output;
+	}
+	public static function newPage($page)
+	{
+		$output = ['title' => mb_convert_case($page, MB_CASE_TITLE), 'description' => 'Page description, unique for each page', 'keywords' => 'Page, keywords, unique for, each, page', 'content' => '<p>Click here to create some content.</p> <p>Once you do that, this page will be eventually visited by search engines.</p>'];
+		$output = self::hook('new', $output);
+		if (@is_array($output[0])) $output = $output[0];
+		return $output;
+	}
+	public static function loginPage()
+	{
+		$output = ['title' => 'Login', 'keywords' => '', 'description' => '', 'content' => '<form action="'.self::url(self::getConfig('login')).'" method="post"><div class="col-xs-5"><div class="form-group"><input type="password" class="form-control" id="password" name="password"></div></div><button type="submit" class="btn btn-info">Login</button></form>'];
+		$output = self::hook('login', $output);
+		if (@is_array($output[0])) $output = $output[0];
+		return $output;
+	}
+	public static function createDatabase()
+	{
+		if ( ! self::db()) {
+			$db                 = new stdClass();
+			$db->pages          = new stdClass();
+			$db->config         = new stdClass();
+			$db->pages->home    = new stdClass();
+			$db->pages->example = new stdClass();
+			$db->pages->home->title       = 'Home';
+			$db->pages->home->keywords    = 'Page, keywords, unique, for, each, page';
+			$db->pages->home->description = 'Page description, unique for each page';
+			$db->pages->home->content     = '<h4>It\'s alive! Your website is now powered by WonderCMS.</h4> <p><a href="'.self::url('loginURL').'">Click here to login: the password is <b>admin</b>.</a></p> <p>Click on content to edit it, click outside to save it. Important: change your password as soon as possible.</p>';
+			$db->pages->example->title       = 'Example';
+			$db->pages->example->keywords    = 'Page, keywords, unique, for, each, page';
+			$db->pages->example->description = 'Page description, unique for each page';
+			$db->pages->example->content     = '<p>Example page.</p> <p>To add a new page, click on the existing pages in settings panel and enter a new one.</p>';
+			$db->config->siteTitle    = 'Website title';
+			$db->config->defaultPage  = 'home';
+			$db->config->theme        = 'default';
+			$db->config->menuItems    = ['Home', 'Example'];
+			$db->config->subside      = '<h4>ABOUT YOUR WEBSITE</h4> <p>Your photo, website description, contact information, mini map or anything else.</p> <p>This content is static and visible on all pages.</p>';
+			$db->config->copyright    = '&copy;2016 Your website';
+			$db->config->password     = password_hash('admin', PASSWORD_DEFAULT);
+			$db->config->login        = 'loginURL';
+			file_put_contents('database.js', json_encode($db));
+		}
 	}
 }
-
-function savePassword($password) {
-	global $wCMS;
-	$wCMS->config->password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 11]);
-	session_destroy();
-	save($wCMS);
-}
-
-function save($data) {
-	unset($data->n);
-	file_put_contents('config.php', '<?php $wCMS="' . urlencode(json_encode($data)) . '"; ?>');
-}
-
-function deletePage($page) {
-	global $wCMS;
-	unset($wCMS->config->pageMeta->{$page});
-	unset($wCMS->config->{$page});
-	$page = str_replace('-', ' ', $page);
-	unset($wCMS->config->{$page});
-
-	$e = explode("<br />\n", $wCMS->config->menu);
-	$index = array_search($page, $e);
-	if ($index !== false) {
-		unset($e[$index]);
-		$wCMS->config->menu = implode("<br />\n", $e);
-	}
-	save($wCMS);
-}
-
-function host() {
-	global $wCMS;
-	$req = isset($_REQUEST['page']) ? $_REQUEST['page'] : '';
-	$rp = preg_replace('#/+#', '/', (isset($req)) ? urldecode($req) : '');
-	$host = htmlspecialchars($_SERVER['HTTP_HOST'], ENT_QUOTES);
-	$uri = preg_replace('#/+#', '/', urldecode($_SERVER['REQUEST_URI']));
-	$host = (strrpos($uri, $rp) !== false) ? $host . '/' . substr($uri, 0, strlen($uri) - strlen($rp)) : $host . '/' . $uri;
-	$host = explode('?', $host);
-	$host = '//' . str_replace('//', '/', $host[0]);
-	$strip = array('index.php', '?', '"', '\'', '>', '<', '=', '(', ')', '\\','..','%3C','%3E','&gt;','&lt');
-	$rp = strip_tags(str_replace($strip, '', $rp));
-	$host = strip_tags(str_replace($strip, '', $host));
-
-	$wCMS->host = $host;
-	$wCMS->requestedPage = $rp;
-	
-	if (strtolower($rp) == 'password') { $wCMS->requestedPage = '404'; }
-	
-	$wCMS->config->currentPage = getSlug(($wCMS->requestedPage) ? $wCMS->requestedPage : $wCMS->config->page);
-}
-
-function metaTags($key) {
-	global $wCMS;
-	if (isset($wCMS->config->pageMeta->{$wCMS->config->currentPage}->$key)) {
-		return $wCMS->config->pageMeta->{$wCMS->config->currentPage}->$key;
-	} else {
-		return $wCMS->config->$key;
-	}
-}
-
-function settings() {
-	global $wCMS;
-	if ($wCMS->config->loginURL == 'loginURL' && isLoggedIn()) echo "<div class='alert alert-danger' role='alert' style='margin-bottom: 0;'><b>Protect your website:</b> change your default login URL and password.</div>";
-	echo "<style>#adminPanel{color:#fff;background:#1ab}.grayFont{color: #444;}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{border:0;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box;}#save{left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{margin:5px 0;padding:20px;border-radius:5px;background:#1f2b33}.marginTop20{margin-top:20px;}</style>
-		<div id='save'><h2>Saving...</h2></div>
-		<div id='adminPanel' class='container-fluid'>
-			<div class='padding20 toggle text-center' data-toggle='collapse' data-target='#settings'>&#9776;</div>
-			<div class='col-xs-12 col-sm-8 col-sm-offset-2'>
-				<div id='settings' class='collapse text-left'>
-					<a href='?delete=" . $wCMS->config->currentPage . "' class='btn btn-danger' onclick='return confirm(\"Really delete page?\");' type='button'>Delete current page (".$wCMS->config->currentPage.")</a><div class='marginTop20'></div>
-						<div class='form-group'><select class='form-control' name='themeSelect' onchange='fieldSave(\"themeSelect\",this.value);'>";
-						if(chdir('./themes/')){
-							$dirs = glob('*', GLOB_ONLYDIR);
-							foreach($dirs as $val){
-								$select = ($val == $wCMS->config->themeSelect) ? ' selected' : '';
-								echo "
-								<option value='".$val."'".$select.">".$val.'</option>';
-							}
-						}
-						echo "
-						</select></div>";
-				foreach (['description', 'keywords','title','copyright'] as $key) {
-					echo "
-					<div class='change'>
-						<span id='" . $key . "' class='editText'>" . metaTags($key) . "</span>
-					</div>";
-				}
-				echo "
-					<div class='change marginTop20'>
-						<b style='font-size: 22px; text-align: right' class='glyphicon glyphicon-info-sign' aria-hidden='true' data-toggle='tooltip' data-placement='right' title='Menu: enter a new page name in a new line.'></b>
-						<span id='menu' class='editText'>" . $wCMS->config->menu . "</span>
-					</div>
-					<div class='change'>
-						<b style='font-size: 22px;' class='glyphicon glyphicon-info-sign' aria-hidden='true' data-toggle='tooltip' data-placement='right' title='Default homepage: to make another page your default homepage, rename this to another existing page.'></b>
-						<span id='page' class='editText'>" . $wCMS->config->page . "</span>
-					</div>
-					<div class='change'>
-						<span id='loginURL' class='editText'>" . $wCMS->config->loginURL . "</span>
-						<br />Current login URL (once you change it, bookmark it):<br />http:" . $wCMS->host . "?<b>" . $wCMS->config->loginURL . "</b>
-					</div>
-					<div class='change grayFont marginTop20'>
-						<form action='' method='POST'>
-							<div class='form-group'><input class='form-control' type='password' name='password' placeholder='Old password'></div>
-							<div class='form-group'><input class='form-control' type='password' name='new' placeholder='New password'></div>
-							<button class='btn btn-info' type='submit' name='" . $wCMS->config->loginURL . "'>Change password</button>
-							<input type='hidden' name='sub' value='sub'>
-						</form>
-					</div>
-					<div class='padding20 toggle text-center' data-toggle='collapse' data-target='#settings'>Close settings</div>
-				</div>
-			</div>
-		</div>";
-}
-?>
+wCMS::init();
