@@ -1,9 +1,7 @@
 Options -Indexes
 ServerSignature Off
-Header always append X-Frame-Options SAMEORIGIN
-
 RewriteEngine on
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond $1#%{REQUEST_URI} ([^#]*)#(.*)\1$
-RewriteRule ^([^\.]+)$ %2?page=$1 [QSA,L]
+RewriteRule ^(.+)$ index.php?page=$1 [QSA,L]
+RewriteRule database.js - [F]
