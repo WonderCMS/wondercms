@@ -1,4 +1,4 @@
-### WonderCMS v0.9.9 beta
+### WonderCMS 1.0.0 beta (awesome release thanks to Yassine Adi)
 WonderCMS is simple, small and secure.
 The smallest flat file CMS which enables you to create a website in seconds.
 
@@ -18,6 +18,7 @@ The smallest flat file CMS which enables you to create a website in seconds.
  - .htaccess support
 
 ### Features
+ - better plugin support + working WYSIWYG editor (available as a standalone plugin)
  - simple click and edit functionality
  - no configuration required, unzip and upload
  - lightweight - runs on less than 500 lines of code and has less than 10 files
@@ -33,6 +34,15 @@ The smallest flat file CMS which enables you to create a website in seconds.
  - better SEO support (keywords and description for each page)
  - (optional) functions.php file includes itself when you create it
  - made with PHP, jQuery, HTML, CSS and a flat JSON database
+
+### How to update from older versions?
+Upgrading from previous versions is not possible by rewriting the old version with the new one. To have the WonderCMS latest version with your current website content, you will have to:
+ - Make a fresh installation of the latest WonderCMS somewhere on your server.
+ - Paste your old content into the new installation.
+ - Remove the old installation.
+ - Move the new installation tothe old WonderCMS installation location.
+
+Future releases of WonderCMS will be backwards compatible.
 
 ### Links
 - WonderCMS website: https://wondercms.com/
