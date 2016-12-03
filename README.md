@@ -17,6 +17,9 @@ The smallest flat file CMS which enables you to create a website in seconds.
  - PHP 5.5 or higher
  - .htaccess support
 
+### WonderCMS community
+- https://wondercms.com/forum/
+
 ### Features
  - better plugin support + working WYSIWYG editor (available as a standalone plugin)
  - simple click and edit functionality
@@ -46,7 +49,6 @@ Future releases of WonderCMS will be backwards compatible.
 
 ### Links
 - WonderCMS website: https://wondercms.com/
-- WonderCMS forums: https://wondercms.com/forum/
 - WonderCMS on Twitter: https://twitter.com/wondercms
 - WonderCMS donations: https://wondercms.com - can donate from anywhere on the WonderCMS website
 - Special contributors: https://wondercms.com/special-contributors
