@@ -13,7 +13,7 @@ class wCMS
 	public static function hook()
 	{
 		$numArgs = func_num_args();
-		$args    = func_get_args();
+		$args = func_get_args();
 		if ($numArgs < 2) trigger_error('Insufficient arguments', E_USER_ERROR);
 		$hookName = array_shift($args);
 		if ( ! isset(self::$listeners[$hookName])) return $args;
@@ -113,7 +113,8 @@ EOT;
 	}
 	public static function alert($class, $message, $sticky = false)
 	{
-		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky'  => $sticky];
+		if (isset($_SESSION['alert'][$class])) foreach ($_SESSION['alert'][$class] as $k => $v) if ($v['message'] == $message) return;
+		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
 	}
 	public static function displayMessages()
 	{
@@ -137,7 +138,7 @@ EOT;
 		$db = json_decode(self::db());
 		$page = self::g('delete');
 		unset($db->pages->$page);
-		$menuItems  = self::getConfig('menuItems');
+		$menuItems = self::getConfig('menuItems');
 		$_menuItems = array_map('mb_strtolower', $menuItems);
 		if (in_array($page, $_menuItems)) {
 			$index = array_search($page, $_menuItems);
@@ -151,7 +152,7 @@ EOT;
 	{
 		if (is_null(self::p('fieldname')) || is_null(self::p('content')) || ! self::$loggedIn) return;
 		$fieldname = self::p('fieldname');
-		$content   = trim(self::p('content'));
+		$content = trim(self::p('content'));
 		if ($fieldname == 'menuItems') {
 			$content = array_filter(array_map('trim', explode('<br>', $content)));
 		}
@@ -189,7 +190,7 @@ EOT;
 		if (self::$_currentPage == self::getConfig('login') && self::$loggedIn) self::redirect();
 		if (is_null(self::p('password')) || self::$_currentPage != self::getConfig('login')) return;
 		if (password_verify(self::p('password'), self::getConfig('password'))) {
-            $_SESSION['l'] = true;
+			$_SESSION['l'] = true;
 			$_SESSION['p'] = INC_ROOT;
 			self::redirect();
 		} else {
@@ -307,7 +308,7 @@ EOT;
 	}
 	public static function newPage($page)
 	{
-		$output = ['title' => mb_convert_case($page, MB_CASE_TITLE), 'description' => 'Page description, unique for each page', 'keywords' => 'Page, keywords, unique for, each, page', 'content' => '<p>Click here to create some content.</p> <p>Once you do that, this page will be eventually visited by search engines.</p>'];
+		$output = ['title' => mb_convert_case($page, MB_CASE_TITLE), 'description' => 'Page description, unique for each page', 'keywords' => 'Page keywords, unique for each page', 'content' => '<p>Click here to create some content.</p><br>Once you do that, this page will be eventually visited by search engines.'];
 		$output = self::hook('new', $output);
 		if (@is_array($output[0])) $output = $output[0];
 		return $output;
@@ -322,27 +323,27 @@ EOT;
 	public static function createDatabase()
 	{
 		if ( ! self::db()) {
-			$db                 = new stdClass();
-			$db->pages          = new stdClass();
-			$db->config         = new stdClass();
-			$db->pages->home    = new stdClass();
+			$db = new stdClass();
+			$db->pages = new stdClass();
+			$db->config = new stdClass();
+			$db->pages->home = new stdClass();
 			$db->pages->example = new stdClass();
-			$db->pages->home->title       = 'Home';
-			$db->pages->home->keywords    = 'Page, keywords, unique, for, each, page';
+			$db->pages->home->title = 'Home';
+			$db->pages->home->keywords = 'Page, keywords, unqiue, for, each, page';
 			$db->pages->home->description = 'Page description, unique for each page';
-			$db->pages->home->content     = '<h4>It\'s alive! Your website is now powered by WonderCMS.</h4> <p><a href="'.self::url('loginURL').'">Click here to login: the password is <b>admin</b>.</a></p> <p>Click on content to edit it, click outside to save it. Important: change your password as soon as possible.</p>';
-			$db->pages->example->title       = 'Example';
-			$db->pages->example->keywords    = 'Page, keywords, unique, for, each, page';
+			$db->pages->home->content = '<h4>It\'s alive! Your website is now powered by WonderCMS.</h4> <p><a href="'.self::url('loginURL').'">Click here to login: the password is <b>admin</b>.</a></p> <p>Click on content to edit it, click outside to save it. Important: change your password as soon as possible.</p>';
+			$db->pages->example->title = 'Example';
+			$db->pages->example->keywords = 'Page, keywords, unique, for, each, page';
 			$db->pages->example->description = 'Page description, unique for each page';
-			$db->pages->example->content     = '<p>Example page.</p> <p>To add a new page, click on the existing pages in settings panel and enter a new one.</p>';
-			$db->config->siteTitle    = 'Website title';
-			$db->config->defaultPage  = 'home';
-			$db->config->theme        = 'default';
-			$db->config->menuItems    = ['Home', 'Example'];
-			$db->config->subside      = '<h4>ABOUT YOUR WEBSITE</h4> <p>Your photo, website description, contact information, mini map or anything else.</p> <p>This content is static and visible on all pages.</p>';
-			$db->config->copyright    = '&copy;2016 Your website';
-			$db->config->password     = password_hash('admin', PASSWORD_DEFAULT);
-			$db->config->login        = 'loginURL';
+			$db->pages->example->content = '<p>Example page.</p> <p>To add a new page, click on the existing pages in settings panel and enter a new one.</p>';
+			$db->config->siteTitle = 'Website title';
+			$db->config->defaultPage = 'home';
+			$db->config->theme = 'default';
+			$db->config->menuItems = ['Home', 'Example'];
+			$db->config->subside = '<h4>ABOUT YOUR WEBSITE</h4> <p>Your photo, website description, contact information, mini map or anything else.</p> <p>This content is static and visible on all pages.</p>';
+			$db->config->copyright = '&copy;2016 Your website';
+			$db->config->password = password_hash('admin', PASSWORD_DEFAULT);
+			$db->config->login = 'loginURL';
 			file_put_contents('database.js', json_encode($db));
 		}
 	}
