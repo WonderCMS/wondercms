@@ -9,7 +9,7 @@ The smallest flat file CMS which enables you to create a website in seconds.
 1.  Unzip.
 2.  Upload the files wherever you wish WonderCMS to be installed at.
 
-### WonderCMS works by default on Apache. To make it work with NGINX, put the following into your NGINX server config:
+### WonderCMS works by default on Apache. To make it work with NGINX, put the following code into your NGINX server config:
 ```
 location ~ database.js {
 	return 403;
@@ -49,7 +49,7 @@ location / {
  - highlighted current page
  - mobile responsive, easy to theme, 404 pages, clean URLs
  - page deleting easier than ever
- - better SEO support (keywords and description for each page)
+ - better SEO support (title, keywords and description for each page)
  - (optional) functions.php file includes itself when you create it
  - made with PHP, jQuery, HTML, CSS and a flat JSON database
 
@@ -58,7 +58,7 @@ Upgrading from previous versions is not possible by rewriting the old version wi
  - Make a fresh installation of the latest WonderCMS somewhere on your server.
  - Paste your old content into the new installation.
  - Remove the old installation.
- - Move the new installation tothe old WonderCMS installation location.
+ - Move the new installation to the old WonderCMS installation location.
 
 Future releases of WonderCMS will be backwards compatible.
 
