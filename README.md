@@ -9,6 +9,21 @@ The smallest flat file CMS which enables you to create a website in seconds.
 1.  Unzip.
 2.  Upload the files wherever you wish WonderCMS to be installed at.
 
+### WonderCMS works by default on Apache. To make it work with NGINX, put the following into your NGINX server config:
+```
+location ~ database.js {
+	return 403;
+}
+
+autoindex off;
+
+location / {
+	if (!-e $request_filename) {
+		rewrite ^(.+)$ /index.php?page=$1 break;
+	}
+}
+```
+
 ### If any errors occur, please correct file permissions to 644 and folder permissions to 755. You can do this manually or with the script below (added by Bill Carson)
   - `find ./ -type d -exec chmod 755 {} \;`
   - `find ./ -type f -exec chmod 644 {} \;`
