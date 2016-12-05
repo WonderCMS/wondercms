@@ -64,6 +64,10 @@ Future releases of WonderCMS will be backwards compatible.
 
 ### Links
 - WonderCMS website: https://wondercms.com/
-- WonderCMS on Twitter: https://twitter.com/wondercms
-- WonderCMS donations: https://wondercms.com - can donate from anywhere on the WonderCMS website
+- WonderCMS community: https://wondercms.com/forum
+- WonderCMS Twitter: https://twitter.com/wondercms
+- WonderCMS donations: https://wondercms.com/donate
 - Special contributors: https://wondercms.com/special-contributors
+
+- WonderCMS themes repository: https://github.com/robiso/wondercms-themes
+- WonderCMS plugins repository: https://github.com/robiso/wondercms-plugins
