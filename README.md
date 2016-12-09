@@ -1,6 +1,10 @@
-### WonderCMS 1.0.0 beta (awesome release thanks to Yassine Addi)
+### WonderCMS 1.1.0 beta (awesome release thanks to Yassine Addi)
 WonderCMS is simple, small and secure.
 The smallest flat file CMS which enables you to create a website in seconds.
+
+### Whats new
+- **WonderCMS one click update functionality**
+- fixed bug - removed issue of the characters (b, r, < and >) being trimmed in the menu list
 
 ### WonderCMS demo
 - https://wondercms.com/demo
