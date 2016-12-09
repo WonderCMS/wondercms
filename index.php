@@ -1,6 +1,7 @@
-<?php // WonderCMS 1.0.0 beta • wondercms.com • license: MIT
+<?php // WonderCMS • wondercms.com • license: MIT
 session_start();
 define('INC_ROOT', dirname(__FILE__));
+define('VERSION', '1.1.0');
 mb_internal_encoding('UTF-8');
 if (file_exists(INC_ROOT.'/functions.php')) require INC_ROOT.'/functions.php';
 class wCMS
@@ -81,8 +82,8 @@ EOT;
 		foreach (self::getConfig() as $key => $value) if ( ! in_array($key, $blackList)) $$key = $value;
 		foreach (self::getConfig() as $key => $value) property_exists(__CLASS__, $key) ? self::$$key = $value : null;
 		if (self::$loggedIn) {
-			if (empty($content)) $content = 'Empty content (this text is visible only the admin).';
-			if (empty($subside)) $subside = 'Empty content (this text is visible only the admin).';
+			if (empty($content)) $content = 'Empty content.';
+			if (empty($subside)) $subside = 'Empty content.';
 			$content = self::editable('content', $content);
 			$subside = self::editable('subside', $subside);
 		}
@@ -91,6 +92,7 @@ EOT;
 		self::delete();
 		self::save();
 		self::login();
+		self::upgrade();
 		self::notify();
 		self::hook('before', []);
 		require INC_ROOT.'/themes/'.self::getConfig('theme').'/theme.php';
@@ -131,6 +133,27 @@ EOT;
 		if ( ! self::$loggedIn) return;
 		if (self::getConfig('login') == 'loginURL') self::alert('warning', '<b>Warning:</b> change your default login URL.', true);
 		if (password_verify('admin', self::getConfig('password'))) self::alert('danger', '<b>Protect your website:</b> change your default password.', true);
+		if ( ! self::isConnected()) return;
+		$version = trim(file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
+		if ($version == VERSION) return;
+		self::alert('info', '<b>Your WonderCMS version is out of date:</b> backup your files before updating. <form style="display:inline" action="" method="post"><button class="btn btn-info" name="upgrade">Update WonderCMS</button></form>', true);
+	}
+	public static function upgrade()
+	{
+		if (is_null(self::p('upgrade')) || ! self::isConnected()) return;
+		$content = file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
+		file_put_contents(__FILE__, $content);
+		self::alert('success', 'WonderCMS successfully updated. Wohoo!');
+		self::redirect(self::$currentPage);
+	}
+	public static function isConnected()
+	{
+		$connected = @fsockopen('www.google.com', 80);
+		if ($connected) {
+			fclose($connected);
+			return true;
+		}
+		return false;
 	}
 	public static function delete()
 	{
@@ -167,10 +190,13 @@ EOT;
 			if ( ! is_dir(INC_ROOT.'/themes/'.$content)) return;
 		if ($fieldname == 'password') {
 			$oldPassword = self::p('old_password');
-			if (is_null($oldPassword)) return;
 			if ( ! password_verify($oldPassword, self::getConfig('password'))) {
-				self::alert('danger', 'Password changing failed: wrong password.');
+				self::alert('danger', '<b>Password changing failed:</b> wrong password.');
 				self::redirect(self::$currentPage);
+			}
+			if (strlen($content) < 4) {
+				self::alert('danger', '<b>Password changing failed:</b> password must be longer than 4 characters.');
+				self::redirect(self::$currentPage);	
 			}
 			$content = password_hash($content, PASSWORD_DEFAULT);
 		}
@@ -276,7 +302,7 @@ EOT;
 	}
 	public static function footer()
 	{
-		$output = self::getConfig('copyright').' &bull; '.'Powered by <a href="http://wondercms.com">WonderCMS</a>'.( ! self::$loggedIn ? ((self::getConfig('login') == 'loginURL') ? ' &bull; <a href="'.self::url('loginURL').'">Login</a>' : '') : ' &bull; <a href="'.self::url('logout').'">Logout</a>');
+		$output = self::getConfig('copyright').' &bull; '.'Powered by <a href="https://wondercms.com">WonderCMS</a>'.( ! self::$loggedIn ? ((self::getConfig('login') == 'loginURL') ? ' &bull; <a href="'.self::url('loginURL').'">Login</a>' : '') : ' &bull; <a href="'.self::url('logout').'">Logout</a>');
 		$output = self::hook('footer', $output);
 		if (@is_array($output)) $output = $output[0];
 		return $output;
@@ -289,12 +315,12 @@ EOT;
 		$output .= '</select></div>';
 		$output .= '<div class="change"><span id="siteTitle" class="editText">'.(self::getConfig('siteTitle') != '' ? self::getConfig('siteTitle') : '').'</span></div><div class="change"><span id="copyright" class="editText">'.(self::getConfig('copyright') != '' ? self::getConfig('copyright') : '').'</span></div><div class="marginTop20"></div>';
 		if ( ! self::$newPage)
-		foreach (['title', 'description', 'keywords'] as $key) $output .= '<div class="change">'.(($key == 'title') ? '<b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Page title, unique for each page."></b>' : '').'<span id="'.$key.'" class="editText">'.(@self::getPage(self::$currentPage)->$key != '' ? @self::getPage(self::$currentPage)->$key : 'Page '.$key.', unique for each page').'</span></div>';
-		$output .= '<div class="marginTop20"></div><div class="change"><b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Menu: enter a new page name in a new line."></b><span id="menuItems" class="editText">';
+		foreach (['title', 'description', 'keywords'] as $key) $output .= '<div class="change">'.(($key == 'title') ? '<h3 class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Page title, unique for each page."></h3>' : '').'<span id="'.$key.'" class="editText">'.(@self::getPage(self::$currentPage)->$key != '' ? @self::getPage(self::$currentPage)->$key : 'Page '.$key.', unique for each page').'</span></div>';
+		$output .= '<div class="marginTop20"></div><div class="change"><h3 class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Menu: enter a new page name in a new line."></h3><span id="menuItems" class="editText">';
 		if (empty(self::getConfig('menuItems'))) $output .= mb_convert_case(self::getConfig('defaultPage'), MB_CASE_TITLE);
 		foreach (self::getConfig('menuItems') as $key) $output .= $key.'<br>';
-		$output = rtrim($output, '<br>');
-		$output .= '</span></div><div class="change"><b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Default homepage: to make another page your default homepage, rename this to another existing page."></b><span id="defaultPage" class="editText">'.self::getConfig('defaultPage').'</span></div><div class="change"><b style="font-size: 22px;" class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Login URL: change it and bookmark it (eg: your-domain.com/yourLoginURL)."></b><span id="login" class="editText">'.self::getConfig('login').'</span></div><div class="change"><form action="'.self::url(self::$currentPage).'" method="post"><div class="form-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"></div><div class="form-group"><input type="password" name="content" class="form-control" placeholder="New password"></div><input type="hidden" name="fieldname" value="password"><button type="submit" class="btn btn-info">Change password</button></form></div><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Close settings</div></div></div></div></div>';
+		$output = preg_replace('/(<br>)+$/', '', $output);
+		$output .= '</span></div><div class="change"><h3 class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Default homepage: to make another page your default homepage, rename this to another existing page."></h3><span id="defaultPage" class="editText">'.self::getConfig('defaultPage').'</span></div><div class="change"><h3 class="glyphicon glyphicon-info-sign" aria-hidden="true" data-toggle="tooltip" data-placement="right" title="Login URL: change it and bookmark it (eg: your-domain.com/yourLoginURL)."></h3><span id="login" class="editText">'.self::getConfig('login').'</span></div><div class="change"><form action="'.self::url(self::$currentPage).'" method="post"><div class="form-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"></div><div class="form-group"><input type="password" name="content" class="form-control" placeholder="New password"></div><input type="hidden" name="fieldname" value="password"><button type="submit" class="btn btn-info">Change password</button></form></div><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Close settings</div></div></div></div></div>';
 		$output = self::hook('settings', $output);
 		if (@is_array($output)) $output = $output[0];
 		return $output;
@@ -308,7 +334,7 @@ EOT;
 	}
 	public static function newPage($page)
 	{
-		$output = ['title' => mb_convert_case($page, MB_CASE_TITLE), 'description' => 'Page description, unique for each page', 'keywords' => 'Page keywords, unique for each page', 'content' => '<p>Click here to create some content.</p><br>Once you do that, this page will be eventually visited by search engines.'];
+		$output = ['title' => mb_convert_case($page, MB_CASE_TITLE), 'description' => 'Page description, unique for each page', 'keywords' => 'Page, keywords, unique, for, each, page', 'content' => '<p>Click here to create some content.</p><br>Once you do that, this page will be eventually visited by search engines.'];
 		$output = self::hook('new', $output);
 		if (@is_array($output[0])) $output = $output[0];
 		return $output;
@@ -331,7 +357,7 @@ EOT;
 			$db->pages->home->title = 'Home';
 			$db->pages->home->keywords = 'Page, keywords, unqiue, for, each, page';
 			$db->pages->home->description = 'Page description, unique for each page';
-			$db->pages->home->content = '<h4>It\'s alive! Your website is now powered by WonderCMS.</h4> <p><a href="'.self::url('loginURL').'">Click here to login: the password is <b>admin</b>.</a></p> <p>Click on content to edit it, click outside to save it. Important: change your password as soon as possible.</p>';
+			$db->pages->home->content = '<h4>It\'s alive! Your website is now powered by WonderCMS.</h4><p><a href="'.self::url('loginURL').'">Click here to login: the password is <b>admin</b>.</a></p><p>Simply click on content to edit, click outside to save it.</p>';
 			$db->pages->example->title = 'Example';
 			$db->pages->example->keywords = 'Page, keywords, unique, for, each, page';
 			$db->pages->example->description = 'Page description, unique for each page';
@@ -340,11 +366,11 @@ EOT;
 			$db->config->defaultPage = 'home';
 			$db->config->theme = 'default';
 			$db->config->menuItems = ['Home', 'Example'];
-			$db->config->subside = '<h4>ABOUT YOUR WEBSITE</h4> <p>Your photo, website description, contact information, mini map or anything else.</p> <p>This content is static and visible on all pages.</p>';
-			$db->config->copyright = '&copy;2016 Your website';
+			$db->config->subside = '<h4>ABOUT YOUR WEBSITE</h4><p>Your photo, website description, contact information, mini map or anything else.</p><p>This content is static and visible on all pages.</p>';
+			$db->config->copyright = '&copy; '.date('Y').' Your website';
 			$db->config->password = password_hash('admin', PASSWORD_DEFAULT);
 			$db->config->login = 'loginURL';
-			file_put_contents('database.js', json_encode($db));
+			self::pushContents($db);
 		}
 	}
 }
