@@ -1,10 +1,12 @@
-### WonderCMS 1.1.0 beta (awesome release thanks to Yassine Addi)
-WonderCMS is simple, small and secure.
+### WonderCMS 1.1.0 beta
+WonderCMS is simple, small and secure. [You can download it here (GitHub release ZIP file)](https://github.com/robiso/wondercms/releases/download/1.1.0-beta/WonderCMS-1.1.0-beta.zip).
+
 The smallest flat file CMS which enables you to create a website in seconds.
 
 ### Whats new
-- **WonderCMS one click update functionality**
-- fixed bug - removed issue of the characters (b, r, < and >) being trimmed in the menu list
+- **WonderCMS one click update functionality** - thanks to Yassine Addi
+- fixed bug - removed issue of the characters (b, r, < and >) being trimmed in the menu list - thanks to Yassine Addi
+- additional plugins available as standalone downloads
 
 ### WonderCMS demo
 - https://wondercms.com/demo
