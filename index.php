@@ -1,9 +1,8 @@
 <?php // WonderCMS • wondercms.com • license: MIT
 session_start();
 define('INC_ROOT', dirname(__FILE__));
-define('VERSION', '1.1.0');
+define('VERSION', '1.2.0');
 mb_internal_encoding('UTF-8');
-if (file_exists(INC_ROOT.'/functions.php')) require INC_ROOT.'/functions.php';
 class wCMS
 {
 	public static $loggedIn = false;
@@ -95,6 +94,7 @@ EOT;
 		self::upgrade();
 		self::notify();
 		self::hook('before', []);
+		if (file_exists(INC_ROOT.'/themes/'.self::getConfig('theme').'/functions.php')) require INC_ROOT.'/themes/'.self::getConfig('theme').'/functions.php';
 		require INC_ROOT.'/themes/'.self::getConfig('theme').'/theme.php';
 		self::hook('after', []);
 	}
