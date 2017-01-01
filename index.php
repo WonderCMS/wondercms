@@ -35,7 +35,7 @@ EOT;
 	public static function css()
 	{
 		$style = <<<'EOT'
-<style>#adminPanel{color:#fff;background:#1ab}.grayFont{color: #444;}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{border:0;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box;}#save{left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{margin:5px 0;padding:20px;border-radius:5px;background:#1f2b33}.marginTop20{margin-top:20px;}</style>
+<style>#adminPanel{color:#fff;background:#1ab}.grayFont{color: #444;}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{border:0;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box;}#save{left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{margin:5px 0;padding:20px;border-radius:5px;background:#1f2b33}.marginTop20{margin-top:20px;}.padding20{padding:20px;}</style>
 EOT;
 		$css = [$style];
 		$css = self::hook('css', $css);
