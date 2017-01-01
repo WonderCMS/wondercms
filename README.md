@@ -1,19 +1,34 @@
-### WonderCMS 1.1.0 beta
-WonderCMS is simple, small and secure. [You can download it here (GitHub release ZIP file)](https://github.com/robiso/wondercms/releases/download/1.1.0-beta/WonderCMS-1.1.0-beta.zip).
-
-The smallest flat file CMS which enables you to create a website in seconds.
-
-### Whats new
-- **WonderCMS one click update functionality** - thanks to Yassine Addi
-- fixed bug - removed issue of the characters (b, r, < and >) being trimmed in the menu list - thanks to Yassine Addi
-- additional plugins available as standalone downloads
-
 ### WonderCMS demo
 - https://wondercms.com/demo
 
+### WonderCMS 1.2.0 beta download
+WonderCMS is simple, small and secure. [You can download it here (GitHub release file - ZIP)](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip).
+
 ### Installation
-1.  Unzip.
-2.  Upload the files wherever you wish WonderCMS to be installed at.
+- Unzip and upload the files wherever you wish WonderCMS to be installed at.
+
+### Requirements
+ - PHP 5.5 or higher
+ - .htaccess support
+
+### Whats new in 1.2.0 beta
+- custom functions.php file per theme - WonderCMS will automatically include your functions.php file if it exists in your themes folder (/themes/yourTheme/functions.php)
+- added padding20 CSS class to the admin settings panel
+
+### Features
+ - no configuration required, unzip and upload
+ - simple click and edit functionality
+ - lightweight - runs on a couple hundred lines and 5 files
+ - custom login URL
+ - custom homepage
+ - better password protection
+ - highlighted current page
+ - mobile responsive, easy to theme, 404 pages, clean URLs
+ - page deleting easier than ever
+ - better SEO support - custom title, keywords and description for each page
+ - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
+ - no known vulnerabilities - special thanks to yassineaddi, hypnito and other security researchers
+ - made with PHP, jQuery, HTML, CSS and a flat JSON database
 
 ### WonderCMS works by default on Apache. To make it work with NGINX, put the following code into your NGINX server config:
 ```
@@ -34,31 +49,6 @@ location / {
   - `find ./ -type d -exec chmod 755 {} \;`
   - `find ./ -type f -exec chmod 644 {} \;`
 
-### Requirements
- - PHP 5.5 or higher
- - .htaccess support
-
-### WonderCMS community
-- https://wondercms.com/forum/
-
-### Features
- - better plugin support + working WYSIWYG editor (available as a standalone plugin)
- - simple click and edit functionality
- - no configuration required, unzip and upload
- - lightweight - runs on less than 500 lines of code and has less than 10 files
- - simplified code
- - custom login URL
- - custom homepage
- - rebuilt mostly from scratch + MIT license
- - better password protection
- - no other known vulnerabilities (special thanks to yassineaddi and hypnito)
- - highlighted current page
- - mobile responsive, easy to theme, 404 pages, clean URLs
- - page deleting easier than ever
- - better SEO support (title, keywords and description for each page)
- - (optional) functions.php file includes itself when you create it
- - made with PHP, jQuery, HTML, CSS and a flat JSON database
-
 ### How to update from older versions?
 Upgrading from previous versions is not possible by rewriting the old version with the new one. To have the WonderCMS latest version with your current website content, you will have to:
  - Make a fresh installation of the latest WonderCMS somewhere on your server.
@@ -66,7 +56,7 @@ Upgrading from previous versions is not possible by rewriting the old version wi
  - Remove the old installation.
  - Move the new installation to the old WonderCMS installation location.
 
-Future releases of WonderCMS will be backwards compatible.
+Future releases as of 1.1.0 are be backwards compatible by using the one click update functionality.
 
 ### Links
 - WonderCMS website: https://wondercms.com/
