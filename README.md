@@ -1,15 +1,22 @@
-### WonderCMS demo
+### Description
+WonderCMS is very simple and lightweight flat file CMS made with PHP, jQuery, HTML, CSS and a flat JSON database.
+It runs on 5 files and a couple hundred lines of code.
+
+### Demo
 - https://wondercms.com/demo
 
-### WonderCMS 1.2.0 beta download
-WonderCMS is simple, small and secure. [You can download it here (GitHub release file - ZIP)](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip).
+### Download
+[Download ZIP from GitHub](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip).
 
-### Installation
+### Setup
 - Unzip and upload the files wherever you wish WonderCMS to be installed at.
 
 ### Requirements
  - PHP 5.5 or higher
  - .htaccess support
+
+### Community
+- https://wondercms.com/forum
 
 ### Whats new in 1.2.0 beta
 - custom functions.php file per theme - WonderCMS will automatically include your functions.php file if it exists in your themes folder (/themes/yourTheme/functions.php)
@@ -18,7 +25,7 @@ WonderCMS is simple, small and secure. [You can download it here (GitHub release
 ### Features
  - no configuration required, unzip and upload
  - simple click and edit functionality
- - lightweight - runs on a couple hundred lines and 5 files
+ - lightweight - runs on a couple hundred lines of code and 5 files
  - custom login URL
  - custom homepage
  - better password protection
@@ -28,7 +35,6 @@ WonderCMS is simple, small and secure. [You can download it here (GitHub release
  - better SEO support - custom title, keywords and description for each page
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito and other security researchers
- - made with PHP, jQuery, HTML, CSS and a flat JSON database
 
 ### WonderCMS works by default on Apache. To make it work with NGINX, put the following code into your NGINX server config:
 ```
@@ -50,8 +56,11 @@ location / {
   - `find ./ -type f -exec chmod 644 {} \;`
 
 ### How to update from older versions?
-Upgrading from previous versions is not possible by rewriting the old version with the new one. To have the WonderCMS latest version with your current website content, you will have to:
- - Make a fresh installation of the latest WonderCMS somewhere on your server.
+Updating from 1.1.0+ versions: use the one click update from your WonderCMS settings panel.
+Updating from version 1.0.0: replace your old index.php with the new one from the above download.
+Upgrading from previous versions 1.0.0 and older:
+ - Backup all your WonderCMS files.
+ - Make a fresh installation of the latest WonderCMS anywhere on your server.
  - Paste your old content into the new installation.
  - Remove the old installation.
  - Move the new installation to the old WonderCMS installation location.
@@ -59,8 +68,7 @@ Upgrading from previous versions is not possible by rewriting the old version wi
 Future releases as of 1.1.0 are be backwards compatible by using the one click update functionality.
 
 ### Links
-- WonderCMS website: https://wondercms.com/
-- WonderCMS community: https://wondercms.com/forum
+- WonderCMS website: https://wondercms.com
 - WonderCMS Twitter: https://twitter.com/wondercms
 - WonderCMS donations: https://wondercms.com/donate
 - Special contributors: https://wondercms.com/special-contributors
