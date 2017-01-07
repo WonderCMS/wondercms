@@ -2,14 +2,12 @@
 Amazingly simple, small and secure flat file CMS made with PHP, jQuery, HTML, CSS and a flat JSON database.
 
 ### - [Demo](https://www.wondercms.com/demo)
+### - [Download](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip)
 
 ### Installation
 - unzip and upload the files wherever you wish WonderCMS to be installed
 or
 - clone from GitHub
-
-### Download
-[Download ZIP from GitHub](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip).
 
 ### Requirements
  - PHP 5.5 or higher
@@ -51,21 +49,22 @@ location / {
 }
 ```
 
-### If any errors occur, please correct file permissions to 644 and folder permissions to 755. You can do this manually or with the script below (added by Bill Carson)
+### If any errors occur (500 internal server error), correct file permissions to 644 and folder permissions to 755. You can do this manually or with the short script below (added by Bill Carson)
   - `find ./ -type d -exec chmod 755 {} \;`
   - `find ./ -type f -exec chmod 644 {} \;`
 
 ### How to update from older versions?
-Updating from 1.1.0+ versions: use the one click update from your WonderCMS settings panel.
-Updating from version 1.0.0: replace your old index.php with the new one from the above download.
-Updating from previous versions - 1.0.0 and older:
+- Updating from 1.1.0+ - use the one click update from your WonderCMS settings panel.
+- Updating from 1.0.0 - replace your old index.php with the new one from the above download.
+
+- Updating from 1.0.0 and older
  - Backup all your WonderCMS files.
  - Make a fresh installation of the latest WonderCMS anywhere on your server.
- - Paste your old content into the new installation.
+ - Copy your old content and paste it into the new installation.
  - Remove the old installation.
  - Move the new installation to the old WonderCMS installation location.
 
-Future releases as of 1.1.0 are be backwards compatible by using the one click updater.
+Updating is really easy with our click updater - included in versions 1.1.0 and above.
 
 ### Links
 - WonderCMS website: https://wondercms.com
