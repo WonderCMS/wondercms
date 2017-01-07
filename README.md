@@ -1,6 +1,5 @@
 # WonderCMS - https://www.wondercms.com
-Amazingly simple, small and secure flat file CMS. Runs on 5 files and a couple hundred lines of code.
-Made with PHP, jQuery, HTML, CSS and a flat JSON database.
+Amazingly simple, small and secure flat file CMS made with PHP, jQuery, HTML, CSS and a flat JSON database.
 
 ### Demo
 - https://wondercms.com/demo
