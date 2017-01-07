@@ -1,21 +1,21 @@
-### Description
+# WonderCMS - https://www.wondercms.com
 WonderCMS is very simple and lightweight flat file CMS made with PHP, jQuery, HTML, CSS and a flat JSON database.
-It runs on 5 files and a couple hundred lines of code.
+Runs on 5 files and a couple hundred lines of code.
 
 ### Demo
 - https://wondercms.com/demo
 
+### Installation
+- Unzip and upload the files wherever you wish WonderCMS to be installed at.
+
 ### Download
 [Download ZIP from GitHub](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip).
-
-### Setup
-- Unzip and upload the files wherever you wish WonderCMS to be installed at.
 
 ### Requirements
  - PHP 5.5 or higher
  - .htaccess support
 
-### Community
+### Community, themes and plugins
 - https://wondercms.com/forum
 
 ### Whats new in 1.2.0 beta
@@ -31,7 +31,7 @@ It runs on 5 files and a couple hundred lines of code.
  - better password protection
  - highlighted current page
  - mobile responsive, easy to theme, 404 pages, clean URLs
- - page deleting easier than ever
+ - easy page creating and deleting
  - better SEO support - custom title, keywords and description for each page
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito and other security researchers
@@ -58,19 +58,20 @@ location / {
 ### How to update from older versions?
 Updating from 1.1.0+ versions: use the one click update from your WonderCMS settings panel.
 Updating from version 1.0.0: replace your old index.php with the new one from the above download.
-Upgrading from previous versions 1.0.0 and older:
+Updating from previous versions - 1.0.0 and older:
  - Backup all your WonderCMS files.
  - Make a fresh installation of the latest WonderCMS anywhere on your server.
  - Paste your old content into the new installation.
  - Remove the old installation.
  - Move the new installation to the old WonderCMS installation location.
 
-Future releases as of 1.1.0 are be backwards compatible by using the one click update functionality.
+Future releases as of 1.1.0 are be backwards compatible by using the one click updater.
 
 ### Links
 - WonderCMS website: https://wondercms.com
+- WonderCMS community: https://wondercms.com/forum
+- WonderCMS documentation: https://www.wondercms.com/forum/viewforum.php?f=27
 - WonderCMS Twitter: https://twitter.com/wondercms
 - WonderCMS donations: https://wondercms.com/donate
-- Special contributors: https://wondercms.com/special-contributors
 - WonderCMS themes repository: https://github.com/robiso/wondercms-themes
 - WonderCMS plugins repository: https://github.com/robiso/wondercms-plugins
