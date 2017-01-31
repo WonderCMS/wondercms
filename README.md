@@ -1,12 +1,13 @@
-# WonderCMS
-Amazingly simple, small and secure flat file CMS made with PHP, jQuery, HTML, CSS and a flat JSON database.
+<img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS short description" />
 
 ### - [Demo](https://www.wondercms.com/demo)
 ### - [Download](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip)
 
 ### Installation
 - unzip and upload the files wherever you wish WonderCMS to be installed
+
 or
+
 - clone from GitHub
 
 ### Requirements
