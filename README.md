@@ -23,8 +23,9 @@ or
 - we now update the default theme and .htaccess (we used to only update index.php)
 - improved settings panel
 - major code clean up
-- database.js versioning, which makes it really easy to update for different WonderCMS versions.
-- no more "Powered by WonderCMS" link - removed from footer.
+- database.js versioning, which makes it really easy to update for different WonderCMS versions
+- no more "Powered by WonderCMS" link - removed from footer
+- developer friendlier
 
 ### Features
  - no configuration required, unzip and upload
