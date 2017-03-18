@@ -14,9 +14,6 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-### Community, documentation, themes and plugins
-- https://wondercms.com/forum
-
 ### Whats new in 2.0.0
 - first non-beta release in 8 years
 - new default theme
