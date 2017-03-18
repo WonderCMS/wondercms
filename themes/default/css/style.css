@@ -1,62 +1,47 @@
 html {
 	min-height: 100%;
 	position: relative;
+	box-shadow: 0 0 100px rgba(0, 0, 0, 0.27) inset;
 }
 
 body {
-	color: #fff;
+	color: #555;
 	background: #eee;
-	margin-bottom: 100px;
-	font-family: Lucida Sans Unicode, Verdana;
+	margin-bottom: 60px;
+	font-family: "Lucida Sans Unicode", Verdana;
 }
 
-a, a:hover {
-	text-decoration: none;
-	border-bottom: 1px dotted #fff;
-}
-
-h3 {margin: 0;}
-*:focus {outline: none;}
-.navbar-nav > .active a {
-	color: #fff !important;
-	background-color: #1f2b33 !important;
-}
-
-.spacer20 {height: 20px;}
+.whiteFont {color: #fff;}
 .padding20 {padding: 20px;}
-.rounded5 {border-radius: 5px;}
+.padding40 {padding: 40px;}
+.blueBackground {background-color: #1ab;}
 
-.grayFont {color: #444;}
-.blueBackground {background: #1ab;}
-.whiteBackground {background: #fff;}
-
-.navbar {
-	border: 0;
-	border-radius: 0;
-	background-color: #1f2b33;
+.lightFont {
+	color:#aaa; 
+	font-size:18px;
 }
 
-.navbar li a {
-	border: 0;
-	color: #fff;
-	display: block;
+.navbar-default .navbar-toggle {border-color: #888;}
+
+.navbar li {
+	font-size: 13px;
 	text-transform: uppercase;
-	padding: 25px 20px 25px 25px;
 }
 
-ul.nav.navbar-nav a:hover {
-	color: #1ab;
+.navbar, .navbar-collapse {
+	border: 0;
+	background: none;
 }
 
-footer a, footer a:hover, .navbar a {
-	color: #fff;
-	text-decoration: none;
-	border-bottom: 1px dotted #fff;
+.navbar li a:hover, .active a {
+	color: #1ab !important;
+	background: none !important;
+	border-bottom: 1px solid #1ab;
 }
 
 footer {
 	bottom: 0;
 	width: 100%;
+	font-size: 13px;
 	position: absolute;
-	background: #1f2b33;
 }
