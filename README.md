@@ -1,7 +1,7 @@
-<img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS short description" />
+<img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" />
 
 ### - [Demo](https://www.wondercms.com/demo)
-### - [Download](https://github.com/robiso/wondercms/releases/download/1.2.0-beta/WonderCMS-1.2.0-beta.zip)
+### - [Download 2.0.0](https://github.com/robiso/wondercms/releases/download/2.0.0/WonderCMS-2.0.0.zip)
 
 ### Installation
 - unzip and upload the files wherever you wish WonderCMS to be installed
@@ -17,9 +17,14 @@ or
 ### Community, documentation, themes and plugins
 - https://wondercms.com/forum
 
-### Whats new in 1.2.0 beta
-- custom functions.php file per theme - WonderCMS will automatically include your functions.php file if it exists in your themes folder (/themes/yourTheme/functions.php)
-- added padding20 CSS class to the admin settings panel
+### Whats new in 2.0.0
+- first non-beta release in 8 years
+- new default theme
+- we now update the default theme and .htaccess (we used to only update index.php)
+- improved settings panel
+- major code clean up
+- database.js versioning, which makes it really easy to update for different WonderCMS versions.
+- no more "Powered by WonderCMS" link - removed from footer.
 
 ### Features
  - no configuration required, unzip and upload
@@ -70,7 +75,7 @@ Updating is really easy with our click updater - included in versions 1.1.0 and 
 ### Links
 - WonderCMS website: https://wondercms.com
 - WonderCMS community: https://wondercms.com/forum
-- WonderCMS documentation: https://www.wondercms.com/forum/viewforum.php?f=27
+- WonderCMS documentation: https://github.com/robiso/wondercms/wiki
 - WonderCMS Twitter: https://twitter.com/wondercms
 - WonderCMS donations: https://wondercms.com/donate
 - WonderCMS themes repository: https://github.com/robiso/wondercms-themes
