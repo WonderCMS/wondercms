@@ -1,9 +1,6 @@
-# WonderCMS 2.0.0
+# WonderCMS 2.0.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.0/WonderCMS-2.0.0.zip)
 
-<img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" />
-
-### - [Demo](https://www.wondercms.com/demo)
-### - [Download](https://github.com/robiso/wondercms/releases/download/2.0.0/WonderCMS-2.0.0.zip)
+<a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
 ### Installation
 - unzip and upload the files wherever you wish WonderCMS to be installed
