@@ -1,7 +1,7 @@
 <img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" />
 
 ### - [Demo](https://www.wondercms.com/demo)
-### - [Download 2.0.0](https://github.com/robiso/wondercms/releases/download/2.0.0/WonderCMS-2.0.0.zip)
+### - [Download WonderCMS 2.0.0](https://github.com/robiso/wondercms/releases/download/2.0.0/WonderCMS-2.0.0.zip)
 
 ### Installation
 - unzip and upload the files wherever you wish WonderCMS to be installed
