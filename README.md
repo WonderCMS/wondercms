@@ -1,4 +1,4 @@
-# WonderCMS 2.0.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.0/WonderCMS-2.0.0.zip)
+# WonderCMS 2.0.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.1/WonderCMS-2.0.1.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,7 +13,11 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-### Whats new in 2.0.0
+### Whats was new in 2.0.1
+- fixed function name, added missing static param
+- added default CSS font size to settings panel and removed unneccessary spaces and semicolons
+
+#### Whats was new in 2.0.0
 - first non-beta release in 8 years
 - new default theme
 - we now update the default theme and .htaccess (we used to only update index.php)
@@ -47,7 +51,7 @@ autoindex off;
 
 location / {
 	if (!-e $request_filename) {
-		rewrite ^(.+)$ /index.php?page=$1 break;
+		rewrite ^/(.+)$ /index.php?page= last;
 	}
 }
 ```
