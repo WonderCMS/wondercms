@@ -1,7 +1,7 @@
 <?php // WonderCMS - wondercms.com - license: MIT
 
 session_start();
-define('version', '2.0.0');
+define('version', '2.0.1');
 mb_internal_encoding('UTF-8');
 
 class wCMS {
@@ -10,7 +10,7 @@ class wCMS {
 	public static $currentPageExists = false;
 	public static $_listeners = [];
 	public static $db = false;
-	public function _updateOtherFiles() {
+	public static function _updateOtherFiles() {
 		$olddb = wCMS::db();
 		if ( ! isset($olddb->{'config'}->{'dbVersion'})) {
 			if (file_exists(__DIR__ . '/themes/default/theme.php')) file_put_contents(__DIR__ . '/themes/default/theme.php', file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/themes/default/theme.php'));
@@ -137,7 +137,7 @@ class wCMS {
 	}
 	public static function css() {
 		$styles = <<<'EOT'
-<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;}#adminPanel a{color:#aaa;border: 0;}#adminPanel a.btn {color:#fff;}#adminPanel span.editText{color:#555;}span.editText{border:2px dashed #ccc;}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box;}span.editText:empty{min-height:20px;}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px;}.padding20{padding:20px;}.subTitle{font-size:18px;margin:10px 0 5px;}.fontSize24{font-size:24px;}.note-editor{border:2px dashed #ccc;}</style>
+<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;}#adminPanel a{color:#aaa;border: 0;}#adminPanel a.btn {color:#fff;}#adminPanel span.editText{color:#555;}span.editText{border:2px dashed #ccc;}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box;}span.editText:empty{min-height:20px;}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px;}.padding20{padding:20px;}.subTitle{font-size:18px;margin:10px 0 5px;}.fontSize24{font-size:24px;}.note-editor{border:2px dashed #ccc;}</style>
 EOT;
 		return wCMS::_hook('css', $styles)[0];
 	}
