@@ -1,4 +1,4 @@
-# WonderCMS 2.0.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.1/WonderCMS-2.0.1.zip)
+# WonderCMS 2.0.2  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.2/WonderCMS-2.0.2.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -12,6 +12,9 @@ or
 ### Requirements
  - PHP 5.5 or higher
  - .htaccess support
+
+### Whats is new in 2.0.2
+- added new hook: page
 
 ### Whats was new in 2.0.1
 - fixed function name, added missing static param
