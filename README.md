@@ -13,14 +13,14 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-### Whats is new in 2.0.2
+### What is new in 2.0.2
 - added new hook: page
 
-### Whats was new in 2.0.1
+#### What was new in 2.0.1
 - fixed function name, added missing static param
 - added default CSS font size to settings panel and removed unneccessary spaces and semicolons
 
-#### Whats was new in 2.0.0
+#### What was new in 2.0.0
 - first non-beta release in 8 years
 - new default theme
 - we now update the default theme and .htaccess (we used to only update index.php)
