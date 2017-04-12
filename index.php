@@ -120,9 +120,14 @@ class wCMS {
 	public static function save($db) {
 		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_PRETTY_PRINT));
 	}
-	public static function addListener($hook, $functionName) {
-		wCMS::$_listeners[$hook][] = $functionName;
-	}
+    public static function addListener($hook, $functionName, $priority = 10) {
+        $priority_existed = isset(wCMS::$_listeners[$hook][$priority]);
+        wCMS::$_listeners[$hook][$priority][] = $functionName;
+        // if we're adding a new priority to the list, put them back in sorted order
+        if (!$priority_existed && count(wCMS::$_listeners[$hook]) > 1) {
+            ksort(wCMS::$_listeners[$hook], SORT_NUMERIC);
+        }
+    }
 	public static function settings() {
 		if ( ! wCMS::$loggedIn) return;
 		$output ='<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Settings</div><div class="col-xs-12 col-sm-8 col-sm-offset-2"><div id="settings" class="collapse">';
@@ -231,13 +236,15 @@ EOT;
 		$db = wCMS::db();$db->pages->{wCMS::$currentPage} = new stdClass; wCMS::save($db);wCMS::set('pages',wCMS::$currentPage,'title',mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE)); wCMS::set('pages',wCMS::$currentPage,'keywords','Keywords, are, good, for, search, engines'); wCMS::set('pages',wCMS::$currentPage,'description','A short description is also good.');
 	}
 	public static function _hook() {
-		$numArgs = func_num_args();
-		$args = func_get_args();
-		if ($numArgs < 2) trigger_error('Insufficient arguments', E_USER_ERROR);
-		$hookName = array_shift($args);
-		if ( ! isset(wCMS::$_listeners[$hookName])) return $args;
-		foreach (wCMS::$_listeners[$hookName] as $func) $args = $func($args);
-		return $args;
+        $numArgs = func_num_args();
+        $args = func_get_args();
+        if ($numArgs < 2) trigger_error('Insufficient arguments', E_USER_ERROR);
+        $hookName = array_shift($args);
+        if (!isset(wCMS::$_listeners[$hookName])) return $args;
+        foreach (wCMS::$_listeners[$hookName] as $hookedFunc) {
+            foreach ($hookedFunc as $priority => $func) $args = $func($args);
+        }
+        return $args;
 	}
 	public static function _createDatabase() {
 		if (wCMS::db() !== false) return;
