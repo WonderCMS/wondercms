@@ -10,7 +10,10 @@ body {
 	margin-bottom: 60px;
 	font-family: "Lucida Sans Unicode", Verdana;
 }
-
+.vertical-align {
+	display: flex;
+	align-items: center;
+}
 .whiteFont {color: #fff;}
 .padding20 {padding: 20px;}
 .padding40 {padding: 40px;}
@@ -44,4 +47,15 @@ footer {
 	width: 100%;
 	font-size: 13px;
 	position: absolute;
+}
+@media (max-width: 767px) {
+	.row.vertical-align {
+		display: block;
+	}
+}
+@media (min-width: 768px) {
+	.row.vertical-align {
+		display: flex;
+		align-items: center;
+	}
 }

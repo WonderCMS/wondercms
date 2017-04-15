@@ -48,6 +48,7 @@ class wCMS {
 	}
 	public static function page($key) {
 		$segments = wCMS::$currentPageExists ? wCMS::get('pages',wCMS::$currentPage) : (wCMS::get('config','login') == wCMS::$currentPage ? (object) wCMS::_loginView() : (object) wCMS::_notFoundView());
+        $segments->content = isset($segments->content)?$segments->content:'<h2>Click here to create some content</h2><p>Once you do that, this page will be eventually visited by search engines.</p>';
 		$keys = ['title' => $segments->title, 'description' => $segments->description, 'keywords' => $segments->keywords, 'content' => (wCMS::$loggedIn ? wCMS::editable('content', $segments->content, 'pages') : $segments->content)];
 		$content = isset($keys[$key]) ? $keys[$key] : '';
 		return wCMS::_hook('page', $content, $key)[0];
@@ -58,8 +59,9 @@ class wCMS {
 	}
 	public static function menu() {
 		$output = '';
-		foreach (wCMS::get('config','menuItems') as $key) {
-			$output .= '<li' . (wCMS::$currentPage === mb_strtolower($key) ? ' class="active"' : '') . '><a href="' . wCMS::url(mb_strtolower($key)) . '">' . $key . '</a></li>';
+		foreach (wCMS::get('config','menuItems') as $key => $value) {
+		    if($value->visibility == "hide") continue;
+		    $output .= '<li' . (wCMS::$currentPage === $value->slug ? ' class="active"' : '') . '><a href="' . wCMS::url($value->slug) . '">' . $value->name . '</a></li>';
 		}
 		return wCMS::_hook('menu', $output)[0];
 	}
@@ -86,7 +88,7 @@ class wCMS {
 		return wCMS::url('themes/' . wCMS::get('config','theme') . '/' . $location);
 	}
 	public static function url($location = '') {
-		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['HTTP_HOST'] . str_replace($_SERVER['DOCUMENT_ROOT'], '', str_replace('\\', '/', __DIR__)) . '/' . $location;
+		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['HTTP_HOST'] . '/' . $location; //str_replace($_SERVER['DOCUMENT_ROOT'], '', str_replace('\\', '/', __DIR__)) . //TODO: WHY?
 	}
 	public static function parseUrl() {
 		if ($_GET['page'] == wCMS::get('config','login')) return htmlentities($_GET['page'], ENT_QUOTES, 'UTF-8');
@@ -100,6 +102,7 @@ class wCMS {
 			case 1: return wCMS::$db->{$args[0]}; break;
 			case 2: return wCMS::$db->{$args[0]}->{$args[1]}; break;
 			case 3: return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]}; break;
+            case 4: return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]}; break;
 			default: return false; break;
 		}
 	}
@@ -111,6 +114,7 @@ class wCMS {
 			case 2: $db->{$args[0]} = $args[1]; break;
 			case 3: $db->{$args[0]}->{$args[1]} = $args[2]; break;
 			case 4: $db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3]; break;
+            case 5: $db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4]; break;
 		}
 		wCMS::save($db);
 	}
@@ -120,14 +124,13 @@ class wCMS {
 	public static function save($db) {
 		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_PRETTY_PRINT));
 	}
-    public static function addListener($hook, $functionName, $priority = 10) {
+	public static function addListener($hook, $functionName, $priority = 10) {
         $priority_existed = isset(wCMS::$_listeners[$hook][$priority]);
         wCMS::$_listeners[$hook][$priority][] = $functionName;
-        // if we're adding a new priority to the list, put them back in sorted order
         if (!$priority_existed && count(wCMS::$_listeners[$hook]) > 1) {
             ksort(wCMS::$_listeners[$hook], SORT_NUMERIC);
         }
-    }
+	}
 	public static function settings() {
 		if ( ! wCMS::$loggedIn) return;
 		$output ='<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Settings</div><div class="col-xs-12 col-sm-8 col-sm-offset-2"><div id="settings" class="collapse">';
@@ -135,21 +138,25 @@ class wCMS {
 		$output .= '<p class="text-right marginTop20"><small>WonderCMS '. version . ' &bull; <a href="https://github.com/robiso/wondercms-themes">Themes</a> &bull; <a href="https://github.com/robiso/wondercms-plugins">Plugins</a> &bull; <a href="https://www.wondercms.com/forum">Community</a> &bull; <a href="https://github.com/robiso/wondercms/wiki">Documentation</a> &bull; <a href="https://www.wondercms.com/donate">Donate</a></small></p><p class="fontSize24">General settings</p><div class="change"><div class="form-group"><select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
 		foreach (glob(__DIR__ . '/themes/*', GLOB_ONLYDIR) as $dir) $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == wCMS::get('config','theme') ? ' selected' : '') . '>' . basename($dir) . ' theme'.'</option>';
 		$output .= '</select></div><p class="subTitle">Main website title</p><div class="change"><span data-target="config" id="siteTitle" class="editText">' . (wCMS::get('config','siteTitle') != '' ? wCMS::get('config','siteTitle') : '') . '</span></div>';
-		$output .= '<p class="subTitle">Menu <small>(enter a new page in a new line)</small></p><div class="change"><span data-target="config" id="menuItems" class="editText">';
-		foreach (wCMS::get('config','menuItems') as $key) $output .= $key.'<br>'; $output = preg_replace('/(<br>)+$/', '', $output);
-		$output .= '</span></div><p class="subTitle">Footer</p><div class="change"><span data-target="blocks" id="footer" class="editText">' . (wCMS::get('blocks','footer')->content != '' ? wCMS::get('blocks','footer')->content : '') . '</span></div>';
+		$output .= '<p class="subTitle">Menu</p>';
+        foreach (wCMS::get('config','menuItems') as $key => $value) {
+            $output .= '<div class="container"><div class="row align-items-center"><div class="col-xs-1"><i class="btn menu-toggle glyphicon'.($value->visibility == "show"?' glyphicon-eye-open menu-item-hide':' glyphicon-eye-close menu-item-show').'" data-toggle="tooltip" title="'.($value->visibility == "show"?'Hide menu item':'Show menu item').'" data-menu="'.$key.'"></i> <a href="' . wCMS::url('?delete=' . $value->slug) . '" onclick="return confirm(\'Really delete page?\')"><i class="btn glyphicon glyphicon-minus-sign toolbar menu-item-delete" data-toggle="tooltip" data-menu="'.$key.'" title="Remove menu item"></i></a></div><div class="col-xs-11"><span data-target="menuItem" data-menu="'.$key.'" data-visibility="'.($value->visibility).'" id="menuItems" class="editText">'.$value->name.'</span></div></div></div>';
+        }
+        $output .= '<i class="btn glyphicon glyphicon-plus-sign menu-item-add" data-toggle="tooltip" title="Add a menu item"></i><p class="subTitle">Footer</p><div class="change"><span data-target="blocks" id="footer" class="editText">' . (wCMS::get('blocks','footer')->content != '' ? wCMS::get('blocks','footer')->content : '') . '</span></div>';
 		$output .= '<p class="subTitle">Default homepage <small>(what page to show on homepage)</small></p><div class="change"><span data-target="config" id="defaultPage" class="editText">' . wCMS::get('config','defaultPage') . '</span></div><p class="subTitle">Login URL <small>(save your URL: ' . wCMS::url('loginURL') . ')</small></p><div class="change"><span data-target="config" id="login" class="editText">' . wCMS::get('config','login') . '</span></div><p class="subTitle">Password</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="form-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"></div><div class="form-group"><input type="password" name="new_password" class="form-control" placeholder="New password"></div><input type="hidden" name="fieldname" value="password"><button type="submit" class="btn btn-info">Change password</button></form></div></div><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Close settings</div></div></div></div>';
 		return wCMS::_hook('settings', $output)[0];
 	}
 	public static function css() {
 		$styles = <<<'EOT'
-<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px}#adminPanel a,.alert a{color:#aaa;border:0}#adminPanel a.btn{color:#fff}#adminPanel span.editText{color:#555}span.editText{border:2px dashed #ccc}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}span.editText:empty{min-height:20px}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px}.padding20{padding:20px}.subTitle{font-size:18px;margin:10px 0 5px}.fontSize24{font-size:24px}.note-editor{border:2px dashed #ccc}</style>
+<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px}#adminPanel a,.alert a{color:#aaa;border:0}#adminPanel a.btn{color:#fff}#adminPanel span.editText{color:#555}span.editText{border:2px dashed #ccc}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}span.editText:empty{min-height:20px}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px}.padding20{padding:20px}.subTitle{font-size:18px;margin:10px 0 5px}.fontSize24{font-size:24px}.note-editor{border:2px dashed #ccc}.menu-item-hide,.menu-item-add{color: #339f41;}.menu-item-delete{color: #9f4131;;}.menu-item-hide,.menu-item-show,.menu-item-delete{padding: 0px 10%;}</style>
 EOT;
 		return wCMS::_hook('css', $styles)[0];
 	}
 	public static function js() {
 		$scripts = <<<'EOT'
-<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c){$("#save").show(),$.post("",{fieldname:a,content:b,target:c},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$("span.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)})});</script>
+<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$("span.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)});$("i.menu-toggle, i.menu-item-delete").click(function(){var a=$(this),c=(window.location.reload(),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide menu item").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems",content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){}).done(function(){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show menu item").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}).done(function(){}))}),$(".menu-item-add").click(function(){$.post("",{fieldname:"menuItems",content:"New menu item",target:"menuItem",menu:"none",visibility:"hide"},function(a){}).done(function(){window.location.reload()})});});
+</script>
+
 EOT;
 		return wCMS::_hook('js', $scripts)[0];
 	}
@@ -167,8 +174,26 @@ EOT;
 	}
 	public static function _saveAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_POST['fieldname']) || ! isset($_POST['content']) || ! isset($_POST['target'])) return;
-		list($fieldname, $content, $target) = wCMS::_hook('save', $_POST['fieldname'], trim($_POST['content']), $_POST['target']);
-		if ($fieldname === 'menuItems') $content = array_filter(array_map('trim', explode('<br>', $content)));
+		list($fieldname, $content, $target, $menu, $visibility) = wCMS::_hook('save', $_POST['fieldname'], trim($_POST['content']), $_POST['target'], $_POST['menu'], $_POST['visibility']);
+		if ($target === 'menuItem'){
+		    $exist = is_numeric($menu);
+            $visibility = (isset($visibility) && $visibility == "show")?"show":"hide";
+            $content = str_replace(array(PHP_EOL,'<br>'), '', $content);
+            $slug = wCMS::_slugify($content);
+            if(!$exist){
+                $menuCount = count(get_object_vars(wCMS::get('config', $fieldname)));
+                $db = wCMS::db();$db->config->{$fieldname}->{$menuCount} = new stdClass; wCMS::save($db);
+                wCMS::set('config', $fieldname, $menuCount, 'name', $content);
+                wCMS::set('config', $fieldname, $menuCount, 'slug', $slug);
+                wCMS::set('config', $fieldname, $menuCount, 'visibility', $visibility);
+                wCMS::_createPage($slug);
+            }else{
+                wCMS::set('config', $fieldname, $menu, 'name', $content);
+                wCMS::set('config', $fieldname, $menu, 'slug', $slug);
+                wCMS::set('config', $fieldname, $menu, 'visibility', $visibility);
+            }
+        }
+        if ($target === 'menuItemVsbl') wCMS::set('config', $fieldname, $menu, 'visibility', $visibility);
 		if ($fieldname === 'defaultPage') if ( ! isset(wCMS::get('pages')->$content)) return;
 		if ($fieldname === 'login') if (empty($content) || isset(wCMS::get('pages')->$content)) return;
 		if ($fieldname === 'theme') if ( ! is_dir(__DIR__ . '/themes/' . $content)) return;
@@ -183,15 +208,14 @@ EOT;
 	}
 	public static function _deleteAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_GET['delete'])) return;
-		if ( ! isset(wCMS::get('pages')->{$_GET['delete']})) return;
-		$db = wCMS::db(); unset($db->pages->{$_GET['delete']});
+        $needle=$_GET['delete'];
+		if ( ! isset(wCMS::get('pages')->{$needle})) return;
+		$db = wCMS::db(); unset($db->pages->{$needle});
 		$menuItems = wCMS::get('config','menuItems');
-		$_menuItems = array_map('mb_strtolower', $menuItems);
-		if (in_array($_GET['delete'], $_menuItems)) {
-			$index = array_search($_GET['delete'], $_menuItems);
-			unset($menuItems[$index]);
-		}
-		$db->config->menuItems = array_values($menuItems);
+		$_menuItems = json_decode(json_encode($menuItems),TRUE);
+        if(!$index = array_search($needle, array_column($_menuItems, "slug"))) return;
+        unset($menuItems->{$index});
+		$db->config->menuItems = $menuItems;
 		wCMS::save($db); wCMS::redirect();
 	}
 	public static function _upgradeAction() {
@@ -219,9 +243,17 @@ EOT;
 		if ( ! is_dir(__DIR__ . '/plugins')) mkdir(__DIR__ . '/plugins');
 		foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) if (file_exists($dir . '/' . basename($dir) . '.php')) include $dir . '/' . basename($dir) . '.php';
 	}
-	public static function _createPage() {
-		$db = wCMS::db();$db->pages->{wCMS::$currentPage} = new stdClass; wCMS::save($db);wCMS::set('pages',wCMS::$currentPage,'title',mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE)); wCMS::set('pages',wCMS::$currentPage,'keywords','Keywords, are, good, for, search, engines'); wCMS::set('pages',wCMS::$currentPage,'description','A short description is also good.');
+	public static function _createPage($slug = false) {
+		$db = wCMS::db();$db->pages->{(!$slug)?wCMS::$currentPage:$slug} = new stdClass; wCMS::save($db);wCMS::set('pages',(!$slug)?wCMS::$currentPage:$slug,'title',(!$slug)?mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE):$slug); wCMS::set('pages',(!$slug)?wCMS::$currentPage:$slug,'keywords','Keywords, are, good, for, search, engines'); wCMS::set('pages',(!$slug)?wCMS::$currentPage:$slug,'description','A short description is also good.');
 	}
+    public static function _slugify($text){
+        $text = preg_replace('~[^\\pL\d]+~u', '-', $text);
+        $text = trim($text, '-');
+        $text = iconv('utf-8', 'ascii//TRANSLIT', $text);
+        $text = strtolower($text);
+        $text = preg_replace('~[^-\w]+~', '', $text);
+        return $text;
+    }
 	public static function _hook() {
         $numArgs = func_num_args();
         $args = func_get_args();
@@ -243,10 +275,18 @@ EOT;
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'password' => password_hash('admin', PASSWORD_DEFAULT),
-				'menuItems' => [
-					'home',
-					'example'
-				]
+                'menuItems'=> [
+                    '0'=> [
+                        'name' => 'Home',
+                        'slug' => 'home',
+                        'visibility' => 'show'
+                    ],
+                    '1' => [
+                        'name' => 'Example',
+                        'slug' => 'example',
+                        'visibility' => 'show'
+                    ]
+                ]
 			],
 			'pages' => [
 				'home' => [
