@@ -122,7 +122,7 @@ class wCMS {
 		return file_exists(__DIR__ . '/database.js') ? json_decode(file_get_contents(__DIR__ . '/database.js')) : false;
 	}
 	public static function save($db) {
-		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_PRETTY_PRINT));
+		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_FORCE_OBJECT | JSON_PRETTY_PRINT));
 	}
 	public static function addListener($hook, $functionName, $priority = 10) {
         $priority_existed = isset(wCMS::$_listeners[$hook][$priority]);
@@ -184,9 +184,9 @@ EOT;
                 $menuCount = count(get_object_vars(wCMS::get('config', $fieldname)));
                 $db = wCMS::db();$db->config->{$fieldname}->{$menuCount} = new stdClass; wCMS::save($db);
                 wCMS::set('config', $fieldname, $menuCount, 'name', $content);
-                wCMS::set('config', $fieldname, $menuCount, 'slug', $slug);
+                wCMS::set('config', $fieldname, $menuCount, 'slug', $slug."-".$menuCount);
                 wCMS::set('config', $fieldname, $menuCount, 'visibility', $visibility);
-                wCMS::_createPage($slug);
+                wCMS::_createPage($slug."-".$menuCount);
             }else{
                 wCMS::set('config', $fieldname, $menu, 'name', $content);
                 wCMS::set('config', $fieldname, $menu, 'slug', $slug);
@@ -209,8 +209,8 @@ EOT;
 	public static function _deleteAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_GET['delete'])) return;
         $needle=$_GET['delete'];
-		if ( ! isset(wCMS::get('pages')->{$needle})) return;
-		$db = wCMS::db(); unset($db->pages->{$needle});
+        $db = wCMS::db();
+		if (  isset(wCMS::get('pages')->{$needle})) unset($db->pages->{$needle});
 		$menuItems = wCMS::get('config','menuItems');
 		$_menuItems = json_decode(json_encode($menuItems),TRUE);
         if(!$index = array_search($needle, array_column($_menuItems, "slug"))) return;
@@ -244,7 +244,7 @@ EOT;
 		foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) if (file_exists($dir . '/' . basename($dir) . '.php')) include $dir . '/' . basename($dir) . '.php';
 	}
 	public static function _createPage($slug = false) {
-		$db = wCMS::db();$db->pages->{(!$slug)?wCMS::$currentPage:$slug} = new stdClass; wCMS::save($db);wCMS::set('pages',(!$slug)?wCMS::$currentPage:$slug,'title',(!$slug)?mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE):$slug); wCMS::set('pages',(!$slug)?wCMS::$currentPage:$slug,'keywords','Keywords, are, good, for, search, engines'); wCMS::set('pages',(!$slug)?wCMS::$currentPage:$slug,'description','A short description is also good.');
+		$db = wCMS::db();$db->pages->{(!$slug)?wCMS::$currentPage:$slug} = new stdClass; wCMS::save($db);wCMS::set('pages',(!$slug)?wCMS::_slugify(wCMS::$currentPage):$slug,'title',(!$slug)?mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE):$slug); wCMS::set('pages',(!$slug)?wCMS::_slugify(wCMS::$currentPage):$slug,'keywords','Keywords, are, good, for, search, engines'); wCMS::set('pages',(!$slug)?wCMS::_slugify(wCMS::$currentPage):$slug,'description','A short description is also good.');
 	}
     public static function _slugify($text){
         $text = preg_replace('~[^\\pL\d]+~u', '-', $text);
