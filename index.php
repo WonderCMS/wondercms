@@ -1,7 +1,7 @@
 <?php // WonderCMS - wondercms.com - license: MIT
 
 session_start();
-define('version', '2.0.2');
+define('version', '2.0.3');
 mb_internal_encoding('UTF-8');
 
 class wCMS {
@@ -39,12 +39,12 @@ class wCMS {
 		wCMS::$currentPage = empty(wCMS::parseUrl()) ? wCMS::get('config','defaultPage') : wCMS::parseUrl();
 		if (isset(wCMS::get('pages')->{wCMS::$currentPage})) wCMS::$currentPageExists = true;
 		wCMS::_logoutAction(); wCMS::_loginAction(); wCMS::_saveAction(); wCMS::_changePasswordAction(); wCMS::_deleteAction(); wCMS::_upgradeAction(); wCMS::_notify();
-		if (wCMS::$loggedIn && ! wCMS::$currentPageExists) header("HTTP/1.0 404 Not Found");
+		if ( ! wCMS::$loggedIn && ! wCMS::$currentPageExists) header("HTTP/1.0 404 Not Found");
 		if (file_exists(__DIR__ . '/themes/' . wCMS::get('config','theme') . '/functions.php')) require_once __DIR__ . '/themes/' . wCMS::get('config','theme') . '/functions.php';
 		require_once __DIR__ . '/themes/' . wCMS::get('config','theme') . '/theme.php';
 	}
 	public static function editable($id, $content, $dataTarget = '') {
-		return '<span' . ($dataTarget != '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</span>';
+		return '<div' . ($dataTarget != '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
 	}
 	public static function page($key) {
 		$segments = wCMS::$currentPageExists ? wCMS::get('pages',wCMS::$currentPage) : (wCMS::get('config','login') == wCMS::$currentPage ? (object) wCMS::_loginView() : (object) wCMS::_notFoundView());
@@ -126,25 +126,25 @@ class wCMS {
 	public static function settings() {
 		if ( ! wCMS::$loggedIn) return;
 		$output ='<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Settings</div><div class="col-xs-12 col-sm-8 col-sm-offset-2"><div id="settings" class="collapse">';
-		if (wCMS::$currentPageExists) $output .= '<p class="fontSize24">Current page (' . wCMS::$currentPage . ') settings</p><div class="change"><p class="subTitle">Page title</p><div class="change"><span data-target="pages" id="title" class="editText">' . (wCMS::get('pages',wCMS::$currentPage)->title != '' ? wCMS::get('pages',wCMS::$currentPage)->title : '') . '</span></div><p class="subTitle">Page keywords</p><div class="change"><span data-target="pages" id="keywords" class="editText">' . (wCMS::get('pages',wCMS::$currentPage)->keywords != '' ? wCMS::get('pages',wCMS::$currentPage)->keywords : '') . '</span></div><p class="subTitle">Page description</p><div class="change"><span data-target="pages" id="description" class="editText">' . (wCMS::get('pages',wCMS::$currentPage)->description != '' ? wCMS::get('pages',wCMS::$currentPage)->description : '') . '</span></div><a href="' . wCMS::url('?delete=' . wCMS::$currentPage) . '" class="btn btn-danger marginTop20" onclick="return confirm(\'Really delete page?\')">Delete current page</a></div>';
+		if (wCMS::$currentPageExists) $output .= '<p class="fontSize24">Current page (' . wCMS::$currentPage . ') settings</p><div class="change"><p class="subTitle">Page title</p><div class="change"><div data-target="pages" id="title" class="editText">' . (wCMS::get('pages',wCMS::$currentPage)->title != '' ? wCMS::get('pages',wCMS::$currentPage)->title : '') . '</div></div><p class="subTitle">Page keywords</p><div class="change"><div data-target="pages" id="keywords" class="editText">' . (wCMS::get('pages',wCMS::$currentPage)->keywords != '' ? wCMS::get('pages',wCMS::$currentPage)->keywords : '') . '</div></div><p class="subTitle">Page description</p><div class="change"><div data-target="pages" id="description" class="editText">' . (wCMS::get('pages',wCMS::$currentPage)->description != '' ? wCMS::get('pages',wCMS::$currentPage)->description : '') . '</div></div><a href="' . wCMS::url('?delete=' . wCMS::$currentPage) . '" class="btn btn-danger marginTop20" onclick="return confirm(\'Really delete page?\')">Delete current page</a></div>';
 		$output .= '<p class="text-right marginTop20"><small>WonderCMS '. version . ' &bull; <a href="https://github.com/robiso/wondercms-themes">Themes</a> &bull; <a href="https://github.com/robiso/wondercms-plugins">Plugins</a> &bull; <a href="https://www.wondercms.com/forum">Community</a> &bull; <a href="https://github.com/robiso/wondercms/wiki">Documentation</a> &bull; <a href="https://www.wondercms.com/donate">Donate</a></small></p><p class="fontSize24">General settings</p><div class="change"><div class="form-group"><select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
 		foreach (glob(__DIR__ . '/themes/*', GLOB_ONLYDIR) as $dir) $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == wCMS::get('config','theme') ? ' selected' : '') . '>' . basename($dir) . ' theme'.'</option>';
-		$output .= '</select></div><p class="subTitle">Main website title</p><div class="change"><span data-target="config" id="siteTitle" class="editText">' . (wCMS::get('config','siteTitle') != '' ? wCMS::get('config','siteTitle') : '') . '</span></div>';
-		$output .= '<p class="subTitle">Menu <small>(enter a new page in a new line)</small></p><div class="change"><span data-target="config" id="menuItems" class="editText">';
+		$output .= '</select></div><p class="subTitle">Main website title</p><div class="change"><div data-target="config" id="siteTitle" class="editText">' . (wCMS::get('config','siteTitle') != '' ? wCMS::get('config','siteTitle') : '') . '</div></div>';
+		$output .= '<p class="subTitle">Menu <small>(enter a new page in a new line)</small></p><div class="change"><div data-target="config" id="menuItems" class="editText">';
 		foreach (wCMS::get('config','menuItems') as $key) $output .= $key.'<br>'; $output = preg_replace('/(<br>)+$/', '', $output);
-		$output .= '</span></div><p class="subTitle">Footer</p><div class="change"><span data-target="blocks" id="footer" class="editText">' . (wCMS::get('blocks','footer')->content != '' ? wCMS::get('blocks','footer')->content : '') . '</span></div>';
-		$output .= '<p class="subTitle">Default homepage <small>(what page to show on homepage)</small></p><div class="change"><span data-target="config" id="defaultPage" class="editText">' . wCMS::get('config','defaultPage') . '</span></div><p class="subTitle">Login URL <small>(save your URL: ' . wCMS::url('loginURL') . ')</small></p><div class="change"><span data-target="config" id="login" class="editText">' . wCMS::get('config','login') . '</span></div><p class="subTitle">Password</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="form-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"></div><div class="form-group"><input type="password" name="new_password" class="form-control" placeholder="New password"></div><input type="hidden" name="fieldname" value="password"><button type="submit" class="btn btn-info">Change password</button></form></div></div><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Close settings</div></div></div></div>';
+		$output .= '</div></div><p class="subTitle">Footer</p><div class="change"><div data-target="blocks" id="footer" class="editText">' . (wCMS::get('blocks','footer')->content != '' ? wCMS::get('blocks','footer')->content : '') . '</div></div>';
+		$output .= '<p class="subTitle">Default homepage <small>(what page to show on homepage)</small></p><div class="change"><div data-target="config" id="defaultPage" class="editText">' . wCMS::get('config','defaultPage') . '</div></div><p class="subTitle">Login URL <small>(save your URL: ' . wCMS::url('loginURL') . ')</small></p><div class="change"><div data-target="config" id="login" class="editText">' . wCMS::get('config','login') . '</div></div><p class="subTitle">Password</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="form-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"></div><div class="form-group"><input type="password" name="new_password" class="form-control" placeholder="New password"></div><input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . wCMS::_generateToken() . '"><button type="submit" class="btn btn-info">Change password</button></form></div></div><div class="padding20 toggle text-center" data-toggle="collapse" data-target="#settings">Close settings</div></div></div></div>';
 		return wCMS::_hook('settings', $output)[0];
 	}
 	public static function css() {
 		$styles = <<<'EOT'
-<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px}#adminPanel a,.alert a{color:#aaa;border:0}#adminPanel a.btn{color:#fff}#adminPanel span.editText{color:#555}span.editText{border:2px dashed #ccc}span.editText,.toggle{display:block;cursor:pointer}span.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}span.editText:empty{min-height:20px}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px}.padding20{padding:20px}.subTitle{font-size:18px;margin:10px 0 5px}.fontSize24{font-size:24px}.note-editor{border:2px dashed #ccc}</style>
+<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px}#adminPanel a,.alert a{color:#aaa;border:0}#adminPanel a.btn{color:#fff}#adminPanel div.editText{color:#555}div.editText{border:2px dashed #ccc}div.editText,.toggle{display:block;cursor:pointer}div.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px}.padding20{padding:20px}.subTitle{font-size:18px;margin:10px 0 5px}.fontSize24{font-size:24px}.note-editor{border:2px dashed #ccc}</style>
 EOT;
 		return wCMS::_hook('css', $styles)[0];
 	}
 	public static function js() {
 		$scripts = <<<'EOT'
-<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c){$("#save").show(),$.post("",{fieldname:a,content:b,target:c},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$("span.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)})});</script>
+<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c){$("#save").show(),$.post("",{fieldname:a,content:b,target:c},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$("div.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)})});</script>
 EOT;
 		return wCMS::_hook('js', $scripts)[0];
 	}
@@ -169,12 +169,17 @@ EOT;
 		if ($fieldname === 'theme') if ( ! is_dir(__DIR__ . '/themes/' . $content)) return;
 		if ($target === 'config') wCMS::set('config',$fieldname,$content); elseif ($target === 'blocks') wCMS::set('blocks',$fieldname,'content',$content); elseif ($target === 'pages') { if ( ! isset(wCMS::get('pages')->{wCMS::$currentPage})) wCMS::_createPage(); wCMS::set('pages',wCMS::$currentPage,$fieldname,$content); }
 	}
+	public static function _generateToken(){
+		return $_SESSION["token"] = bin2hex(openssl_random_pseudo_bytes(32));
+	}
 	public static function _changePasswordAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_POST['old_password']) || ! isset($_POST['new_password'])) return;
-		if ( ! password_verify($_POST['old_password'], wCMS::get('config','password'))) { wCMS::alert('danger', 'Wrong password.'); wCMS::redirect(wCMS::$currentPage); }
-		if (strlen($_POST['new_password']) < 4) { wCMS::alert('danger', 'Password must be longer than 4 characters.'); wCMS::redirect(wCMS::$currentPage); }
-		wCMS::set('config','password',password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-		wCMS::alert('success', 'Password changed.'); wCMS::redirect(wCMS::$currentPage);
+		if ($_SESSION['token'] === $_POST['token']) {
+			if ( ! password_verify($_POST['old_password'], wCMS::get('config','password'))) { wCMS::alert('danger', 'Wrong password.'); wCMS::redirect(wCMS::$currentPage); }
+			if (strlen($_POST['new_password']) < 4) { wCMS::alert('danger', 'Password must be longer than 4 characters.'); wCMS::redirect(wCMS::$currentPage); }
+			wCMS::set('config','password',password_hash($_POST['new_password'], PASSWORD_DEFAULT));
+			wCMS::alert('success', 'Password changed.'); wCMS::redirect(wCMS::$currentPage);
+		}
 	}
 	public static function _deleteAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_GET['delete'])) return;
