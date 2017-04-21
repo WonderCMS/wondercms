@@ -123,7 +123,6 @@ class wCMS {
     public static function addListener($hook, $functionName, $priority = 10) {
         $priority_existed = isset(wCMS::$_listeners[$hook][$priority]);
         wCMS::$_listeners[$hook][$priority][] = $functionName;
-        // if we're adding a new priority to the list, put them back in sorted order
         if (!$priority_existed && count(wCMS::$_listeners[$hook]) > 1) {
             ksort(wCMS::$_listeners[$hook], SORT_NUMERIC);
         }
