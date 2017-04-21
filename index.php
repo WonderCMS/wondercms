@@ -154,7 +154,7 @@ EOT;
 	}
 	public static function js() {
 		$scripts = <<<'EOT'
-<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$("span.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)});$("i.menu-toggle").click(function(){var a=$(this),c=(window.location.reload(),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide menu item").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems",content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){}).done(function(){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show menu item").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}).done(function(){}))}),$(".menu-item-add").click(function(){$.post("",{fieldname:"menuItems",content:"New menu item",target:"menuItem",menu:"none",visibility:"hide"},function(a){}).done(setTimeout(function(){window.location.reload()},500))});});
+<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$("span.editText").click(function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)});$("i.menu-toggle").click(function(){var a=$(this),c=(setTimeout(function(){window.location.reload()},500),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide menu item").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems",content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show menu item").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}))}),$(".menu-item-add").click(function(){$.post("",{fieldname:"menuItems",content:"New menu item",target:"menuItem",menu:"none",visibility:"hide"},function(a){}).done(setTimeout(function(){window.location.reload()},500))});});
 </script>
 
 EOT;
@@ -173,26 +173,9 @@ EOT;
 		if (wCMS::$currentPage === 'logout') { unset($_SESSION['l'], $_SESSION['i'], $_SESSION['u']);wCMS::redirect(); }
 	}
     public static function _newMenutItem($content, $menu, $visibility){
-        $conf='config';$field='menuItems';$exist=is_numeric($menu);
-        $visibility = (isset($visibility) && $visibility == "show")?"show":"hide";
-        $content=str_replace(array(PHP_EOL,'<br>'),'',$content);
-        $slug=wCMS::_slugify($content);$menuCount=count(get_object_vars(wCMS::get($conf, $field)));
-        if(!$exist){
-            $db=wCMS::db();$db->config->{$field}->{$menuCount}=new stdClass;wCMS::save($db);
-            wCMS::set($conf, $field, $menuCount, 'name', $content);
-            wCMS::set($conf, $field, $menuCount, 'slug', $slug."-".$menuCount);
-            wCMS::set($conf, $field, $menuCount, 'visibility', $visibility);
-            wCMS::_createPage($slug."-".$menuCount);
-        }else{
-            $oldSlug=wCMS::get($conf,$field,$menu,'slug');
-            wCMS::set($conf,$field,$menu,'name',$content);
-            wCMS::set($conf,$field,$menu,'slug',$slug);
-            wCMS::set($conf,$field,$menu,'visibility',$visibility);
-            if($slug!==$oldSlug){
-                wCMS::_createPage($slug);
-                wCMS::_deleteAction($oldSlug,false);
-            }
-        }
+        $conf='config';$field='menuItems';$exist=is_numeric($menu);$visibility=(isset($visibility)&&$visibility=="show")?"show":"hide";$content=str_replace(array(PHP_EOL,'<br>'),'',$content);$slug=wCMS::_slugify($content);$menuCount=count(get_object_vars(wCMS::get($conf, $field)));
+        if(!$exist){$db=wCMS::db();$slug.=($menu)?"-".$menuCount:"";foreach($db->config->{$field} as $key=>$value)if($value->slug == $slug)return;$db->config->{$field}->{$menuCount}=new stdClass;wCMS::save($db);wCMS::set($conf, $field, $menuCount, 'name', $content);wCMS::set($conf, $field, $menuCount, 'slug', $slug);wCMS::set($conf, $field, $menuCount, 'visibility', $visibility);if($menu)wCMS::_createPage($slug);}
+        else{$oldSlug=wCMS::get($conf,$field,$menu,'slug');wCMS::set($conf,$field,$menu,'name',$content);wCMS::set($conf,$field,$menu,'slug',$slug);wCMS::set($conf,$field,$menu,'visibility',$visibility);if($slug!==$oldSlug){wCMS::_createPage($slug);wCMS::_deleteAction($oldSlug,false);}}
     }
 	public static function _saveAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_POST['fieldname']) || ! isset($_POST['content']) || ! isset($_POST['target'])) return;
@@ -212,19 +195,11 @@ EOT;
 		wCMS::alert('success', 'Password changed.'); wCMS::redirect(wCMS::$currentPage);
 	}
 	public static function _deleteAction($needle=false,$menu=true) {
-		if(!$needle){
-		    if (!wCMS::$loggedIn || !isset($_GET['delete'])) return;
-            $needle=$_GET['delete'];
-        }
-        $db=wCMS::db();
+		if(!$needle){if (!wCMS::$loggedIn || !isset($_GET['delete'])) return;$needle=$_GET['delete'];}$db=wCMS::db();
 		if (isset(wCMS::get('pages')->{$needle})) unset($db->pages->{$needle});
-		if($menu) {
-            $menuItems = array_values(json_decode(json_encode(wCMS::get('config', 'menuItems')), TRUE));
-            if (false === ($index = array_search($needle, array_column($menuItems, "slug")))) return;
-            unset($menuItems[$index]);
-            $db->config->menuItems = json_decode(json_encode($menuItems));
-        }
-		wCMS::save($db); wCMS::redirect();
+		if($menu) {$menuItems = json_decode(json_encode(wCMS::get('config', 'menuItems')), TRUE);
+            if (false === ($index = array_search($needle, array_column($menuItems, "slug")))) return;unset($menuItems[$index]);$newMenu=array_values($menuItems);$db->config->menuItems = json_decode(json_encode($newMenu));}
+        wCMS::save($db); wCMS::redirect();
 	}
 	public static function _upgradeAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_POST['upgrade'])) return;
@@ -252,15 +227,16 @@ EOT;
 		foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) if (file_exists($dir . '/' . basename($dir) . '.php')) include $dir . '/' . basename($dir) . '.php';
 	}
 	public static function _createPage($slug = false) {
-		$db = wCMS::db();$db->pages->{(!$slug)?wCMS::$currentPage:$slug} = new stdClass; wCMS::save($db);wCMS::set('pages',(!$slug)?wCMS::_slugify(wCMS::$currentPage):$slug,'title',(!$slug)?mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE):$slug); wCMS::set('pages',(!$slug)?wCMS::_slugify(wCMS::$currentPage):$slug,'keywords','Keywords, are, good, for, search, engines'); wCMS::set('pages',(!$slug)?wCMS::_slugify(wCMS::$currentPage):$slug,'description','A short description is also good.');
+        $db = wCMS::db();
+        $db->pages->{(!$slug) ? wCMS::$currentPage : $slug} = new stdClass;
+        wCMS::save($db);
+        wCMS::set('pages', (!$slug) ? wCMS::_slugify(wCMS::$currentPage) : $slug, 'title', (!$slug) ? mb_convert_case(wCMS::$currentPage, MB_CASE_TITLE) : $slug);
+        wCMS::set('pages', (!$slug) ? wCMS::_slugify(wCMS::$currentPage) : $slug, 'keywords', 'Keywords, are, good, for, search, engines');
+        wCMS::set('pages', (!$slug) ? wCMS::_slugify(wCMS::$currentPage) : $slug, 'description', 'A short description is also good.');
+        if (!$slug) wCMS::_newMenutItem(wCMS::_slugify(wCMS::$currentPage), null, "hide");
 	}
     public static function _slugify($text){
-        $text = preg_replace('~[^\\pL\d]+~u', '-', $text);
-        $text = trim($text, '-');
-        $text = iconv('utf-8', 'ascii//TRANSLIT', $text);
-        $text = strtolower($text);
-        $text = preg_replace('~[^-\w]+~', '', $text);
-        return $text;
+        $text=preg_replace('~[^\\pL\d]+~u','-',$text);$text=trim($text,'-');$text=iconv('utf-8','ascii//TRANSLIT',$text);$text=strtolower($text);$text=preg_replace('~[^-\w]+~','',$text);return $text;
     }
 	public static function _hook() {
         $numArgs = func_num_args();
