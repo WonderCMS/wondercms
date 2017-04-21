@@ -1,4 +1,4 @@
-# WonderCMS 2.0.2  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.2/WonderCMS-2.0.2.zip)
+# WonderCMS 2.0.3  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.3/WonderCMS-2.0.3.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,7 +13,12 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-### What is new in 2.0.2
+### What is new in 2.0.3
+- fixed CSRF vulnerability with low severity, fix comes 24 hours after reported vulnerability, thanks to Ashutosh Singh for the vulnerability find.
+- fixed 404 header bug
+- span wrappers changed to div wrappers on all editable areas, thanks to @scsmash3r
+
+### What was new in 2.0.2
 - added new hook: page
 
 #### What was new in 2.0.1
@@ -44,7 +49,7 @@ or
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito and other security researchers
 
-### WonderCMS works by default on Apache. To make it work with NGINX, put the following code into your NGINX server config:
+### WonderCMS works by default on Apache and Windows IIS. To make it work with NGINX, put the following code into your NGINX server config:
 ```
 location ~ database.js {
 	return 403;
