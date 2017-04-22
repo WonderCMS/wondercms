@@ -59,7 +59,7 @@ autoindex off;
 
 location / {
 	if (!-e $request_filename) {
-		rewrite ^/(.+)$ /index.php?page= last;
+		rewrite ^/(.+)$ /index.php?page=$1 last;
 	}
 }
 ```
