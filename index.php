@@ -30,6 +30,11 @@ class wCMS {
 			$newdb->{'blocks'}->{'footer'}->{'content'} = $olddb->{'config'}->{'copyright'};
 			wCMS::save($newdb);
 		}
+		if($olddb->config->dbVersion < "2.1.0"){
+		    $newMenu = new stdClass(); $i=0;
+            foreach ($olddb->config->menuItems as $oldMenu){$newMenu->{$i}=new stdClass;$newMenu->{$i}->name = $oldMenu;$newMenu->{$i}->slug = wCMS::_slugify($oldMenu);$newMenu->{$i}->visibility = "show";$i++;}
+            unset($olddb->config->menuItems);$olddb->config->menuItems = $newMenu;$olddb->config->dbVersion = "2.1.0";wCMS::save($olddb);
+        }
 	}
 	public static function init() {
 		wCMS::_loadPlugins();
@@ -250,7 +255,7 @@ EOT;
 		if (wCMS::db() !== false) return;
 		wCMS::save([
 			'config' => [
-				'dbVersion' => '2.0.0',
+				'dbVersion' => '2.1.0',
 				'siteTitle' => 'Website title',
 				'theme' => 'default',
 				'defaultPage' => 'home',
