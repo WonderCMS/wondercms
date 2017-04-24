@@ -212,8 +212,16 @@ EOT;
 		if ( ! wCMS::$loggedIn) return;
 		if ( ! wCMS::$currentPageExists) wCMS::alert('info', '<b>This page (' . wCMS::$currentPage . ') doesn\'t exist yet.</b> Click inside the content below and make your first edit to create it.');
 		if (wCMS::get('config','login') === 'loginURL') wCMS::alert('warning', 'Change your default login URL and bookmark/save it.', true); if (password_verify('admin', wCMS::get('config','password'))) wCMS::alert('danger', 'Change your default password.', true);
-		if ( ! isset($_SESSION['u'])) {$_SESSION['u'] = true; {if (trim(file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/version')) != version) {
-			wCMS::alert('info', '<b>Your WonderCMS version is out of date.</b> <form style="display:inline" action="" method="post"><button class="btn btn-info" name="upgrade">Update WonderCMS</button></form><p>Before updating:</p><p>- <a href="https://github.com/robiso/wondercms/wiki/Backup-all-files" target="_blank">backup all files</a></p><p>- <a href="https://www.wondercms.com/whatsnew" target="_blank">check what\'s new</a></p>', true);};}}
+		if ( ! isset($_SESSION['u'])) {$_SESSION['u'] = true; {$repo_version = wCMS::_getOfficialVersion(); if ($repo_version != version) {
+			wCMS::alert('info', '<b>Your WonderCMS version is out of date.</b><br />Your version: ' . version . ' | New Version: ' . $repo_version . '<br /><form style="display:inline" action="" method="post"><button class="btn btn-info" name="upgrade">Update WonderCMS</button></form><p>Before updating:</p><p>- <a href="https://github.com/robiso/wondercms/wiki/Backup-all-files" target="_blank">backup all files</a></p><p>- <a href="https://www.wondercms.com/whatsnew" target="_blank">check what\'s new</a></p>', true);};}}
+	}
+	private static function _getOfficialVersion() {
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($ch, CURLOPT_URL, 'https://raw.githubusercontent.com/robiso/wondercms/master/version');
+		$data = trim(curl_exec($ch));
+		curl_close($ch);
+		return $data;
 	}
 	public static function _loadPlugins() {
 		if ( ! is_dir(__DIR__ . '/plugins')) mkdir(__DIR__ . '/plugins');
