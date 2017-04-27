@@ -260,7 +260,7 @@ EOT;
 					'title' => 'Home',
 					'keywords' => 'Keywords, are, good, for, search, engines',
 					'description' => 'A short description is also good.',
-					'content' => '<h2>It\'s alive!</h2><p class="lightFont">Your website is now powered by WonderCMS.</p><p><a href="' . wCMS::url('loginURL') . '">Click here to login, the password is <b>admin</b>.</a></p> <p>Simply click on content to edit and click outside to save it.</p>'
+					'content' => '<h2>It\'s alive!</h2> <p class="lightFont">Your website is now powered by WonderCMS.</p> <p><a href="' . wCMS::url('loginURL') . '">Click here to login, the password is <b>admin</b>.</a></p> <p>Simply click on content to edit and click outside to save it.</p>'
 				],
 				'example' => [
 					'title' => 'Example',
