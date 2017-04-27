@@ -92,7 +92,7 @@ class wCMS {
 	public static function asset($location) {
 		return wCMS::url('themes/' . wCMS::get('config','theme') . '/' . $location);
 	}
-	public static function url($location = '') {
+	public static function url($location = '') {	    
 		return './' . $location;
 	}
 	public static function parseUrl() {
@@ -141,7 +141,7 @@ class wCMS {
         $items=wCMS::get('config','menuItems');reset($items);$first=key($items);end($items);$end=key($items);
         $output = '<p class="subTitle">Menu</p><div><div id="menuSettings" class="container">';
         foreach ($items as $key => $value) {
-            $output .= '<div class="row align-items-center"><div class="col-xs-1"><i class="btn menu-toggle glyphicon' . ($value->visibility == "show" ? ' glyphicon-eye-open menu-item-hide' : ' glyphicon-eye-close menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide menu item' : 'Show menu item') . '" data-menu="' . $key . '"></i> <a href="' . wCMS::url('?delete=' . $value->slug) . '" onclick="return confirm(\'Really delete page?\')"><i class="btn glyphicon glyphicon-minus-sign toolbar menu-item-delete" data-toggle="tooltip" data-menu="' . $key . '" title="Remove menu item"></i></a></div><div class="col-xs-8"><div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div></div><div class="col-xs-3">';
+            $output .= '<div class="row"><div class="col-xs-1"><i class="btn menu-toggle glyphicon' . ($value->visibility == "show" ? ' glyphicon-eye-open menu-item-hide' : ' glyphicon-eye-close menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide menu item' : 'Show menu item') . '" data-menu="' . $key . '"></i> <a href="' . wCMS::url('?delete=' . $value->slug) . '" onclick="return confirm(\'Really delete page?\')"><i class="btn glyphicon glyphicon-minus-sign toolbar menu-item-delete" data-toggle="tooltip" data-menu="' . $key . '" title="Remove menu item"></i></a></div><div class="col-xs-8"><div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div></div><div class="col-xs-3">';
             $output .= ($key===$first)?'':'<i class="btn glyphicon glyphicon-triangle-top toolbar menu-item-up" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></i>';
             $output .= ($key===$end)?'':'<i class="btn glyphicon glyphicon-triangle-bottom toolbar menu-item-down" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></i>';
             $output .= '</div></div>';
@@ -187,7 +187,7 @@ EOT;
 	}
     public static function _newMenuItem($content, $menu, $visibility){
         $conf='config';$field='menuItems';$exist=is_numeric($menu);$visibility=(isset($visibility)&&$visibility=="show")?"show":"hide";$content=empty($content)?"empty":str_replace(array(PHP_EOL,'<br>'),'',$content);$slug=wCMS::_slugify($content);$menuCount=count(get_object_vars(wCMS::get($conf, $field)));
-        if(!$exist){$db=wCMS::db();$slug.=($menu)?"-".$menuCount:"";foreach($db->config->{$field} as $key=>$value)if($value->slug == $slug)return;$db->config->{$field}->{$menuCount}=new stdClass;wCMS::save($db);wCMS::set($conf, $field, $menuCount, 'name', $content);wCMS::set($conf, $field, $menuCount, 'slug', $slug);wCMS::set($conf, $field, $menuCount, 'visibility', $visibility);if($menu)wCMS::_createPage($slug);}
+        if(!$exist){$db=wCMS::db();$slug.=($menu)?"-".$menuCount:"";foreach($db->config->{$field} as $key=>$value)if($value->slug == $slug)$slug.="-new";$db->config->{$field}->{$menuCount}=new stdClass;wCMS::save($db);wCMS::set($conf, $field, $menuCount, 'name', $content);wCMS::set($conf, $field, $menuCount, 'slug', $slug);wCMS::set($conf, $field, $menuCount, 'visibility', $visibility);if($menu)wCMS::_createPage($slug);}
         else{$oldSlug=wCMS::get($conf,$field,$menu,'slug');wCMS::set($conf,$field,$menu,'name',$content);wCMS::set($conf,$field,$menu,'slug',$slug);wCMS::set($conf,$field,$menu,'visibility',$visibility);if($slug!==$oldSlug){wCMS::_createPage($slug);wCMS::_deleteAction($oldSlug,false);}}
     }
     public static function _orderMenuItem($content, $menu){

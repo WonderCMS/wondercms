@@ -3,59 +3,37 @@ html {
 	position: relative;
 	box-shadow: 0 0 100px rgba(0, 0, 0, 0.27) inset;
 }
-
 body {
 	color: #555;
 	background: #eee;
 	margin-bottom: 60px;
 	font-family: "Lucida Sans Unicode", Verdana;
 }
-.vertical-align {
-	display: flex;
-	align-items: center;
-}
 .whiteFont {color: #fff;}
 .padding20 {padding: 20px;}
 .padding40 {padding: 40px;}
 .blueBackground {background-color: #1ab;}
-
 .lightFont {
 	color:#aaa; 
 	font-size:18px;
 }
-
 .navbar-default .navbar-toggle {border-color: #888;}
-
 .navbar li {
 	font-size: 13px;
 	text-transform: uppercase;
 }
-
 .navbar, .navbar-collapse {
 	border: 0;
 	background: none;
 }
-
 .navbar li a:hover, .active a {
 	color: #1ab !important;
 	background: none !important;
 	border-bottom: 1px solid #1ab;
 }
-
 footer {
 	bottom: 0;
 	width: 100%;
 	font-size: 13px;
 	position: absolute;
-}
-@media (max-width: 767px) {
-	.row.vertical-align {
-		display: block;
-	}
-}
-@media (min-width: 768px) {
-	.row.vertical-align {
-		display: flex;
-		align-items: center;
-	}
 }
