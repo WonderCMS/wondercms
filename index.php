@@ -1,7 +1,7 @@
 <?php // WonderCMS - wondercms.com - license: MIT
 
 session_start();
-define('version', '2.0.3');
+define('version', '2.0.4');
 mb_internal_encoding('UTF-8');
 
 class wCMS {
@@ -13,9 +13,9 @@ class wCMS {
 	public static function _updateOtherFiles() {
 		$olddb = wCMS::db();
 		if ( ! isset($olddb->{'config'}->{'dbVersion'})) {
-			if (file_exists(__DIR__ . '/themes/default/theme.php')) file_put_contents(__DIR__ . '/themes/default/theme.php', file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/themes/default/theme.php'));
-			if (file_exists(__DIR__ . '/themes/default/css/style.css')) file_put_contents(__DIR__ . '/themes/default/css/style.css', file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/themes/default/css/style.css'));
-			if (file_exists('.htaccess')) file_put_contents('.htaccess', file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess'));
+			if (file_exists(__DIR__ . '/themes/default/theme.php')) file_put_contents(__DIR__ . '/themes/default/theme.php', wCMS::_getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/themes/default/theme.php'));
+			if (file_exists(__DIR__ . '/themes/default/css/style.css')) file_put_contents(__DIR__ . '/themes/default/css/style.css', wCMS::_getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/themes/default/css/style.css'));
+			if (file_exists('.htaccess')) file_put_contents('.htaccess', wCMS::_getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess'));
 			unlink('database.js');
 			wCMS::_createDatabase();
 			$newdb = wCMS::db();
@@ -93,7 +93,7 @@ class wCMS {
 		return wCMS::url('themes/' . wCMS::get('config','theme') . '/' . $location);
 	}
 	public static function url($location = '') {
-		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['HTTP_HOST'] . '/' . $location; //str_replace($_SERVER['DOCUMENT_ROOT'], '', str_replace('\\', '/', __DIR__)) .
+		return './' . $location;
 	}
 	public static function parseUrl() {
 		if ($_GET['page'] == wCMS::get('config','login')) return htmlentities($_GET['page'], ENT_QUOTES, 'UTF-8');
@@ -231,7 +231,7 @@ EOT;
 	}
 	public static function _upgradeAction() {
 		if ( ! wCMS::$loggedIn || ! isset($_POST['upgrade'])) return;
-		$contents = file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
+		$contents = wCMS::_getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
 		if ($contents) {
 			file_put_contents(__FILE__, $contents);
 			wCMS::alert('success', 'WonderCMS successfully updated. Wohoo!'); wCMS::redirect(wCMS::$currentPage);
@@ -247,8 +247,16 @@ EOT;
 		if ( ! wCMS::$loggedIn) return;
 		if ( ! wCMS::$currentPageExists) wCMS::alert('info', '<b>This page (' . wCMS::$currentPage . ') doesn\'t exist yet.</b> Click inside the content below and make your first edit to create it.');
 		if (wCMS::get('config','login') === 'loginURL') wCMS::alert('warning', 'Change your default login URL and bookmark/save it.', true); if (password_verify('admin', wCMS::get('config','password'))) wCMS::alert('danger', 'Change your default password.', true);
-		if ( ! isset($_SESSION['u'])) {$_SESSION['u'] = true; {if (trim(file_get_contents('https://raw.githubusercontent.com/robiso/wondercms/master/version')) != version) {
-			wCMS::alert('info', '<b>Your WonderCMS version is out of date.</b> <form style="display:inline" action="" method="post"><button class="btn btn-info" name="upgrade">Update WonderCMS</button></form><p>Before updating:</p><p>- <a href="https://github.com/robiso/wondercms/wiki/Backup-all-files" target="_blank">backup all files</a></p><p>- <a href="https://www.wondercms.com/whatsnew" target="_blank">check what\'s new</a></p>', true);};}}
+		if ( ! isset($_SESSION['u'])) {$_SESSION['u'] = true; {$repo_version = wCMS::_getOfficialVersion(); if ($repo_version != version) {
+			wCMS::alert('info', '<b>Your WonderCMS version is out of date.</b><br />Your version: ' . version . ' | New Version: ' . $repo_version . '<br /><form style="display:inline" action="" method="post"><button class="btn btn-info" name="upgrade">Update WonderCMS</button></form><p>Before updating:</p><p>- <a href="https://github.com/robiso/wondercms/wiki/Backup-all-files" target="_blank">backup all files</a></p><p>- <a href="https://www.wondercms.com/whatsnew" target="_blank">check what\'s new</a></p>', true);};}}
+	}
+	private static function _getOfficialVersion() {
+		$data = trim(wCMS::_getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
+		return $data;
+	}
+	public static function _getExternalFile($url) {
+		$ch = curl_init(); curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1); curl_setopt($ch, CURLOPT_URL, $url);
+		$data = curl_exec($ch); curl_close($ch); return $data;
 	}
 	public static function _loadPlugins() {
 		if ( ! is_dir(__DIR__ . '/plugins')) mkdir(__DIR__ . '/plugins');
