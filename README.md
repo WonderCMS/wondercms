@@ -1,4 +1,4 @@
-# WonderCMS 2.0.4  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.4/WonderCMS-2.0.4.zip)
+# WonderCMS 2.0.5  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.5/WonderCMS-2.0.5.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,31 +13,10 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-### What is new in 2.0.4
-- update system changed from using file_get_contents to cURL - thanks to Robbie Antenesse for providing us with a more stable update system
-- fixed absolute URLs to relative, this bug happened on some servers/enviroments and made WonderCMS URLs unusable - another thanks to Robbie Antenesse for this awesome fix
+#### What's new in 2.0.5
+- fixed display login URL in settings panel thanks to Robbie Antenesse (@Alamantus)
 
-#### What was new in 2.0.3
-- fixed CSRF vulnerability with low severity, fix comes 24 hours after reported vulnerability, thanks to Ashutosh Singh for the vulnerability find.
-- fixed 404 header bug
-- span wrappers changed to div wrappers on all editable areas, thanks to @scsmash3r
-
-#### What was new in 2.0.2
-- added new hook: page
-
-#### What was new in 2.0.1
-- fixed function name, added missing static param
-- added default CSS font size to settings panel and removed unneccessary spaces and semicolons
-
-#### What was new in 2.0.0
-- first non-beta release in 8 years
-- new default theme
-- we now update the default theme and .htaccess (we used to only update index.php)
-- improved settings panel
-- major code clean up
-- database.js versioning, which makes it really easy to update for different WonderCMS versions
-- no more "Powered by WonderCMS" link - removed from footer
-- developer friendlier
+See what was new in previous versions: https://www.wondercms.com/whatsnew
 
 ### Features
  - no configuration required, unzip and upload
