@@ -1,4 +1,4 @@
-# WonderCMS 2.0.3  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.3/WonderCMS-2.0.3.zip)
+# WonderCMS 2.0.4  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.4/WonderCMS-2.0.4.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,12 +13,16 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-### What is new in 2.0.3
+### What is new in 2.0.4
+- update system changed from using file_get_contents to cURL - thanks to Robbie Antenesse for providing us with a more stable update system
+- fixed absolute URLs to relative, this bug happened on some servers/enviroments and made WonderCMS URLs unusable - another thanks to Robbie Antenesse for this awesome fix
+
+#### What was new in 2.0.3
 - fixed CSRF vulnerability with low severity, fix comes 24 hours after reported vulnerability, thanks to Ashutosh Singh for the vulnerability find.
 - fixed 404 header bug
 - span wrappers changed to div wrappers on all editable areas, thanks to @scsmash3r
 
-### What was new in 2.0.2
+#### What was new in 2.0.2
 - added new hook: page
 
 #### What was new in 2.0.1
