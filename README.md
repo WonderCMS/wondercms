@@ -1,4 +1,4 @@
-# WonderCMS 2.0.5  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.5/WonderCMS-2.0.5.zip)
+# WonderCMS 2.0.6  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.0.6/WonderCMS-2.0.6.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,8 +13,8 @@ or
  - PHP 5.5 or higher
  - .htaccess support
 
-#### What's new in 2.0.5
-- fixed display login URL in settings panel thanks to Robbie Antenesse (@Alamantus)
+#### What's new in 2.0.6
+- Fixed bug $_SERVER[REQUEST_URI] to $_SERVER['REQUEST_URI'] because of errors reported on some sites. Thanks to turboblack for reporting this.
 
 See what was new in previous versions: https://www.wondercms.com/whatsnew
 
