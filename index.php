@@ -221,7 +221,8 @@ EOT;
 		return $data;
 	}
 	public static function _getExternalFile($url) {
-		$ch = curl_init(); curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1); curl_setopt($ch, CURLOPT_URL, $url);
+		$ch = curl_init($url); curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		$data = curl_exec($ch); curl_close($ch); return $data;
 	}
 	public static function _loadPlugins() {
