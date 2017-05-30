@@ -143,7 +143,7 @@ class wCMS {
 		return file_exists(__DIR__ . '/database.js') ? json_decode(file_get_contents(__DIR__ . '/database.js')) : false;
 	}
 	public static function save($db) {
-		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 	}
 	public static function addListener($hook, $functionName) {
 		wCMS::$_listeners[$hook][] = $functionName;
