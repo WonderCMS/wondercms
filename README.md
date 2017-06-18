@@ -14,8 +14,8 @@ or
  - .htaccess support
 
 #### What's new in 2.2.0
-1. Added additional tokens to prevent/fix CSRF vulnerabilities thanks to Luka Mrovlje for the fix (from mobinia.si).
-  1a. Special thanks to Ehsan Hosseini from Zerox Security Lab (twitter.com/ZeroxSecLab) for reporting this and confirming the issue is resolved.
+1. Added additional tokens to prevent/fix CSRF vulnerabilities thanks to Luka Mrovlje for the fix (from Mobinia inter - mobinia.com).
+ 1a. Special thanks to Ehsan Hosseini from Zerox Security Lab (twitter.com/ZeroxSecLab) for reporting this and confirming the issue is resolved.
 2. Added CSS style (text align left) the settings panel. This is to prevent the admin settings panel text alignment from being overwritten by a custom theme.
 3. New created pages are now visible in the menu by default.
 4. Added extra help on the example page for new WonderCMS installations.
