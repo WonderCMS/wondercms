@@ -1,4 +1,4 @@
-# WonderCMS 2.1.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.1.0/WonderCMS-2.1.0.zip)
+# WonderCMS 2.2.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.2.0/WonderCMS-2.2.0.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -10,17 +10,15 @@ or
 - clone from GitHub
 
 ### Requirements
- - PHP 5.5 or higher
+ - PHP 5.5 or higher (cURL and mb_string extentions required)
  - .htaccess support
 
-#### What's new in 2.1.0
-1. New page functionality
-	1a. Easy page adding and hiding | thanks to Pascal Jordin.
-	1b. Easy page re-ordering | thanks to Pascal Jordin.
-	1c. Cleaner URLs | another huge thanks to Pascal Jordin.
-2. Improved URL function | thanks to Luka Mrovlje.
-3. Minor code improvements.
-- Additional thanks to turboblack (Dannis Danylenko) for all the testing.
+#### What's new in 2.2.0
+1. Added additional tokens to prevent/fix CSRF vulnerabilities thanks to Luka Mrovlje for the fix (from mobinia.si).
+  1a. Special thanks to Ehsan Hosseini from Zerox Security Lab (twitter.com/ZeroxSecLab) for reporting this and confirming the issue is resolved.
+2. Added CSS style (text align left) the settings panel. This is to prevent the admin settings panel text alignment from being overwritten by a custom theme.
+3. New created pages are now visible in the menu by default.
+4. Added extra help on the example page for new WonderCMS installations.
 
 See what was new in previous versions: https://wondercms.com/whatsnew
 
@@ -36,7 +34,7 @@ See what was new in previous versions: https://wondercms.com/whatsnew
  - easy page creating and deleting
  - better SEO support - custom title, keywords and description for each page
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
- - no known vulnerabilities - special thanks to yassineaddi, hypnito and other security researchers
+ - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
 ### WonderCMS works by default on Apache and Windows IIS. To make it work with NGINX, put the following code into your NGINX server config:
 ```
