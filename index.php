@@ -354,7 +354,7 @@ EOT;
 					'title' => 'Example',
 					'keywords' => 'Keywords, are, good, for, search, engines',
 					'description' => 'A short description is also good.',
-					'content' => '<h3>1. How to create new pages</h3> <p>Open the settings panel and click the + (plus) sign under Menu.</p> <hr> <h3>2. How to edit pages</h3> <p>Click anywhere inside the gray dashed area to edit. Click outside the area to save.</p> <hr> <h3>3. How to install themes and plugins</h3> <p>Download ZIP file of a theme/plugin and unzip it.</p><p>Copy the unzipped folder into your themes or plugins folder.</p><p><a href="https://www.wondercms.com/themes" target="_blank">Download WonderCMS themes</a>. <a href="https://www.wondercms.com/plugins" target="_blank">Download WonderCMS plugins</a>.</p>'
+					'content' => '<h3>How to create new pages</h3> <p>Open the settings panel and click the + (plus) sign under Menu.</p> <hr> <h3>How to edit pages</h3> <p>Click anywhere inside the gray dashed area to edit. Click outside the area to save.</p> <hr> <h3>How to install themes and plugins</h3> <p>Download ZIP file of a theme/plugin and unzip it.</p><p>Copy the unzipped folder into your themes or plugins folder.</p><p><a href="https://www.wondercms.com/themes" target="_blank">Download WonderCMS themes</a>. <a href="https://www.wondercms.com/plugins" target="_blank">Download WonderCMS plugins</a>.</p>'
 				]
 			],
 			'blocks' => [
