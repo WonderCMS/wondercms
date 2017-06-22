@@ -109,7 +109,7 @@ class wCMS {
 		return wCMS::url('themes/' . wCMS::get('config','theme') . '/' . $location);
 	}
 	public static function url($location = '') {
-		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['SERVER_NAME'].(($_SERVER['SERVER_PORT'] == '80')? '' : ':'.$_SERVER['SERVER_PORT']).((dirname($_SERVER['SCRIPT_NAME']) == '/')? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['SERVER_NAME'].((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443'))? '' : ':'.$_SERVER['SERVER_PORT']).((dirname($_SERVER['SCRIPT_NAME']) == '/')? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
 	}
 	public static function parseUrl() {
 		if (isset($_GET['page']) && $_GET['page'] == wCMS::get('config','login')) return htmlspecialchars($_GET['page'], ENT_QUOTES);
