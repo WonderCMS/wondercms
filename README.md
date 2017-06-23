@@ -1,4 +1,4 @@
-# WonderCMS 2.2.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.2.0/WonderCMS-2.2.0.zip)
+# WonderCMS 2.2.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.2.1/WonderCMS-2.2.1.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,11 +13,11 @@ or
  - PHP 5.5 or higher (cURL and mb_string extentions required)
  - .htaccess support
 
-#### What's new in 2.2.0
-1. Added additional tokens to prevent/fix CSRF vulnerabilities thanks to Luka Mrovlje for the fix (from Mobinia inter - mobinia.com). Special thanks to Ehsan Hosseini from Zerox Security Lab (twitter.com/ZeroxSecLab) for reporting this and confirming the issue is resolved.
-2. Added CSS style (text align left) the settings panel. This is to prevent the admin settings panel text alignment from being overwritten by a custom theme.
-3. New created pages are now visible in the menu by default.
-4. Added extra help on the example page for new WonderCMS installations.
+#### What's new in 2.2.1
+1. Custom port support. WonderCMS now works on non-standard HTTP ports - thanks to Grzegorz Kowalski.
+2. JavaScript hook fix - thanks to Grzegorz Kowalski.
+3. Show admin CSS only when logged in for faster website delivery.
+4. Minor text/tab fixes.
 
 See what was new in previous versions: https://wondercms.com/whatsnew
 
