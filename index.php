@@ -1,7 +1,7 @@
 <?php // WonderCMS - wondercms.com - license: MIT
 
 session_start();
-define('version', '2.2.0');
+define('version', '2.2.1');
 mb_internal_encoding('UTF-8');
 
 class wCMS {
@@ -109,7 +109,7 @@ class wCMS {
 		return wCMS::url('themes/' . wCMS::get('config','theme') . '/' . $location);
 	}
 	public static function url($location = '') {
-		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['SERVER_NAME'].((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443'))? '' : ':'.$_SERVER['SERVER_PORT']).((dirname($_SERVER['SCRIPT_NAME']) == '/')? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443'))? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/')? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
 	}
 	public static function parseUrl() {
 		if (isset($_GET['page']) && $_GET['page'] == wCMS::get('config','login')) return htmlspecialchars($_GET['page'], ENT_QUOTES);
@@ -178,12 +178,15 @@ class wCMS {
 		return wCMS::_hook('settings', $output)[0];
 	}
 	public static function css() {
-		$styles = <<<'EOT'
+		if (wCMS::$loggedIn) {
+			$styles = <<<'EOT'
 <style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;text-align:left}#adminPanel a,.alert a{color:#aaa;border:0}#adminPanel a.btn{color:#fff}#adminPanel div.editText{color:#555}div.editText{border:2px dashed #ccc}div.editText,.toggle{display:block;cursor:pointer}div.editText textarea{outline: 0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color: #ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop20{margin-top:20px}.padding20{padding:20px}.subTitle{font-size:18px;margin:10px 0 5px}.fontSize24{font-size:24px}.note-editor{border:2px dashed #ccc}.menu-item-hide,.menu-item-add{color: #339f41}.menu-item-delete{color: #9f4131}.menu-item-hide,.menu-item-show,.menu-item-delete{padding: 0px 10%}</style>
 EOT;
-		return wCMS::_hook('css', $styles)[0];
+			return wCMS::_hook('css', $styles)[0];
+		}
+		return wCMS::_hook('css', '')[0];
 	}
-public static function js() {
+	public static function js() {
 		if (wCMS::$loggedIn) {
 			$scripts = '<script>var token = "'.wCMS::_generateToken().'";</script>';
 			$scripts .= <<<'EOT'
