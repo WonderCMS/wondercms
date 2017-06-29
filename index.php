@@ -1,4 +1,4 @@
-<?php // WonderCMS - wondercms.com - license: MIT
+<?php // WonderCMS - MIT license: wondercms.com/license
 
 session_start();
 define('version', '2.2.1');
