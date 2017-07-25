@@ -55,17 +55,18 @@ location / {
   - `find ./ -type f -exec chmod 644 {} \;`
 
 ### How to update from older versions?
-- Updating from 1.1.0+ - use the one click update from your WonderCMS settings panel.
-- Updating from 1.0.0 - replace your old index.php with the new one from the above download.
+- Updating from 1.1.0+
+  - Use the one click update from your WonderCMS settings panel.
+
+- Updating from 1.0.0
+  - Replace your old index.php with the new one from the above download.
 
 - Updating from 1.0.0 and older
- - Backup all your WonderCMS files.
- - Make a fresh installation of the latest WonderCMS anywhere on your server.
- - Copy your old content and paste it into the new installation.
- - Remove the old installation.
- - Move the new installation to the old WonderCMS installation location.
-
-Updating is really easy with our click updater - included in versions 1.1.0 and above.
+  - Backup all your WonderCMS files.
+  - Make a fresh installation of the latest WonderCMS anywhere on your server.
+  - Copy your old content and paste it into the new installation.
+  - Remove the old installation.
+  - Move the new installation to the old WonderCMS installation location.
 
 ### Links
 - WonderCMS website: https://wondercms.com
