@@ -34,8 +34,8 @@ body {
 }
 
 ul.nav.navbar-nav.navbar-right li a:hover, ul.nav.navbar-nav.navbar-right li.active a {
-	color: #1ab !important;
-	background: none !important;
+	color: #1ab;
+	background: none;
 	border-bottom: 1px solid #1ab;
 }
 
