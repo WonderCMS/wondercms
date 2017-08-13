@@ -33,7 +33,7 @@ body {
 	background: none;
 }
 
-.navbar li a:hover, .active a {
+ul.nav.navbar-nav.navbar-right li a:hover, ul.nav.navbar-nav.navbar-right li.active a {
 	color: #1ab !important;
 	background: none !important;
 	border-bottom: 1px solid #1ab;
