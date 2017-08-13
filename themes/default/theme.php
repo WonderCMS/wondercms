@@ -4,9 +4,11 @@
 	<meta charset="UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+
 	<title><?=wCMS::get('config','siteTitle')?> - <?=wCMS::page('title')?></title>
 	<meta name="description" content="<?=wCMS::page('description')?>">
 	<meta name="keywords" content="<?=wCMS::page('keywords')?>">
+
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 	<link rel="stylesheet" href="<?=wCMS::asset('css/style.css')?>">
 	<?=wCMS::css()?>
@@ -62,7 +64,6 @@
 	</footer>
 
 	<script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
-	<script src="https://cdn.jsdelivr.net/jquery.autosize/3.0.17/autosize.min.js"></script>
 	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 	<?=wCMS::js()?>
 
