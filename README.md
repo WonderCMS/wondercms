@@ -14,10 +14,20 @@ or
  - .htaccess support
 
 #### What's new in 2.2.1
-1. Custom port support. WonderCMS now works on non-standard HTTP ports - thanks to Grzegorz Kowalski.
-2. JavaScript hook fix - thanks to Grzegorz Kowalski.
-3. Show admin CSS only when logged in for faster website delivery.
-4. Minor text/tab fixes.
+- re-designed settings panel
+- theme installer + updater + remover
+- plugin installer + updater + remover
+- file uploader + remover
+- tab/indentation support
+- additional security token checks
+- "Visit page" link next to each page in menu
+- added success message when deleting a page
+- logout link moved to top right corner
+- fixed title case when creating new pages
+- files autosize.js, taboverride.min.js and taboverride.jquery.min.js are now loaded after the admin is logged in - resulting in faster website loading
+- additional token verifications
+- minor code logic fixes
+- minor text fixes
 
 See what was new in previous versions: https://wondercms.com/whatsnew
 
@@ -25,6 +35,7 @@ See what was new in previous versions: https://wondercms.com/whatsnew
  - no configuration required, unzip and upload
  - simple click and edit functionality
  - lightweight - runs on a couple hundred lines of code and 5 files
+ - easy plugin/theme install and update
  - custom login URL
  - custom homepage
  - better password protection
