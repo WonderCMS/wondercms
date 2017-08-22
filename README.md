@@ -1,4 +1,4 @@
-# WonderCMS 2.2.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.2.1/WonderCMS-2.2.1.zip)
+# WonderCMS 2.3.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.0/WonderCMS-2.3.0.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,7 +13,7 @@ or
  - PHP 5.5 or higher (cURL and mb_string extentions required)
  - .htaccess support
 
-#### What's new in 2.2.1
+#### What's new in 2.3.0
 - re-designed settings panel
 - theme installer + updater + remover
 - plugin installer + updater + remover
