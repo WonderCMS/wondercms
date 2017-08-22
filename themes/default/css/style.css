@@ -16,11 +16,6 @@ body {
 .padding40 {padding: 40px;}
 .blueBackground {background-color: #1ab;}
 
-.lightFont {
-	color:#aaa; 
-	font-size:18px;
-}
-
 .navbar-default .navbar-toggle {border-color: #888;}
 
 .navbar li {
