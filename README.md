@@ -10,8 +10,8 @@ or
 - clone from GitHub
 
 ### Requirements
- - PHP 5.5 or higher (cURL and mb_string extentions required)
- - .htaccess support
+1. PHP 5.5 or higher (cURL, mb_string, zip/unzip extensions required - usually installed by default)
+2. htaccess support (or in case of NGINX or  IIS, editing one file is required instead of htaccess support - links below)
 
 #### What's new in 2.3.0
 - re-designed settings panel
@@ -29,11 +29,12 @@ or
 - minor code logic fixes
 - minor text fixes
 
-See what was new in previous versions: https://wondercms.com/whatsnew
+What's new history: https://wondercms.com/whatsnew
 
 ### Features
  - no configuration required, unzip and upload
  - simple click and edit functionality
+ - one click update and backup
  - lightweight - runs on a couple hundred lines of code and 5 files
  - easy plugin/theme install and update
  - custom login URL
