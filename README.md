@@ -46,24 +46,11 @@ See what was new in previous versions: https://wondercms.com/whatsnew
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
-### WonderCMS works by default on Apache and Windows IIS. To make it work with NGINX, put the following code into your NGINX server config:
-```
-location ~ database.js {
-	return 403;
-}
+### WonderCMS works by default on Apache. To run WonderCMS on NGINX or IIS, editing of 1 file is required
+- NGINX 1 step instructions - https://github.com/robiso/wondercms/wiki/NGINX-server-config
+- IIS 1 step instructions - https://github.com/robiso/wondercms/wiki/IIS-server-config
 
-autoindex off;
-
-location / {
-	if (!-e $request_filename) {
-		rewrite ^/(.+)$ /index.php?page=$1 last;
-	}
-}
-```
-
-### If any errors occur (500 internal server error), correct file permissions to 644 and folder permissions to 755. You can do this manually or with the short script below (added by Bill Carson)
-  - `find ./ -type d -exec chmod 755 {} \;`
-  - `find ./ -type f -exec chmod 644 {} \;`
+### If any errors occur (500 internal server error), change all file permissions to 644 and all folder permissions to 755.
 
 ### How to update from older versions?
 - Updating from 1.1.0+
