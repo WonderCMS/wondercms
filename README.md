@@ -1,4 +1,4 @@
-# WonderCMS 2.3.0  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.0/WonderCMS-2.3.0.zip)
+# WonderCMS 2.3.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.1/WonderCMS-2.3.1.zip)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -13,7 +13,7 @@ or
 1. PHP 5.5 or higher (cURL, mb_string, zip/unzip extensions required - usually installed by default)
 2. htaccess support (or in case of NGINX or  IIS, editing one file is required instead of htaccess support - links below)
 
-#### What's new in 2.3.0
+#### What's new in 2.3.0 + 2.3.1 patch
 - re-designed settings panel
 - theme installer + updater + remover
 - plugin installer + updater + remover
@@ -28,6 +28,8 @@ or
 - additional token verifications
 - minor code logic fixes
 - minor text fixes
+- added two additional checks if the request for token is set (2.3.1 patch)
+- double space removal / converted to tabs (2.3.1 patch)
 
 What's new history: https://wondercms.com/whatsnew
 
