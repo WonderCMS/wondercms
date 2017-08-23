@@ -173,11 +173,11 @@ class wCMS {
 	}
 	public static function settings() {
 		if ( ! wCMS::$loggedIn) return;
-	    $fileList = array_slice(scandir(__DIR__ . '/files/'), 2);
-	    $fileImagesList = array_slice(scandir(__DIR__ . '/files/images/'), 2);
-	    $fileDocsList = array_slice(scandir(__DIR__ . '/files/docs/'), 2);
-	    $themeList = array_slice(scandir(__DIR__ . '/themes/'), 2);
-	    $pluginList = array_slice(scandir(__DIR__ . '/plugins/'), 2);
+		$fileList = array_slice(scandir(__DIR__ . '/files/'), 2);
+		$fileImagesList = array_slice(scandir(__DIR__ . '/files/images/'), 2);
+		$fileDocsList = array_slice(scandir(__DIR__ . '/files/docs/'), 2);
+		$themeList = array_slice(scandir(__DIR__ . '/themes/'), 2);
+		$pluginList = array_slice(scandir(__DIR__ . '/plugins/'), 2);
 		$output ='<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="text-right padding20"><a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . wCMS::url('logout&token='.wCMS::_generateToken()).'">Logout</a></div><div class="modal" id="settingsModal"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div><div class="modal-body col-xs-12"><ul class="nav nav-tabs text-center" role="tablist"><li role="presentation" class="active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab">Current page</a></li><li role="presentation"><a href="#general" aria-controls="general" role="tab" data-toggle="tab">General</a></li><li role="presentation"><a href="#files" aria-controls="files" role="tab" data-toggle="tab">Files</a></li><li role="presentation"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab">Themes & plugins</a></li><li role="presentation"><a href="#security" aria-controls="security" role="tab" data-toggle="tab">Security</a></li></ul><div class="tab-content col-md-8 col-md-offset-2"><div role="tabpanel" class="tab-pane active" id="currentPage">';
 		if (wCMS::$currentPageExists) { $output .= '<p class="subTitle">Page title</p><div class="change"><div data-target="pages" id="title" class="editText">' . (wCMS::get('pages', wCMS::$currentPage)->title != '' ? wCMS::get('pages' , wCMS::$currentPage)->title : '') . '</div></div><p class="subTitle">Page keywords</p><div class="change"><div data-target="pages" id="keywords" class="editText">' . (wCMS::get('pages', wCMS::$currentPage)->keywords != '' ? wCMS::get('pages', wCMS::$currentPage)->keywords : '') . '</div></div><p class="subTitle">Page description</p><div class="change"><div data-target="pages" id="description" class="editText">' . (wCMS::get('pages', wCMS::$currentPage)->description != '' ? wCMS::get('pages', wCMS::$currentPage)->description : '') . '</div></div><a href="' . wCMS::url('?delete=' . wCMS::$currentPage . '&token=' . wCMS::_generateToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . wCMS::$currentPage . '?\')">Delete page (' . wCMS::$currentPage . ')</a>'; } else { $output .= 'This page does not exist. After this page is created, more settings will be displayed here.';}
 		$output .= '</div><div role="tabpanel" class="tab-pane" id="general">'.wCMS::getMenuSettings().'<p class="subTitle">Main website title</p><div class="change"><div data-target="config" id="siteTitle" class="editText">' . (wCMS::get('config','siteTitle') != '' ? wCMS::get('config','siteTitle') : '') . '</div></div><p class="subTitle">Theme</p><div class="form-group"><div class="change"><select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
@@ -312,7 +312,7 @@ EOT;
 	}
 	public static function _loadPlugins() {
 		if ( ! is_dir(__DIR__ . '/plugins')) mkdir(__DIR__ . '/plugins');
-		if ( ! is_dir(__DIR__ . '/files/images') || ! is_dir(__DIR__ . '/files/docs')  || ! is_dir(__DIR__ . '/files/docs')) { mkdir(__DIR__ . '/files'); mkdir(__DIR__ . '/files/docs'); mkdir(__DIR__ . '/files/images'); }
+		if ( ! is_dir(__DIR__ . '/files/images') || ! is_dir(__DIR__ . '/files/docs') || ! is_dir(__DIR__ . '/files/docs')) { mkdir(__DIR__ . '/files'); mkdir(__DIR__ . '/files/docs'); mkdir(__DIR__ . '/files/images'); }
 		foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) if (file_exists($dir . '/' . basename($dir) . '.php')) include $dir . '/' . basename($dir) . '.php';
 	}
 	public static function _createPage($slug = false) {
@@ -360,7 +360,7 @@ EOT;
 		}
 	}
 	public static function _uploadFile() {
-		if ( ! wCMS::$loggedIn && ! isset($_FILES['uploadFile'])) return;
+		if ( ! wCMS::$loggedIn && ! isset($_FILES['uploadFile']) && ! isset($_REQUEST['token'])) return;
 		if ($_REQUEST['token'] == wCMS::_generateToken() && isset($_FILES['uploadFile'])) {
 			try {
 				if ( ! isset($_FILES['uploadFile']['error']) ||	is_array($_FILES['uploadFile']['error'])) {
@@ -403,7 +403,7 @@ EOT;
 		} elseif (is_file($file)) unlink($file);
 	}
 	public static function _removeFile() {
-		if ( ! wCMS::$loggedIn && ! isset($_REQUEST['deleteFile']) && ! isset($_REQUEST['deleteTheme']) && ! isset($_REQUEST['deletePlugin'])) return;
+		if ( ! wCMS::$loggedIn && ! isset($_REQUEST['deleteFile']) && ! isset($_REQUEST['deleteTheme']) && ! isset($_REQUEST['deletePlugin']) && ! isset($_REQUEST['token'])) return;
 		if ($_REQUEST['token'] != wCMS::_generateToken()) return;
 		$fileList = array_slice(scandir(__DIR__ . '/files/'), 2);
 		foreach ($fileList as $file) {
