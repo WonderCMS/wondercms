@@ -1,6 +1,7 @@
 ## Contributing to the core (index.php)
 1. Tested pull requests can be made directly to the master branch.
 2. Ensure pull requests don't break plugin functionality.
+3. Ensure that code solution is small and clear.
 
 ## Theme contribution guidelines
 1. Ensure theme ZIP file can be installed from the Settings->Themes & Plugins tab
@@ -8,4 +9,4 @@
 
 ## Plugin contributions guidelines
 1. Ensure theme ZIP file can be installed from the Settings->Themes & Plugins tab
-2. Ensure users safety and test your plugin thoroughly
+2. Ensure users safety and test your plugin thoroughly.
