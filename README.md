@@ -1,4 +1,5 @@
-# WonderCMS 2.3.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.1/WonderCMS-2.3.1.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+# WonderCMS 2.3.1
+## [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.1/WonderCMS-2.3.1.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Themes](https://github.com/robiso/wondercms-themes#list-of-approved-themes) • [Plugins](https://github.com/robiso/wondercms-plugins#approved-plugins)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
@@ -55,8 +56,5 @@ What's new history: https://wondercms.com/whatsnew
 ### Links
 - [WonderCMS website](https://wondercms.com)
 - [Community](https://wondercms.com/forum)
-- [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
-- [Themes](https://github.com/robiso/wondercms-themes#list-of-approved-themes)
-- [Plugins](https://github.com/robiso/wondercms-plugins#approved-plugins)
 - [Twitter](https://twitter.com/wondercms)
 - [Donate](https://wondercms.com/donate)
