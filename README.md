@@ -1,17 +1,18 @@
-# WonderCMS 2.3.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.1/WonderCMS-2.3.1.zip)
+# WonderCMS 2.3.1  • [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.1/WonderCMS-2.3.1.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
 
-### Installation
-- unzip and upload the files wherever you wish WonderCMS to be installed
-
-or
-
-- clone from GitHub
+### Installation (1 step)
+- unzip and upload anywhere you wish to install WonderCMS
 
 ### Requirements
-1. PHP 5.5 or higher (cURL, mb_string, zip/unzip extensions required - usually installed by default)
-2. htaccess support (or in case of NGINX or  IIS, editing one file is required instead of htaccess support - links below)
+- PHP 5.5 or higher
+  - cURL extension
+  - mbstring extension
+  - ZipArchive extension
+- htaccess support (on Apache)
+  - have NGINX instead of Apache? [Use this NGINX server config](https://github.com/robiso/wondercms/wiki/NGINX-server-config)
+  - have IIS instead of Apache? [Use this IIS server config](https://github.com/robiso/wondercms/wiki/IIS-server-config)
 
 #### What's new in 2.3.0 + 2.3.1 patch
 - re-designed settings panel
@@ -49,31 +50,13 @@ What's new history: https://wondercms.com/whatsnew
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
-### WonderCMS works by default on Apache. To run WonderCMS on NGINX or IIS, editing of 1 file is required
-- NGINX 1 step instructions - https://github.com/robiso/wondercms/wiki/NGINX-server-config
-- IIS 1 step instructions - https://github.com/robiso/wondercms/wiki/IIS-server-config
-
 ### If any errors occur (500 internal server error), change all file permissions to 644 and all folder permissions to 755.
 
-### How to update from older versions?
-- Updating from 1.1.0+
-  - Use the one click update from your WonderCMS settings panel.
-
-- Updating from 1.0.0
-  - Replace your old index.php with the new one from the above download.
-
-- Updating from 1.0.0 and older
-  - Backup all your WonderCMS files.
-  - Make a fresh installation of the latest WonderCMS anywhere on your server.
-  - Copy your old content and paste it into the new installation.
-  - Remove the old installation.
-  - Move the new installation to the old WonderCMS installation location.
-
 ### Links
-- WonderCMS website: https://wondercms.com
-- WonderCMS community: https://wondercms.com/forum
-- WonderCMS documentation: https://github.com/robiso/wondercms/wiki
-- WonderCMS Twitter: https://twitter.com/wondercms
-- WonderCMS donations: https://wondercms.com/donate
-- WonderCMS themes repository: https://github.com/robiso/wondercms-themes
-- WonderCMS plugins repository: https://github.com/robiso/wondercms-plugins
+- [WonderCMS website](https://wondercms.com)
+- [Community](https://wondercms.com/forum)
+- [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+- [Themes](https://github.com/robiso/wondercms-themes#list-of-approved-themes)
+- [Plugins](https://github.com/robiso/wondercms-plugins#approved-plugins)
+- [Twitter](https://twitter.com/wondercms)
+- [Donate](https://wondercms.com/donate)
