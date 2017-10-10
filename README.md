@@ -1,7 +1,7 @@
-# WonderCMS 2.3.1
-## [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.1/WonderCMS-2.3.1.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins)
+# WonderCMS 2.3.2
+## [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.2/WonderCMS-2.3.2.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins)
 
-<a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS intro" /></a>
+<a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=2" alt="WonderCMS quick intro" /></a>
 
 ### Installation (1 step)
 - unzip and upload anywhere you wish to install WonderCMS
@@ -12,26 +12,16 @@
   - mbstring extension
   - ZipArchive extension
 - htaccess support (on Apache)
-  - have NGINX instead of Apache? [Use this NGINX server config](https://github.com/robiso/wondercms/wiki/NGINX-server-config)
-  - have IIS instead of Apache? [Use this IIS server config](https://github.com/robiso/wondercms/wiki/IIS-server-config)
+  - using NGINX instead of Apache? [Use this NGINX server config](https://github.com/robiso/wondercms/wiki/NGINX-server-config)
+  - using IIS instead of Apache? [Use this IIS server config](https://github.com/robiso/wondercms/wiki/IIS-server-config)
 
-#### What's new in 2.3.0 + 2.3.1 patch
-- re-designed settings panel
-- theme installer + updater + remover
-- plugin installer + updater + remover
-- file uploader + remover
-- tab/indentation support
-- additional security token checks
-- "Visit page" link next to each page in menu
-- added success message when deleting a page
-- logout link moved to top right corner
-- fixed title case when creating new pages
-- files autosize.js, taboverride.min.js and taboverride.jquery.min.js are now loaded after the admin is logged in - resulting in faster website loading
-- additional token verifications
-- minor code logic fixes
-- minor text fixes
-- added two additional checks if the request for token is set (2.3.1 patch)
-- double space removal / converted to tabs (2.3.1 patch)
+#### What's new in 2.3.2
+- two additional ISSET checks to prevent PHP notices
+- changed HTTP 1.0 headers to HTTP 1.1
+- updated links to themes and plugins in the Settings panel (new links are: https://wondercms.com/themes and https://wondercms.com/plugins)
+- removed converted case for page titles
+- core code in WonderCMS prettified - providing a better level of readability
+- minor text changes
 
 What's new history: https://wondercms.com/whatsnew
 
