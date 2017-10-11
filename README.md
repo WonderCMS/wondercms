@@ -15,7 +15,7 @@
   - using NGINX instead of Apache? [Use this NGINX server config](https://github.com/robiso/wondercms/wiki/NGINX-server-config)
   - using IIS instead of Apache? [Use this IIS server config](https://github.com/robiso/wondercms/wiki/IIS-server-config)
 
-#### What's new in 2.3.2
+### What's new in 2.3.2
 - two additional ISSET checks to prevent PHP notices
 - changed HTTP 1.0 headers to HTTP 1.1
 - updated links to themes and plugins in the Settings panel (new links are: https://wondercms.com/themes and https://wondercms.com/plugins)
@@ -41,7 +41,8 @@ What's new history: https://wondercms.com/whatsnew
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
-### If any errors occur (500 internal server error), change all file permissions to 644 and all folder permissions to 755.
+### [List of common errors](https://wondercms.com)
+
 
 ### Links
 - [WonderCMS website](https://wondercms.com)
