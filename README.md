@@ -1,9 +1,10 @@
 # WonderCMS 2.3.2
+- WonderCMS is a flat file CMS built with PHP, jQuery and Bootstrap (HTML/CSS).
 ## [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.2/WonderCMS-2.3.2.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
 
-### Installation (1 step)
+### Installation
 - unzip and upload anywhere you wish to install WonderCMS
 
 ### Requirements
@@ -42,7 +43,6 @@ What's new history: https://wondercms.com/whatsnew
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
 ### [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors)
-
 
 ### Links
 - [WonderCMS website](https://wondercms.com)
