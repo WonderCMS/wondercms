@@ -8,7 +8,7 @@
 
 ### Requirements
 - PHP 5.5 or higher
-  - cURL extension
+  - cURL extension (for local servers, install a certificate to avoid [the persistent "Update" message error](https://github.com/robiso/wondercms/wiki/Persistent-%22New-WonderCMS-update-available%22-message)
   - mbstring extension
   - ZipArchive extension
 - htaccess support (on Apache)
