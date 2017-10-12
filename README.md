@@ -41,7 +41,7 @@ What's new history: https://wondercms.com/whatsnew
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
-### [List of common errors](https://wondercms.com)
+### [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors)
 
 
 ### Links
