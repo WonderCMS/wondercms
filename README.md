@@ -9,7 +9,10 @@
 ### 1 step install: unzip and upload anywhere on server (docs: [one step install](https://github.com/robiso/wondercms/wiki/One-step-install))
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
-### [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help) • [Changelog history](https://wondercms.com/whatsnew) • [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
+
+### - [What's new/Changelog history](https://wondercms.com/whatsnew)
+### - [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help)
+### - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
 
 ### Requirements
     WonderCMS will work on most default hosting packages (and even on some free hosting providers!)
