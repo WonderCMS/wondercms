@@ -1,7 +1,7 @@
 # WonderCMS 2.4.0
 **Simple, responsive and small flat file CMS built with PHP.**
  - Less than 50 functions and 1000 lines of code.
- - 5 file sturcture: [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css), [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
+ - 5 file structure: [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css), [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
  - Supports: plugins (hooks/listeners), themes, backups.
  - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
