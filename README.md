@@ -1,33 +1,23 @@
-# WonderCMS 2.3.2
-**WonderCMS is a small flat file CMS built with PHP, jQuery and Bootstrap (HTML/CSS).**
-- Runs on 5 files: index.php, theme.php, style.css, database.js and htaccess.
-- Supports: plugins (hooks/listeners), themes and an extra optional functions.php file.
+# WonderCMS 2.4.0
+**Simple, responsive and small flat file CMS built with PHP.**
+ - Less than 50 functions and 1000 lines of code.
+ - 5 file sturcture: [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css), [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
+ - Supports: plugins (hooks/listeners), themes, backups.
+ - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-## [Demo](https://www.wondercms.com/demo) • [Download](https://github.com/robiso/wondercms/releases/download/2.3.2/WonderCMS-2.3.2.zip) • [Documentation](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins)
+## [Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Donate](https://wondercms.com/donate)
+### 1 step install: unzip and upload anywhere on server (docs: [one step install](https://github.com/robiso/wondercms/wiki/One-step-install))
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
-
-### Installation
-- unzip and upload anywhere you wish to install WonderCMS
+### [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help) • [Changelog history](https://wondercms.com/whatsnew) • [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
 
 ### Requirements
+    WonderCMS will work on most default hosting packages (and even on some free hosting providers!)
 - PHP 5.5 or higher
   - cURL extension (for local servers, install a certificate to avoid [the persistent "Update" message error](https://github.com/robiso/wondercms/wiki/Persistent-%22New-WonderCMS-update-available%22-message))
   - mbstring extension
   - ZipArchive extension
-- htaccess support (on Apache)
-  - using NGINX instead of Apache? [Use this NGINX server config](https://github.com/robiso/wondercms/wiki/NGINX-server-config)
-  - using IIS instead of Apache? [Use this IIS server config](https://github.com/robiso/wondercms/wiki/IIS-server-config)
-
-### What's new in 2.3.2
-- two additional ISSET checks to prevent PHP notices
-- changed HTTP 1.0 headers to HTTP 1.1
-- updated links to themes and plugins in the Settings panel (new links are: https://wondercms.com/themes and https://wondercms.com/plugins)
-- removed converted case for page titles
-- core code in WonderCMS prettified - providing a better level of readability
-- minor text changes
-
-What's new history: https://wondercms.com/whatsnew
+- htaccess support on Apache (for NGINX or IIS, check [these 1 step necessary changes](https://github.com/robiso/wondercms/wiki/One-step-install#additional-steps-for-nginx-and-iis))
 
 ### Features
  - no configuration required, unzip and upload
@@ -45,11 +35,9 @@ What's new history: https://wondercms.com/whatsnew
  - SEO support - custom title, keywords and description for each page
  - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
- 
-### [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors)
 
 ### Links
-- [WonderCMS website](https://wondercms.com)
+- [Official website](https://wondercms.com)
 - [Community](https://wondercms.com/forum)
 - [Twitter](https://twitter.com/wondercms)
 - [Donate](https://wondercms.com/donate)
