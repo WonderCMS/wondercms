@@ -31,8 +31,8 @@ WonderCMS works on most hosting packages (and **even on some free hosting provid
  - custom homepage
  - highlighted current page in menu
  - 404 page
- - SEO support - custom title, keywords and description for each page
- - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your theme folder)
+ - SEO support (custom title, keywords and description for each page)
+ - optional functions.php file - includes itself when you create it (the location of the functions.php should be inside your active theme folder)
  - no known vulnerabilities - special thanks to yassineaddi, hypnito, and other security researchers
 
 ## Links
