@@ -1,9 +1,12 @@
 # WonderCMS 2.4.0
-Simple, responsive and small flat file CMS built with PHP.
- - Less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and 1000 lines of code.
- - 5 file structure: [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css), [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
- - Supports: plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps).
- - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
+Simple, responsive and small flat file CMS built with PHP. Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and 1000 lines of code.
+
+- <sub>5 file structure: [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css), [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).</sub>
+- <sub>Libraries (6):</sub>
+   - <sub>jquery.min.js (1.12.4), bootstrap.min.js/bootstrap.min.css (3.3.7) - located in theme.php, always included</sub>
+   - <sub>autosize.min.js (4.0.0), taboverride.min.js (4.0.3), jquery.taboverride.min.js (4.0.0) located in index.php, included only when logged in</sub>
+- <sub>Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).</sub>
+- <sub>Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).</sub>
 
 ## [Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Donate](https://wondercms.com/donate)
 ### 1 step install: unzip and upload anywhere on server (docs: [one step install](https://github.com/robiso/wondercms/wiki/One-step-install))
@@ -40,7 +43,7 @@ WonderCMS works on most hosting packages (and **even on some free hosting provid
 - [Official website](https://wondercms.com)
 - [Community](https://wondercms.com/forum)
 - [Donate](https://wondercms.com/donate)
-- [What's new/changelog history](https://wondercms.com/whatsnew)
+- [News/Changelog](https://wondercms.com/whatsnew)
 
 #### Social links
 - [Twitter](https://twitter.com/wondercms)
