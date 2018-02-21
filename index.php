@@ -736,7 +736,7 @@ EOT;
 				file_put_contents(__FILE__, $contents);
 			}
 			wCMS::alert('success', 'WonderCMS successfully updated. Wohoo!');
-			wCMS::redirect();
+			wCMS::redirect(wCMS::$currentPage);
 		}
 	}
 
