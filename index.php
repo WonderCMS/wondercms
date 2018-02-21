@@ -1,7 +1,7 @@
 <?php // WonderCMS - MIT license: wondercms.com/license
 
 session_start();
-define('version', '2.4.0');
+define('version', '2.4.1');
 mb_internal_encoding('UTF-8');
 
 class wCMS
@@ -291,18 +291,24 @@ EOT;
 				foreach($deleteList as $entry) {
 					list($folder, $request) = $entry;
 					$filename = isset($_REQUEST[$request]) ? trim($_REQUEST[$request]) : false;
-					if (!$filename || empty($filename)) {
-						continue;
-					}
-					if ($filename == wCMS::get('config', 'theme')) {
-						wCMS::alert('danger', 'Cannot delete currently active theme.');
-						wCMS::redirect();
-						continue;
-					}
-					if (file_exists("{$folder}/{$filename}")) {
-						wCMS::recursiveDelete("{$folder}/{$filename}");
-						wCMS::alert('success', "Deleted {$filename}.");
-						wCMS::redirect();
+					$basePath = $folder . "/";
+					$realBase = realpath($basePath);
+					$userPath = $basePath . $filename;
+					$realUserPath = realpath($userPath);
+					if ($realUserPath != true || strpos($realUserPath, $realBase) === 0) {
+						if (!$filename || empty($filename)) {
+							continue;
+						}
+						if ($filename == wCMS::get('config', 'theme')) {
+							wCMS::alert('danger', 'Cannot delete currently active theme.');
+							wCMS::redirect();
+							continue;
+						}
+						if (file_exists("{$folder}/{$filename}")) {
+							wCMS::recursiveDelete("{$folder}/{$filename}");
+							wCMS::alert('success', "Deleted {$filename}.");
+							wCMS::redirect();
+						}
 					}
 				}
 			}
@@ -448,9 +454,9 @@ EOT;
 	{
 		if (wCMS::$loggedIn) {
 			$scripts = <<<'EOT'
-<script src="https://cdn.jsdelivr.net/npm/autosize@4.0.0/dist/autosize.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/autosize@4.0.0/dist/autosize.min.js" integrity="sha384-ne8qhd4dK8kbCS8Wj5TQeUmxPGohiEsOjjyycp/BBl3l3f8K11l9ggrTdNmoPkHc" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
 <script>$(document).tabOverride(!0,"textarea");function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,token:token,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$('body').on('click','div.editText',function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)});$('body').on('click','i.menu-toggle',function(){var a=$(this),c=(setTimeout(function(){window.location.reload()},500),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide page from menu").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems", token:token, content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show page in menu").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}))}),$('body').on('click','.menu-item-add',function(){$.post("",{fieldname:"menuItems",token:token,content:"New page",target:"menuItem",menu:"none",visibility:"show"},function(a){}).done(setTimeout(function(){window.location.reload()},500))});$('body').on('click','.menu-item-up,.menu-item-down',function(){var a=$(this),b=(a.hasClass('menu-item-up'))?'-1':'1',c=a.attr("data-menu");$.post("",{fieldname:"menuItems",token:token,content:b,target:"menuItemOrder",menu:c,visibility:""},function(a){}).done(function(){$('#menuSettings').parent().load("index.php #menuSettings",{func:"getMenuSettings"})})})});</script>
 EOT;
 			$scripts .= '<script>var token = "'.wCMS::generateToken().'";</script>';
@@ -503,7 +509,7 @@ EOT;
 	private static function logoutAction()
 	{
 		if (wCMS::$currentPage === 'logout' && hash_equals($_REQUEST['token'], wCMS::generateToken())) {
-			unset($_SESSION['l'], $_SESSION['i'], $_SESSION['u'], $_SESSION['token']);
+			unset($_SESSION['l'], $_SESSION['i'], $_SESSION['token']);
 			wCMS::redirect();
 		}
 	}
@@ -544,7 +550,7 @@ EOT;
 		}
 		$repoVersion = wCMS::getOfficialVersion();
 		if ($repoVersion != version) {
-			wCMS::alert('info', '<b>New WonderCMS update available.</b><p>- Backup your website and check <a href="https://wondercms.com/whatsnew" target="_blank">what\'s new</a> before updating.</p><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Create backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form action="" method="post" class="marginTop5"><button class="btn btn-info" name="upgrade">Update WonderCMS</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
+			wCMS::alert('info', '<b>New WonderCMS update available</b><p>- Backup your website and check <a href="https://wondercms.com/whatsnew" target="_blank"><u>what\'s new</u></a> before updating.</p><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form action="" method="post" class="marginTop5"><button class="btn btn-info" name="upgrade">Update WonderCMS</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
 		}
 	}
 
