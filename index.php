@@ -1,7 +1,7 @@
 <?php // WonderCMS - MIT license: wondercms.com/license
 
 session_start();
-define('version', '2.4.1');
+define('version', '2.4.2');
 mb_internal_encoding('UTF-8');
 
 class wCMS
@@ -42,10 +42,10 @@ class wCMS
 		wCMS::deletePageAction();
 		wCMS::loginAction();
 		wCMS::logoutAction();
-		wCMS::notifyAction();
 		wCMS::saveAction();
 		wCMS::upgradeAction();
 		wCMS::uploadFileAction();
+		wCMS::notifyAction();
 		if (! wCMS::$loggedIn && ! wCMS::$currentPageExists) {
 			header("HTTP/1.1 404 Not Found");
 		}
@@ -389,7 +389,7 @@ EOT;
 
 	private static function getOfficialVersion()
 	{
-		$data = trim(wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
+		$data = trim(wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms-testrepo/master/version'));
 		return $data;
 	}
 
@@ -731,12 +731,12 @@ EOT;
 			return;
 		}
 		if (hash_equals($_REQUEST['token'], wCMS::generateToken())) {
-			$contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
+			$contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms-testrepo/master/index.php');
 			if ($contents) {
 				file_put_contents(__FILE__, $contents);
 			}
 			wCMS::alert('success', 'WonderCMS successfully updated. Wohoo!');
-			wCMS::redirect(wCMS::$currentPage);
+			wCMS::redirect();
 		}
 	}
 
