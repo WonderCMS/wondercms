@@ -1,14 +1,20 @@
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+
+
 # WonderCMS 2.4.2
 Simple, responsive and small flat file CMS built with PHP. Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and 1000 lines of code.
-- <sub>5 file structure: [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css), [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).</sub>
+
+- 5 file structure: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON database), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
+
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Donate](https://wondercms.com/donate) • [Changelog](https://wondercms.com/whatsnew)</sup>
+
 - <sub>Libraries (6):</sub>
    - <sub>jquery.min.js (1.12.4), bootstrap.min.js (3.3.7), bootstrap.min.css (3.3.7) - located in theme.php, always included.</sub>
    - <sub>autosize.min.js (4.0.0), taboverride.min.js (4.0.3), jquery.taboverride.min.js (4.0.0) located in index.php, included only when logged in.</sub>
 - <sub>Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).</sub>
 - <sub>Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).</sub>
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Donate](https://wondercms.com/donate) • [Changelog](https://wondercms.com/whatsnew)
-### 1 step install: unzip and upload anywhere on server (docs: [one step install](https://github.com/robiso/wondercms/wiki/One-step-install))</sup>
+## 1 step install - unzip and upload anywhere on server
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
 
@@ -18,7 +24,7 @@ WonderCMS works on most hosting packages (and **even on some free hosting provid
   - cURL extension (for local servers, install a certificate to avoid [the persistent "Update" message error](https://github.com/robiso/wondercms/wiki/Persistent-%22New-WonderCMS-update-available%22-message))
   - mbstring extension
   - ZipArchive extension
-- htaccess support on Apache (for NGINX or IIS, check [these 1 step necessary changes](https://github.com/robiso/wondercms/wiki/One-step-install#additional-steps-for-nginx-and-iis))
+- htaccess Apache (for NGINX or IIS, check [these 1 step changes](https://github.com/robiso/wondercms/wiki/One-step-install#additional-steps-for-nginx-and-iis))
 
 ## Features
  - no configuration required, unzip and upload
