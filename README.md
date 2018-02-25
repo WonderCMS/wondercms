@@ -1,6 +1,6 @@
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge)]() ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
 
-# WonderCMS 2.4.2<sup>13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
+# WonderCMS 2.4.2 <sup>13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
 Single user, simple, responsive, fast and small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
 - **1 step install:  unzip and upload anywhere on server.**
