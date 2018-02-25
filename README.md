@@ -1,10 +1,9 @@
-[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge)]() [![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge)]()
+[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge)]() [![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge)]() [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
 
-# WonderCMS 2.4.2<sup>13kb zip, 45kb unzipped</sup>
-Single user, simple, responsive, fast and small flat file CMS built with PHP and jQuery.
-This project has been alive and kicking since 2008.
+# WonderCMS 2.4.2<sup>13<sup>KB</sup> zip, 45<sup>KB</sup> unzipped</sup>
+Single user, simple, responsive, fast and small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
-- 1 step install:  unzip and upload anywhere on server.
+- **1 step install:  unzip and upload anywhere on server.**
 - Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
 - 5 file structure: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
 - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
@@ -25,7 +24,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
  - simple inline click and edit functionality
  - custom login URL
    - a good login URL prevents brute force attacks
-   - search engines don't find/index your login URL as it always returns a 404 status
+   - search engines don't find/index your login URL as it's set to always return a 404 status
    - the login URL is your private username
  - admin password is hashed using PHP's password_hash and password_verify functions
  - theme and plugin installer/updater
