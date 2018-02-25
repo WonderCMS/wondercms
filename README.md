@@ -1,6 +1,6 @@
-[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge)]() [![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge)]() [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
+[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge)]() ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
 
-# WonderCMS 2.4.2<sup>13<sup>KB</sup> zip, 45<sup>KB</sup> unzipped</sup>
+# WonderCMS 2.4.2<sup>13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
 Single user, simple, responsive, fast and small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
 - **1 step install:  unzip and upload anywhere on server.**
@@ -42,6 +42,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
  - optional functions.php file
    - includes itself when you create it
    - location of the functions.php should be inside the current active theme folder (same as theme.php)
+ - no tracking
  - no known vulnerabilities
    - special thanks to yassineaddi, hypnito and other security researchers
 
