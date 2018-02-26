@@ -1,4 +1,4 @@
-[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge)]() ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
+[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) ![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
 
 # WonderCMS 2.4.2 <sup>13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
 Single user, simple, responsive, fast and small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
@@ -9,11 +9,11 @@ Single user, simple, responsive, fast and small flat file CMS built with PHP and
 - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
 - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Requirements](https://www.wondercms.com/requirements) • [Download](https://wondercms.com/latest) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Donate](https://wondercms.com/donate) • [Changelog](https://wondercms.com/whatsnew)</sup>
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Requirements](https://www.wondercms.com/requirements) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Changelog](https://wondercms.com/whatsnew) • [Donate](https://wondercms.com/donate)</sup>
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
 
 ## Libraries (6)
-Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security). SRI tags ensure that the content of these libraires hasn't changed. If the content of the libraries changes/gets hacked, they won't be loaded.
+Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security). SRI tags ensure that the content of these libraires hasn't changed. If the content of the libraries changes, they won't be loaded (to protect you and your visitors).
 - 3 libraries located in theme.php, always included:
   - <sup>jquery.min.js (1.12.4), bootstrap.min.js (3.3.7), bootstrap.min.css (3.3.7).</sup>
 - 3 libraries located in index.php, included only when logged in:
@@ -22,13 +22,13 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 ## Features
  - no configuration required, unzip and upload
  - simple inline click and edit functionality
+ - theme and plugin installer/updater
+ - 1 click update and backup
  - custom login URL
    - a good login URL prevents brute force attacks
    - search engines don't find/index your login URL as it's set to always return a 404 status
    - the login URL is your private username
  - admin password is hashed using PHP's password_hash and password_verify functions
- - theme and plugin installer/updater
- - 1 click update and backup
  - [easy to theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
  - file uploader
  - lightweight
@@ -42,6 +42,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
  - optional functions.php file
    - includes itself when you create it
    - location of the functions.php should be inside the current active theme folder (same as theme.php)
+ - CSRF tokens and hash_equals function applied to each token check, prevents malicious redirects and token guessing
  - no tracking
  - no known vulnerabilities
    - special thanks to yassineaddi, hypnito and other security researchers
@@ -52,6 +53,8 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - [News/Changelog](https://wondercms.com/whatsnew)
 - [Community](https://wondercms.com/community)
 - [Donate](https://wondercms.com/donate)
+- [Donors Hall of Fame](https://wondercms.com/donors)
+
 
 #### Social links
 - [Twitter](https://twitter.com/wondercms)
@@ -64,11 +67,17 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - [Themes](https://github.com/robiso/wondercms-themes)
 - [Plugins](https://github.com/robiso/wondercms-plugins)
 
-
-<sub>NOTE: To make WonderCMS sustainable and prepared for the future, there is a maximum cap of 25 plugins and 25 themes.
-Once this "25 limit" is reached in each category, a simple voting system will be established (suggestions welcome).
-Users will be able to vote for their favorite plugins and themes to ensure they stay in the "chosen 25" pool.</sub>
-
-<sub>The voting system could be used in situations where users feel one of the 25 plugins or themes can be replaced by a better one with similar functionality or when a plugin/theme is no longer actively maintained.</sub>
-
-<sub>This is a good way to ensure a small and a good quality set of themes/plugins. The "25 chosen ones" of each category will be easier to maintain and watch over by the whole community.</sub>
+## What to (or not to) expect from WonderCMS
+- WonderCMS is 100% free and will not include or require any "powered by" links.
+- WonderCMS is not a fast-pace development project. Unless there is a critical vulnerability, there is no point in rushing updates.
+- WonderCMS is meant to be extremely simple and will not be over-bloated with features.
+  - Specific features are added only if the majority of the WonderCMS community signals it.
+  - Pull requests are welcome and appreciated.
+- To make WonderCMS sustainable and compact, we will support 25 awesome plugins and 25 themes.
+  - Once this "25 limit" is reached in each category, a simple voting system will be established. Users will be free to vote for their favorite plugins and themes to ensure they stay in the "chosen 25" pool. Votes will be held on a 6-month basis/twice per year (subject to change).
+  - The voting system comes in handy when users feel one of the 25 plugins or themes can be replaced by a better one with similar functionality or when a plugin/theme is no longer actively maintained.
+  - This is a good way to ensure a small but good quality set of themes/plugins. The "25 chosen ones" of each category will be easier to maintain and watch over by the whole community.
+- WonderCMS doesn't track users and is not interested in any user data.
+- WonderCMS doesn't include an "auto-update" feature.
+ - In the unlikely event of this GitHub account being compromised, hackers would be able to deploy updates to all sites simultaneously.   
+ - These type of malicious attacks are currently prevented with the built in one click updater. This minimizes possible damage as users are encouraged to review code before using the 1 click update, so in theory, no damage is done automatically.
