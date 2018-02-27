@@ -79,5 +79,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
   - This is a good way to ensure a small but good quality set of themes/plugins. The "25 chosen ones" of each category will be easier to maintain and watch over by the whole community.
 - WonderCMS doesn't track users and is not interested in any user data.
 - WonderCMS doesn't include an "auto-update" feature.
- - In the unlikely event of this GitHub account being compromised, hackers would be able to deploy updates to all sites simultaneously.   
- - These type of malicious attacks are currently prevented with the built in one click updater. This minimizes possible damage as users are encouraged to review code before using the 1 click update, so in theory, no damage is done automatically.
+  - In the unlikely event of this GitHub account being compromised, hackers would be able to deploy updates to all sites simultaneously.
+  - These type of malicious attacks are currently prevented with the built in one click updater. This minimizes possible damage as users are encouraged to review code before using the 1 click update, so in theory, no damage is done automatically.
+- If any issues arise when trying to use WonderCMS, you can always expect someone to *try* to help you in the [WonderCMS community](https://wondercms.com/community).
+  - Since WonderCMS is completely free (and nobody is paid to provide support), it's important to remain patient and respectful while asking for help, as someone has to take their free time and offer support.
