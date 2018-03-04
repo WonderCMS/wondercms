@@ -1,7 +1,21 @@
+Header set Strict-Transport-Security "max-age=31536000" env=HTTPS
 Options -Indexes
 ServerSignature Off
 RewriteEngine on
+
+RewriteCond %{HTTP_HOST} !^www\. [NC]
+RewriteRule ^ https://www.%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.+)$ index.php?page=$1 [QSA,L]
 RewriteRule database.js - [F]
+
+Header always edit Set-Cookie (.*) "$1; HTTPOnly"
+Header always set X-XSS-Protection "1; mode=block"
+Header always set X-Content-Type-Options: nosniff
+Header always append X-Frame-Options SAMEORIGIN
+Header set Referrer-Policy: strict-origin-when-cross-origin
