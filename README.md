@@ -9,8 +9,10 @@ Single user, simple, responsive, fast and small flat file CMS built with PHP and
 - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
 - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Requirements](https://www.wondercms.com/requirements) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Changelog](https://wondercms.com/whatsnew) • [Donate](https://wondercms.com/donate)</sup>
+### <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Requirements](https://www.wondercms.com/requirements) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Changelog](https://wondercms.com/whatsnew) • [Donate](https://wondercms.com/donate) • [Become a Patron](https://wondercms.com/patron) • [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting) • [Install via cPanel video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25) • [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template) ([2 minute video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes))
+
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
+
 
 ## Libraries (6)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security). SRI tags ensure that the content of these libraires hasn't changed. If the content of the libraries changes, they won't be loaded (to protect you and your visitors).
@@ -53,7 +55,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - [News/Changelog](https://wondercms.com/whatsnew)
 - [Community](https://wondercms.com/community)
 - [Donate](https://wondercms.com/donate)
-- [Donors Hall of Fame](https://wondercms.com/donors)
+- [Donors Hall of Fame and Patrons](https://wondercms.com/donors)
 
 
 #### Social links
