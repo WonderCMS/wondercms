@@ -1,6 +1,8 @@
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?style=for-the-badge)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) ![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
 
 # WonderCMS 2.4.2 <sup>13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Requirements](https://www.wondercms.com/requirements) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate) / [Patreon](https://www.wondercms.com/patron)</sup>
+
 Single user, simple, responsive, fast and small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
 - **1 step install:  unzip and upload anywhere on server.**
@@ -9,7 +11,7 @@ Single user, simple, responsive, fast and small flat file CMS built with PHP and
 - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
 - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-### <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://wondercms.com/latest) • [Requirements](https://www.wondercms.com/requirements) • [Community](https://wondercms.com/community) • [Themes](https://wondercms.com/themes) • [Plugins](https://wondercms.com/plugins) • [Changelog](https://wondercms.com/whatsnew) • [Donate](https://wondercms.com/donate) • [Become a Patron](https://wondercms.com/patron) • [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting) • [Install via cPanel video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25) • [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template) ([2 minute video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes))
+### <sup>[Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting) • [Install via cPanel video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25) • [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template) ([2 minute video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes))</sup>
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro.png?v=5" alt="WonderCMS quick intro" /></a>
 
@@ -51,11 +53,11 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 
 ## Links
 #### Website links
-- [Official website](https://wondercms.com)
-- [News/Changelog](https://wondercms.com/whatsnew)
-- [Community](https://wondercms.com/community)
-- [Donate](https://wondercms.com/donate)
-- [Donors Hall of Fame and Patrons](https://wondercms.com/donors)
+- [Official website](https://www.wondercms.com)
+- [News/Changelog](https://www.wondercms.com/whatsnew)
+- [Community](https://www.wondercms.com/community)
+- [Donate](https://www.wondercms.com/donate)
+- [Donors and patrons Hall of Fame](https://www.wondercms.com/donors)
 
 
 #### Social links
@@ -70,10 +72,11 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - [Plugins](https://github.com/robiso/wondercms-plugins)
 
 ## What to (or not to) expect from WonderCMS
+- WonderCMS is meant to be a small gift to the world and a really simple alternative to website creating.
 - WonderCMS is 100% free and will not include or require any "powered by" links.
 - WonderCMS is not a fast-pace development project. Unless there is a critical vulnerability, there is no point in rushing updates.
 - WonderCMS is meant to be extremely simple and will not be over-bloated with features.
-  - Specific features are added only if the majority of the WonderCMS community signals it.
+  - Specific features are added only if the majority of the WonderCMS community signals a wanted change.
   - Pull requests are welcome and appreciated.
 - To make WonderCMS sustainable and compact, we will support 25 awesome plugins and 25 themes.
   - Once this "25 limit" is reached in each category, a simple voting system will be established. Users will be free to vote for their favorite plugins and themes to ensure they stay in the "chosen 25" pool. Votes will be held on a 6-month basis/twice per year (subject to change).
@@ -83,5 +86,5 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - WonderCMS doesn't include an "auto-update" feature.
   - In the unlikely event of this GitHub account being compromised, hackers would be able to deploy updates to all sites simultaneously.
   - These type of malicious attacks are currently prevented with the built in one click updater. This minimizes possible damage as users are encouraged to review code before using the 1 click update, so in theory, no damage is done automatically.
-- If any issues arise when trying to use WonderCMS, you can always expect someone to *try* to help you in the [WonderCMS community](https://wondercms.com/community).
-  - Since WonderCMS is completely free (and nobody is paid to provide support), it's important to remain patient and respectful while asking for help, as someone has to take their free time and offer support.
+- If any issues arise when trying to use WonderCMS, you can always expect someone to *try* to help you in the [WonderCMS community](https://www.wondercms.com/community).
+  - Since WonderCMS is completely free and nobody is paid to provide support, it's important to remain patient and respectful while asking for help.
