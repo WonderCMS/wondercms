@@ -5,7 +5,7 @@
 # WonderCMS 2.4.2 <sup>5 <sup>files,</sup> 13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
 Simple, fast, small, single user and responsive flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
-## <sup> • [Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate) / [Patreon](https://www.wondercms.com/patron)
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate) / [Patreon](https://www.wondercms.com/patron)
 
 - **1 step install:  unzip and upload anywhere on server.**
 - Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
