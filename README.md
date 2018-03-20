@@ -1,11 +1,11 @@
-[![Docs](https://img.shields.io/readthedocs/pip.svg?style=for-the-badge&v=4)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?style=for-the-badge&v=3)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge&v=3) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?style=for-the-badge&v=3)](https://github.com/robiso/wondercms/blob/master/license)
+[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
 <a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro-short.png?v=6" alt="WonderCMS quick intro" /></a>
 
 # WonderCMS 2.4.2 <sup>5 <sup>files,</sup> 13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
 Simple, fast, small, single user and responsive flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate) / [Patreon](https://www.wondercms.com/patron)
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Become a patron](https://www.wondercms.com/patron)
 
 - **1 step install:  unzip and upload anywhere on server.**
 - Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
@@ -14,14 +14,14 @@ Simple, fast, small, single user and responsive flat file CMS built with PHP and
 - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
 ## Requirements
-WonderCMS works on most hosting packages (even free ones) by default.
+WonderCMS works on most Apache servers/hosts (even free ones) by default.
 - PHP 5.5. or greater
   - cURL extension
   - mbstring extension
   - Zip extension
 - mod_rewrite module
 
-1 additional step is required for setting up WonderCMS on [NGINX](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS](https://github.com/robiso/wondercms/wiki/IIS-server-config).
+One additional step is required for setting up WonderCMS on [NGINX](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS](https://github.com/robiso/wondercms/wiki/IIS-server-config).
 
 ## Libraries used (6)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
@@ -31,7 +31,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
   - <sup>autosize.min.js (4.0.0), taboverride.min.js (4.0.3), jquery.taboverride.min.js (4.0.0).</sup>
 
 ## Security features
-- Completely track free.
+- Completely track free. WonderCMS doesn't store any cookies for your visitors.
 - Supports HTTPS out of the box.
   - [Check how to enable a permanent redirect on Apache or NGINX](https://github.com/robiso/wondercms/wiki/Always-redirect-to-https-and-www).
 - All CSS and JS libraries include SubResource Integrity (SRI) tags. This prevents any changes to the libraries being loaded. If any changes are made, the libraries won't load for your and your visitors protection.
@@ -66,6 +66,23 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
  - [optional] functions.php file for loading your custom code
    - includes itself when you create it
    - the location of functions.php file should be inside the current active theme folder (same location as theme.php)
+
+## List of donors and patrons
+Also listed on the official [WonderCMS website](https://www.wondercms.com/donors).
+- Martin Jablonka
+- Veselin Kamenarov
+- Håkon Wium Lie (creator of CSS)
+- Kenneth Rasmussen
+- David G.
+- Victor Onofrei
+- Matthew
+- James Campbell
+- Kirsten Hogan
+- Denis Volin
+- Jonathan Jacks
+- Bizibul
+- Bikespain
+- Aleksandr
 
 ## What to (or not to) expect from WonderCMS
 - WonderCMS is meant to be a small gift to the internet and a simple alternative to website creating. It's 100% free and doesn't not include any "powered by" links.
