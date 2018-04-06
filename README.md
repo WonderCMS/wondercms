@@ -109,6 +109,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [Community](https://www.wondercms.com/community)
 - [Donate](https://www.wondercms.com/donate)
 - [Donors and patrons Hall of Fame](https://www.wondercms.com/donors)
+- [List of contributors](https://www.wondercms.com/special-contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
 
 #### Social links
