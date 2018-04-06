@@ -1,11 +1,11 @@
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
-<a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro-short.png?v=6" alt="WonderCMS quick intro" /></a>
-
 # WonderCMS 2.4.2 <sup>5 <sup>files,</sup> 13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
-Simple, fast, small, single user and responsive flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
+Simple, fast, responsive, single user, small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
 
 ## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Become a patron](https://www.wondercms.com/patron)
+
+<a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro-short.png?v=6" alt="WonderCMS quick intro" /></a>
 
 - **1 step install:  unzip and upload anywhere on server.**
 - Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
@@ -31,7 +31,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
   - <sup>autosize.min.js (4.0.0), taboverride.min.js (4.0.3), jquery.taboverride.min.js (4.0.0).</sup>
 
 ## Security features
-- Completely track free. WonderCMS doesn't store any cookies for your visitors.
+- Track free, WonderCMS doesn't track users or store any cookies. Your WonderCMS installation is completely detached from WonderCMS servers. The one click updates are pushed from GitHub.
 - Supports HTTPS out of the box.
   - [Check how to enable a permanent redirect on Apache or NGINX](https://github.com/robiso/wondercms/wiki/Always-redirect-to-https-and-www).
 - All CSS and JS libraries include SubResource Integrity (SRI) tags. This prevents any changes to the libraries being loaded. If any changes are made, the libraries won't load for your and your visitors protection.
