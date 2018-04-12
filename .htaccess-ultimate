@@ -1,4 +1,6 @@
 Header set Strict-Transport-Security "max-age=31536000" env=HTTPS
+Header set Cache-Control "max-age=2628000, public"
+
 Options -Indexes
 ServerSignature Off
 RewriteEngine on
