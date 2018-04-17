@@ -1,17 +1,22 @@
+# WonderCMS 2.4.2 <sup>5 <sup>files,</sup> 13<sup>KB zip</sup></sup>
+
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
-# WonderCMS 2.4.2 <sup>5 <sup>files,</sup> 13<sup>KB zipped,</sup> 45<sup>KB unzipped</sup></sup>
-Simple, fast, responsive, single user, small flat file CMS built with PHP and jQuery. Alive and kicking since 2008.
+## One of the smallest and most simple CMS (no database)
+Fast, responsive, single user flat file CMS. Built with PHP and jQuery. Alive and kicking since 2008.
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Become a patron](https://www.wondercms.com/patron)
-
-<a href="https://www.wondercms.com" title="WonderCMS website"><img src="https://www.wondercms.com/WonderCMS-intro-short.png?v=6" alt="WonderCMS quick intro" /></a>
-
-- **1 step install:  unzip and upload anywhere on server.**
+- **No configuration needed.**
 - Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
 - 5 file structure: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
 - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
 - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
+
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/patron) or [become a patron](https://www.wondercms.com/patron)
+
+## 1 step install
+- Unzip and upload to server.
+
+OR clone from GitHub (via terminal): https://github.com/robiso/wondercms.git
 
 ## Requirements
 WonderCMS works on most Apache servers/hosts (even free ones) by default.
