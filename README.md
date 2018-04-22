@@ -1,4 +1,4 @@
-# WonderCMS 2.4.2 <sup>5 <sup>files,</sup> 13<sup>KB zip</sup></sup>
+# WonderCMS 2.4.2 <sup>5 <sup>files</sup> 13<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
@@ -16,7 +16,7 @@ Fast, responsive, single user flat file CMS. Built with PHP and jQuery. Alive an
 ## 1 step install
 - Unzip and upload to server.
 
-OR clone from GitHub (via terminal): https://github.com/robiso/wondercms.git
+OR clone from GitHub (via terminal): `git clone https://github.com/robiso/wondercms.git`
 
 ## Requirements
 WonderCMS works on most Apache servers/hosts (even free ones) by default.
