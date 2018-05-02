@@ -1,4 +1,4 @@
-# WonderCMS 2.4.2 <sup>5 <sup>files</sup> 13<sup>KB zip</sup></sup>
+# WonderCMS 2.5.0 <sup>5 <sup>files</sup> 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
@@ -38,7 +38,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 ## Security features
 - Track free, WonderCMS doesn't track users or store any cookies. Your WonderCMS installation is completely detached from WonderCMS servers. The one click updates are pushed from GitHub.
 - Supports HTTPS out of the box.
-  - [Check how to enable a permanent redirect on Apache or NGINX](https://github.com/robiso/wondercms/wiki/Always-redirect-to-https-and-www).
+  - [Check how to turn on better security mode](https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)).
 - All CSS and JS libraries include SubResource Integrity (SRI) tags. This prevents any changes to the libraries being loaded. If any changes are made, the libraries won't load for your and your visitors protection.
   - [Check how to add SRI tags to your custom theme](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#sri-subresource-integrity---3-steps-for-more-security). This step isn't necessary if you're using a theme from the official website.
 - WonderCMS encourages you to change your default login URL. **Consider the custom login URL as your private username**.
