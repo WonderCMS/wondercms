@@ -144,7 +144,7 @@ class wCMS
 
 	private static function changePasswordAction()
 	{
-		if (! wCMS::$loggedIn && ! isset($_POST['old_password']) && ! isset($_POST['new_password'])) {
+		if (! wCMS::$loggedIn || ! isset($_POST['old_password']) || ! isset($_POST['new_password'])) {
 			return;
 		}
 		if ($_SESSION['token'] === $_POST['token'] && hash_equals($_POST['token'], wCMS::generateToken())) {
@@ -744,7 +744,7 @@ EOT;
 
 	private static function upgradeAction()
 	{
-		if (! wCMS::$loggedIn && ! isset($_POST['upgrade'])) {
+		if (! wCMS::$loggedIn || ! isset($_POST['upgrade'])) {
 			return;
 		}
 		if (hash_equals($_POST['token'], wCMS::generateToken())) {
