@@ -1,7 +1,7 @@
 <?php // WonderCMS - MIT license: wondercms.com/license
 
 session_start();
-define('version', '2.5.1');
+define('version', '2.5.2');
 mb_internal_encoding('UTF-8');
 
 class wCMS
@@ -512,6 +512,7 @@ EOT;
 		}
 		$password = isset($_POST['password']) ? $_POST['password'] : '';
 		if (password_verify($password, wCMS::get('config', 'password'))) {
+			session_regenerate_id();
 			$_SESSION['l'] = true;
 			$_SESSION['i'] = __DIR__;
 			wCMS::redirect();
@@ -818,7 +819,7 @@ EOT;
 
 	public static function url($location = '')
 	{
-		return 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+		return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on')) || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on')) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
 	}
 
 	private static function zipBackup($source, $destination)
