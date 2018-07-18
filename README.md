@@ -1,4 +1,4 @@
-# WonderCMS 2.5.1 <sup>5 <sup>files</sup> 14<sup>KB zip</sup></sup>
+# WonderCMS 2.5.2 <sup>5 <sup>files</sup> 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation) [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases) ![Maintaned](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)  [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
@@ -105,7 +105,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
   - In the unlikely event of this GitHub account being compromised, hackers would be able to deploy updates to all sites simultaneously.
   - These type of malicious attacks are currently prevented with the built in one click updater. This minimizes possible damage as users are encouraged to review code before using the 1 click update, so no damage is done automatically.
 - If you run into any issues when using WonderCMS, you can always expect someone to *try* to help you in the [WonderCMS community](https://www.wondercms.com/community).
-  - Since WonderCMS is completely free and noone is paid to provide support, it's important to remain patient and respectful while asking for help.
+  - Since WonderCMS is completely free and no one is paid to provide support, it's important to remain patient and respectful while asking for help.
 
 ## Links
 #### Website links
