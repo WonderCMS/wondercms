@@ -11,7 +11,7 @@ Fast, responsive, single user flat file CMS. Built with PHP and jQuery. Alive an
 - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
 - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/patron) or [become a patron](https://www.wondercms.com/patron)
+## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)
 
 ## 1 step install
 - Unzip and upload to server.
@@ -72,7 +72,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
    - includes itself when you create it
    - the location of functions.php file should be inside the current active theme folder (same location as theme.php)
 
-## List of donors and patrons
+## List of donors
 Also listed on the official [WonderCMS website](https://www.wondercms.com/donors).
 - Martin Jablonka
 - Veselin Kamenarov
@@ -100,9 +100,8 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
   - Once this "25 limit" is reached in each category, a simple voting system will be established. Users will be free to vote for their favorite plugins and themes to ensure they stay in the "chosen 25" pool. Votes will be held on a 6-month basis/twice per year (subject to change).
   - The voting system comes in handy when users feel one of the 25 plugins or themes can be replaced by a better one with similar functionality or when a plugin/theme is no longer actively maintained.
   - This is a good way to ensure a small but good quality set of themes/plugins. The "25 chosen ones" of each category will be easier to maintain and watch over by the whole community.
-    - If there's enough support from WonderCMS users in the future, I can lift the "25" limit and fully dedicate to maintaining this project.
 - WonderCMS doesn't include an "auto-update" feature.
-  - In the unlikely event of this GitHub account being compromised, hackers would be able to deploy updates to all sites simultaneously.
+  - In the unlikely event of this GitHub account being compromised, malicious actors would be able to deploy updates to all sites simultaneously.
   - These type of malicious attacks are currently prevented with the built in one click updater. This minimizes possible damage as users are encouraged to review code before using the 1 click update, so no damage is done automatically.
 - If you run into any issues when using WonderCMS, you can always expect someone to *try* to help you in the [WonderCMS community](https://www.wondercms.com/community).
   - Since WonderCMS is completely free and no one is paid to provide support, it's important to remain patient and respectful while asking for help.
@@ -113,7 +112,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [News/Changelog](https://www.wondercms.com/whatsnew)
 - [Community](https://www.wondercms.com/community)
 - [Donate](https://www.wondercms.com/donate)
-- [Donors and patrons Hall of Fame](https://www.wondercms.com/donors)
+- [Donors Hall of Fame](https://www.wondercms.com/donors)
 - [List of contributors](https://www.wondercms.com/special-contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
 
