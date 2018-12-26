@@ -1,10 +1,4 @@
-<?php
-
-/*
-	WonderCMS: wondercms.com
-	MIT license: wondercms.com/license
-	Description: A simple flat file CMS built with 5 files
-*/
+<?php // WonderCMS (MIT license: wondercms.com/license)
 
 session_start();
 define('version', '2.6.0');
@@ -231,7 +225,7 @@ class wCMS
 			$db = wCMS::db();
 			foreach ($db->config->{$field} as $key => $value) {
 				if ($value->slug == $slug) {
-						$slug .= "-" . $menuCount;
+					$slug .= "-" . $menuCount;
 				}
 			}
 			$db->config->{$field}->{$menuCount} = new stdClass;
