@@ -1,4 +1,4 @@
-# WonderCMS 2.5.2 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
+# WonderCMS 2.6.0 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 ![Maintained](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge)
@@ -6,10 +6,10 @@
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=Downloads%20since%202017&longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases)
 [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
 
-## One of the smallest and most simple flat file CMS
+## Extra small and simple flat file CMS
 WonderCMS is a single user, fast, responsive, flat file (no database) CMS built with PHP and jQuery. Maintained since 2008.
   - **No configuration needed - unzip and upload.**
-  - Runs on less than [50 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
+  - Runs on about [52 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
   - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
@@ -46,7 +46,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
   - [Check how to add SRI tags to your custom theme](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#sri-subresource-integrity---3-steps-for-more-security). This step isn't necessary if you're using a theme from the official website.
 - WonderCMS encourages you to change your default login URL. **Consider the custom login URL as your private username**.
   - Choosing a good login URL can prevent brute force attacks.
-  - Your login page always returns a 404 header status, so search engines shouldn't cache the login URL.
+  - Your login page always returns a 404 header status, so search engines should not cache the login URL.
 - The admin password is hashed using PHP's password_hash and password_verify functions.
   - Even if an attacker guesses your login URL (which should be difficult if you've chosen a good login URL), choosing a strong password prevents them from gaining admin privileges.
 - WonderCMS includes CSRF verification tokens for each user action. WonderCMS additionally uses the hash_equals function to prevent CSRF token timing attacks.
