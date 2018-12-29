@@ -282,6 +282,7 @@ EOT;
 		if (!wCMS::$loggedIn) {
 			return;
 		}
+
 		if (isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']) && isset($_REQUEST['token'])) {
 			if (hash_equals($_REQUEST['token'], wCMS::generateToken())) {
 				$deleteList = [
