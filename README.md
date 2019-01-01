@@ -1,7 +1,7 @@
 # WonderCMS 2.6.0 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
-![Maintained](https://img.shields.io/maintenance/yes/2018.svg?longCache=true&style=for-the-badge)
+![Maintained](https://img.shields.io/maintenance/yes/2019.svg?longCache=true&style=for-the-badge)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=Downloads%20since%202017&longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases)
 [![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
