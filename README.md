@@ -1,6 +1,5 @@
 
 # WonderCMS 2.6.0 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
-CMS without a database (flat file). Single user, fast, responsive, built with PHP. Maintained since 2008.
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 ![Maintained](https://img.shields.io/maintenance/yes/2019.svg?longCache=true)
@@ -8,9 +7,10 @@ CMS without a database (flat file). Single user, fast, responsive, built with PH
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
 [![donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
+CMS without a database (flat file). Single user, fast, responsive, built with PHP. Maintained since 2008.
 
-## <sup>• [Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)
 
+#### • [Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)
 
 ## Extra small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
