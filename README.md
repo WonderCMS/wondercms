@@ -1,25 +1,31 @@
-# WonderCMS 2.6.0 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
 
-[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&style=for-the-badge&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
-![Maintained](https://img.shields.io/maintenance/yes/2019.svg?longCache=true&style=for-the-badge)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/blob/master/license)
-[![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=Downloads%20since%202017&longCache=true&style=for-the-badge)](https://github.com/robiso/wondercms/releases)
-[![PayPal donate](https://img.shields.io/badge/Donate-PayPal-green.svg?longCache=true&style=for-the-badge)](https://paypal.me/WonderCMS)
+# WonderCMS 2.6.0 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
+CMS without a database (flat file). Single user, fast, responsive, built with PHP. Maintained since 2008.
+
+[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+![Maintained](https://img.shields.io/maintenance/yes/2019.svg?longCache=true)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true)](https://github.com/robiso/wondercms/blob/master/license)
+[![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
+[![donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
+
+
+## <sup>• [Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)
+
 
 ## Extra small and simple flat file CMS
-WonderCMS is a single user, fast, responsive, flat file (no database) CMS built with PHP and jQuery. Maintained since 2008.
   - **No configuration needed - unzip and upload.**
   - Runs on about [52 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
   - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-## <sup>[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [News](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)
-
 ## 1 step install
-- Unzip and upload to server.
+- [Download](https://www.wondercms.com/latest) and unzip/upload to server.
 
-OR clone from GitHub (via terminal): `git clone https://github.com/robiso/wondercms.git`
+      Option 2: clone from GitHub -> git clone https://github.com/robiso/wondercms.git
+      Option 3: run Docker image -> https://github.com/robiso/docker-wondercms
+      Option 4: install with cPanel -> https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25
+      Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting
 
 ## Requirements
 WonderCMS works on most Apache servers/hosts (even free ones) by default.
