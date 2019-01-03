@@ -1,4 +1,3 @@
-
 # WonderCMS <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
@@ -8,13 +7,14 @@
 [![donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
 - WonderCMS is a flat file CMS (no database). It's fast, responsive, small, built with PHP and maintained since 2008.
-
+  - **Key features:** [FOSS](https://en.wikipedia.org/wiki/Free_and_open-source_software), no configuration required, 1 click updates/backups, theme/plugin installer, easy to theme.
 ### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
 ## Extra small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
-  - Runs on about [52 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
+  - Runs on [52 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
+    - Transferring your website to a new host/server is done by only copy/pasting all files.
   - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
@@ -24,17 +24,18 @@
       Option 2: clone from GitHub -> git clone https://github.com/robiso/wondercms.git
       Option 3: run Docker image -> https://github.com/robiso/docker-wondercms
       Option 4: install with cPanel -> https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25
-      Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting
+      Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
 
 ## Requirements
-WonderCMS works on most Apache servers/hosts (even free ones) by default.
 - PHP 5.5. or greater
   - cURL extension
   - mbstring extension
   - Zip extension
 - mod_rewrite module
 
-One additional step is required for setting up WonderCMS on [NGINX](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS](https://github.com/robiso/wondercms/wiki/IIS-server-config).
+**WonderCMS works on most Apache servers/hosts (even free ones) by default.**
+
+*For setting up WonderCMS on an NGINX or IIS server, there is one additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
 
 
 ## Libraries used (6)
