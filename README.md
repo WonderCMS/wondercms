@@ -1,5 +1,5 @@
 
-# WonderCMS 2.6.0 <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
+# WonderCMS <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 ![Maintained](https://img.shields.io/maintenance/yes/2019.svg?longCache=true)
@@ -9,7 +9,7 @@
 
 CMS without a database (flat file). Single user, fast, responsive, built with PHP. Maintained since 2008.
  
-**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
+### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
 ## Extra small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
@@ -19,7 +19,7 @@ CMS without a database (flat file). Single user, fast, responsive, built with PH
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
 ## 1 step install
-- [Download](https://www.wondercms.com/latest) and unzip/upload to server.
+- Unzip and upload [latest version](https://www.wondercms.com/latest) to your server.
 
       Option 2: clone from GitHub -> git clone https://github.com/robiso/wondercms.git
       Option 3: run Docker image -> https://github.com/robiso/docker-wondercms
@@ -35,6 +35,7 @@ WonderCMS works on most Apache servers/hosts (even free ones) by default.
 - mod_rewrite module
 
 One additional step is required for setting up WonderCMS on [NGINX](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS](https://github.com/robiso/wondercms/wiki/IIS-server-config).
+
 
 ## Libraries used (6)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
