@@ -27,12 +27,12 @@
       Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
 
 ## Requirements
-- Apache, NGINX or IIS server
 - PHP 7.1 or greater
   - cURL extension
   - mbstring extension
   - Zip extension
 - mod_rewrite module
+- any type of server (Apache, NGINX or IIS server)
 
 *For setting up WonderCMS on NGINX or IIS servers, there is 1 additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
 
