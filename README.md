@@ -27,15 +27,17 @@
       Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
 
 ## Requirements
-- PHP 5.5. or greater
+- Apache, NGINX or IIS server
+- PHP 7.1 or greater
   - cURL extension
   - mbstring extension
   - Zip extension
 - mod_rewrite module
 
-**WonderCMS works on most Apache servers/hosts (even free ones) by default.**
+*For setting up WonderCMS on NGINX or IIS servers, there is 1 additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
 
-*For setting up WonderCMS on an NGINX or IIS server, there is one additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
+**WonderCMS works on most Apache servers/hosts (even free ones) by default.
+It will also work with lower PHP versions (5.5+), but we highly advise against using unsupported PHP versions.**
 
 
 ## Libraries used (6)
@@ -43,7 +45,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - 3 libraries located in theme.php, always included:
   - <sup>jquery.min.js (1.12.4), bootstrap.min.js (3.3.7), bootstrap.min.css (3.3.7).</sup>
 - 3 libraries located in index.php, included only when logged in:
-  - <sup>autosize.min.js (4.0.0), taboverride.min.js (4.0.3), jquery.taboverride.min.js (4.0.0).</sup>
+  - <sup>autosize.min.js (4.0.2), taboverride.min.js (4.0.3), jquery.taboverride.min.js (4.0.0).</sup>
 
 ## Security features
 - Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie. Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
