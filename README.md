@@ -32,7 +32,7 @@
   - mbstring extension
   - Zip extension
 - mod_rewrite module
-- any type of server (Apache, NGINX or IIS server)
+- any type of server (Apache, NGINX or IIS)
 
 *For setting up WonderCMS on NGINX or IIS servers, there is 1 additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
 
