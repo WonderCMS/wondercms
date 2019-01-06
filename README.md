@@ -22,9 +22,10 @@
 - Unzip and upload [latest version](https://www.wondercms.com/latest) to your server.
 
       Option 2: clone from GitHub -> git clone https://github.com/robiso/wondercms.git
-      Option 3: run Docker image -> https://github.com/robiso/docker-wondercms
-      Option 4: install with cPanel -> https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25
+      Option 3: Docker image -> https://github.com/robiso/docker-wondercms
+      Option 4: install with cPanel (and Softaculous) -> https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25
       Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
+      Option 6: deploy on Microsoft Azure -> https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template
 
 ## Requirements
 - PHP 7.1 or greater
