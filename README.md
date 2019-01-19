@@ -18,14 +18,44 @@
   - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
-## 1 step install
-- Unzip and upload [latest version](https://www.wondercms.com/latest) to your server.
+## Installation
 
-      Option 2: clone from GitHub -> git clone https://github.com/robiso/wondercms.git
-      Option 3: Docker image -> https://github.com/robiso/docker-wondercms
-      Option 4: install with cPanel (and Softaculous) -> https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25
-      Option 5: get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
-      Option 6: deploy on Microsoft Azure -> https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template
+### From ZIP archive
+
+Simply unzip and upload the [latest version](https://www.wondercms.com/latest) to your server.
+
+### From GIT
+
+Clone from GitHub in a directory served by your webserver:
+
+~~~bash
+# example directory
+cd /var/www/html
+git clone https://github.com/robiso/wondercms.git
+~~~
+
+### Deploy with Docker
+
+~~~bash
+git clone https://github.com/robiso/wondercms.git
+docker build -t robiso/wondercms .
+# create a volume for persistence
+docker volume create wondercms
+# launch the container on port 8080
+docker run --name wondercms -d -p 8080:80 -v wondercms:/var/www/html robiso/wondercms
+~~~
+
+### Install with cPanel (and Softaculous)
+
+See this [video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&t=25)
+
+### Use a hosted (pre-installed) solution
+
+Get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
+
+### Deploy on Microsoft Azure
+
+See instructions on [Microsoft.com](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template).
 
 ## Requirements
 - PHP 7.1 or greater
