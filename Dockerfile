@@ -1,5 +1,8 @@
 # WonderCMS in Docker
+# See README for instructions on running this image
 FROM php:7.2-apache-stretch
+
+ENV WCMS_VERSION 2.6.0
 
 LABEL org.label-schema.name="wondercms" \
     org.label-schema.description="Run wondercms in docker" \
@@ -10,7 +13,7 @@ LABEL org.label-schema.name="wondercms" \
     org.label-schema.schema-version="1.0"
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
-    && apt-get install -y git libzip-dev zip \
+    && apt-get install -y libzip-dev zip \
     && a2enmod rewrite \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
