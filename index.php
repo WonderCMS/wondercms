@@ -2,6 +2,7 @@
 
 session_start();
 define('VERSION', '2.6.0');
+define('REPO_URL', 'https://raw.githubusercontent.com/robiso/wondercms/master/');
 mb_internal_encoding('UTF-8');
 
 class wCMS
@@ -98,14 +99,14 @@ class wCMS
         if (wCMS::$loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
             if (hash_equals($_POST['token'], wCMS::generateToken())) {
                 if ($_POST['betterSecurity'] == 'on') {
-                    $contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess-ultimate');
+                    $contents = wCMS::getExternalFile(REPO_URL . '.htaccess-ultimate');
                     if ($contents) {
                         file_put_contents('.htaccess', trim($contents));
                     }
                     wCMS::alert('success', 'Better security turned ON.');
                     wCMS::redirect();
                 } elseif ($_POST['betterSecurity'] == 'off') {
-                    $contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess');
+                    $contents = wCMS::getExternalFile(REPO_URL . '.htaccess');
                     if ($contents) {
                         file_put_contents('.htaccess', trim($contents));
                     }
@@ -393,8 +394,7 @@ EOT;
 
     private static function getOfficialVersion()
     {
-        $data = trim(wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
-        return $data;
+        return trim(wCMS::getExternalFile(REPO_URL . 'version'));
     }
 
     private static function hook()
@@ -577,8 +577,8 @@ EOT;
         if (password_verify('admin', wCMS::get('config', 'password'))) {
             wCMS::alert('danger', 'Change the default password. (<i>Settings -> Security</i>)', true);
         }
-        if (wCMS::getOfficialVersion() > version) {
-            wCMS::alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . version . ' to ' . wCMS::getOfficialVersion() . '</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
+        if (wCMS::getOfficialVersion() > VERSION) {
+            wCMS::alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . VERSION . ' to ' . wCMS::getOfficialVersion() . '</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
         }
     }
 
@@ -782,7 +782,7 @@ EOT;
             return;
         }
         if (hash_equals($_POST['token'], wCMS::generateToken())) {
-            $contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
+            $contents = wCMS::getExternalFile(REPO_URL . 'index.php');
             if ($contents) {
                 file_put_contents(__FILE__, $contents);
             }
