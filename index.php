@@ -1,18 +1,42 @@
-<?php // WonderCMS (MIT license: wondercms.com/license)
+<?php
+/**
+ * @package WonderCMS
+ * @author Robert Isoski
+ * @copyright 2015 Robert Isoski
+ * @see https://www.wondercms.com Official website
+ * @license MIT
+ */
 
 session_start();
 define('VERSION', '2.6.0');
 mb_internal_encoding('UTF-8');
 
+/**
+ * This is the one and only class doing everything
+ */
 class wCMS
 {
+    /** @var bool $loggedIn is the user logged in? */
     public static $loggedIn = false;
+
+    /** @var string $currentPage the current page */
     public static $currentPage;
+
+    /** @var bool $currentPageExists does the current page exists? */
     public static $currentPageExists = false;
+
+    /** @var array $listeners for hooks */
     private static $listeners = [];
+
+    /** @var bool|array $db the content of the database */
     private static $db = false;
 
-    public static function init()
+    /**
+     * This function is called on each page load
+     *
+     * @return void
+     */
+    public static function init(): void
     {
         wCMS::createDatabase();
         wCMS::installThemePluginAction();
@@ -35,12 +59,15 @@ class wCMS
         wCMS::loadThemeAndFunctions();
     }
 
-    private static function addListener($hook, $functionName)
-    {
-        wCMS::$listeners[$hook][] = $functionName;
-    }
-
-    private static function alert($class, $message, $sticky = false)
+    /**
+     * Add an alert message for the user
+     *
+     * @param string $class see bootstrap alerts classes
+     * @param string $message the message to display
+     * @param bool $sticky can it be closed?
+     * @return void
+     */
+    private static function alert(string $class, string $message, bool $sticky = false): void
     {
         if (isset($_SESSION['alert'][$class])) {
             foreach ($_SESSION['alert'][$class] as $k => $v) {
@@ -52,10 +79,15 @@ class wCMS
         $_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
     }
 
-    private static function alerts()
+    /**
+     * Display an alert message to the user
+     *
+     * @return string
+     */
+    private static function alerts(): string
     {
         if (!isset($_SESSION['alert'])) {
-            return;
+            return '';
         }
         $session = $_SESSION['alert'];
         $output = '';
@@ -68,12 +100,22 @@ class wCMS
         return $output;
     }
 
-    public static function asset($location)
+    /**
+     * Get an asset (returns the URL of the asset)
+     *
+     * @return string
+     */
+    public static function asset(string $location): string
     {
         return wCMS::url('themes/' . wCMS::get('config', 'theme') . '/' . $location);
     }
 
-    private static function backupAction()
+    /**
+     * Backup the installation
+     *
+     * @return void
+     */
+    private static function backupAction(): void
     {
         if (!wCMS::$loggedIn) {
             return;
@@ -93,7 +135,12 @@ class wCMS
         }
     }
 
-    private static function betterSecurityAction()
+    /**
+     * Replace the .htaccess with one adding security settings
+     *
+     * @return void
+     */
+    private static function betterSecurityAction(): void
     {
         if (wCMS::$loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
             if (hash_equals($_POST['token'], wCMS::generateToken())) {
@@ -116,13 +163,24 @@ class wCMS
         }
     }
 
-    public static function block($key)
+    /**
+     * Get block
+     *
+     * @param string $key name of the block
+     * @return string
+     */
+    public static function block(string $key): string
     {
         $blocks = wCMS::get('blocks');
         return isset($blocks->{$key}) ? (wCMS::$loggedIn ? wCMS::editable($key, $blocks->{$key}->content, 'blocks') : $blocks->{$key}->content) : '';
     }
 
-    private static function changePasswordAction()
+    /**
+     * Change the password
+     *
+     * @return void
+     */
+    private static function changePasswordAction(): void
     {
         if (wCMS::$loggedIn && isset($_POST['old_password']) && isset($_POST['new_password'])) {
             if ($_SESSION['token'] === $_POST['token'] && hash_equals($_POST['token'], wCMS::generateToken())) {
@@ -141,7 +199,12 @@ class wCMS
         }
     }
 
-    private static function createDatabase()
+    /**
+     * Initialize the database if it is empty
+     *
+     * @return void
+     */
+    private static function createDatabase(): void
     {
         if (wCMS::db() !== false) {
             return;
@@ -212,7 +275,15 @@ class wCMS
         ]);
     }
 
-    private static function createMenuItem($content, $menu, $visibility)
+    /**
+     * Create a menu item
+     *
+     * @param string $content
+     * @param string $menu
+     * @param string $visibility
+     * @return void
+     */
+    private static function createMenuItem(string $content, string $menu, string $visibility): void
     {
         $conf = 'config';
         $field = 'menuItems';
@@ -248,7 +319,13 @@ class wCMS
         }
     }
 
-    private static function createPage($slug = false)
+    /**
+     * Create a new page
+     *
+     * @param bool $slug the name of the page in URL
+     * @return void
+     */
+    private static function createPage(bool $slug = false)
     {
         $db = wCMS::db();
         $db->pages->{(!$slug) ? wCMS::$currentPage : $slug} = new stdClass;
@@ -261,7 +338,12 @@ class wCMS
         }
     }
 
-    private static function css()
+    /**
+     * Add CSS
+     *
+     * @return string
+     */
+    private static function css(): string
     {
         if (wCMS::$loggedIn) {
             $styles = <<<'EOT'
@@ -272,12 +354,22 @@ EOT;
         return wCMS::hook('css', '')[0];
     }
 
+    /**
+     * Get the content of the database
+     *
+     * @return string|false
+     */
     public static function db()
     {
         return file_exists(__DIR__ . '/database.js') ? json_decode(file_get_contents(__DIR__ . '/database.js')) : false;
     }
 
-    private static function deleteFileThemePluginAction()
+    /**
+     * Delete theme
+     *
+     * @return void
+     */
+    private static function deleteFileThemePluginAction(): void
     {
         if (!wCMS::$loggedIn) {
             return;
@@ -310,7 +402,12 @@ EOT;
         }
     }
 
-    private static function deletePageAction($needle = false, $menu = true)
+    /**
+     * Delete a page
+     *
+     * @return void
+     */
+    private static function deletePageAction(bool $needle = false, bool $menu = true)
     {
         if (!$needle) {
             if (wCMS::$loggedIn && isset($_GET['delete']) && hash_equals($_REQUEST['token'], wCMS::generateToken())) {
@@ -335,22 +432,45 @@ EOT;
         wCMS::redirect();
     }
 
-    public static function editable($id, $content, $dataTarget = '')
+    /**
+     * Get an editable block
+     *
+     * @param string $id id for the block
+     * @param string $content html content
+     * @param string $dataTarget
+     * @return string
+     */
+    public static function editable(string $id, string $content, string $dataTarget = ''): string
     {
         return '<div' . ($dataTarget != '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
     }
 
-    public static function footer()
+    /**
+     * Get the footer
+     *
+     * @return string
+     */
+    public static function footer(): string
     {
         $output = wCMS::get('blocks', 'footer')->content . (!wCMS::$loggedIn ? ((wCMS::get('config', 'login') == 'loginURL') ? ' &bull; <a href="' . wCMS::url('loginURL') . '">Login</a>' : '') : '');
         return wCMS::hook('footer', $output)[0];
     }
 
-    public static function generateToken()
+    /**
+     * Get the CSRF token
+     *
+     * @return string
+     */
+    public static function generateToken(): string
     {
         return (isset($_SESSION["token"])) ? $_SESSION["token"] : $_SESSION["token"] = bin2hex(openssl_random_pseudo_bytes(32));
     }
 
+    /**
+     * Get something from the database
+     *
+     * @return string|false
+     */
     public static function get()
     {
         $numArgs = func_num_args();
@@ -376,7 +496,13 @@ EOT;
         }
     }
 
-    public static function getExternalFile($url)
+    /**
+     * Get a file from the internet with cURL
+     *
+     * @param string $url the URL to fetch
+     * @return string content of the file
+     */
+    public static function getExternalFile(string $url): string
     {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -391,13 +517,18 @@ EOT;
         return wCMS::hook('getMenuSettings', $output)[0];
     }
 
-    private static function getOfficialVersion()
+    /**
+     * Get the latest version from the master branch of the github repo
+     *
+     * @return string
+     */
+    private static function getOfficialVersion(): string
     {
         $data = trim(wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
         return $data;
     }
 
-    private static function hook()
+    private static function hook(): string
     {
         $numArgs = func_num_args();
         $args = func_get_args();
@@ -414,7 +545,7 @@ EOT;
         return $args;
     }
 
-    private static function installThemePluginAction()
+    private static function installThemePluginAction(): void
     {
         if (!wCMS::$loggedIn && !isset($_POST['installAddon'])) {
             return;
@@ -650,7 +781,13 @@ EOT;
         die();
     }
 
-    public static function save($db)
+    /**
+     * Save something in the database
+     *
+     * @param string $db json formatted content
+     * @return void
+     */
+    public static function save(string $db): void
     {
         file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     }
@@ -855,12 +992,18 @@ EOT;
         }
     }
 
-    public static function url($location = '')
+    /**
+     * Get the canonical URL
+     *
+     * @param string $location
+     * @return string
+     */
+    public static function url(string $location = ''): string
     {
         return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on')) || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on')) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
     }
 
-    private static function zipBackup($source, $destination)
+    private static function zipBackup(string $source, string $destination): bool
     {
         if (extension_loaded('zip')) {
             if (file_exists($source)) {
