@@ -32,6 +32,8 @@ class wCMS
     /** @var bool|array $db the content of the database */
     private static $db = false;
 
+    private const MIN_PASSWORD_LENGTH = 8;
+
     /**
      * This function is called on each page load
      *
@@ -189,8 +191,8 @@ class wCMS
                     wCMS::alert('danger', 'Wrong password.');
                     wCMS::redirect();
                 }
-                if (strlen($_POST['new_password']) < 8) {
-                    wCMS::alert('danger', 'Password must be longer than 8 characters.');
+                if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
+                    wCMS::alert('danger', sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
                     wCMS::redirect();
                 }
                 wCMS::set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
