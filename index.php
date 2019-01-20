@@ -63,6 +63,15 @@ class wCMS
     }
 
     /**
+     * Function used by plugins to add a hook
+     *
+     */
+    private static function addListener($hook, $functionName)
+    {
+        wCMS::$listeners[$hook][] = $functionName;
+    }
+
+    /**
      * Add an alert message for the user
      *
      * @param string $class see bootstrap alerts classes
