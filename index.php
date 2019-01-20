@@ -99,14 +99,14 @@ class wCMS
         if (wCMS::$loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
             if (hash_equals($_POST['token'], wCMS::generateToken())) {
                 if ($_POST['betterSecurity'] == 'on') {
-                    $contents = wCMS::getExternalFile(REPO_URL . '.htaccess-ultimate');
+                    $contents = wCMS::getFileFromRepo('.htaccess-ultimate');
                     if ($contents) {
                         file_put_contents('.htaccess', trim($contents));
                     }
                     wCMS::alert('success', 'Better security turned ON.');
                     wCMS::redirect();
                 } elseif ($_POST['betterSecurity'] == 'off') {
-                    $contents = wCMS::getExternalFile(REPO_URL . '.htaccess');
+                    $contents = wCMS::getFileFromRepo('.htaccess');
                     if ($contents) {
                         file_put_contents('.htaccess', trim($contents));
                     }
@@ -377,11 +377,17 @@ EOT;
         }
     }
 
-    public static function getExternalFile($url)
+    /**
+     * Get the content of a file from the master branch of the github repository
+     *
+     * @param string $file the file we want
+     * @return string
+     */
+    public static function getFileFromRepo(string $file): string
     {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_URL, REPO_URL . $file);
         $data = curl_exec($ch);
         curl_close($ch);
         return $data;
@@ -394,7 +400,7 @@ EOT;
 
     private static function getOfficialVersion()
     {
-        return trim(wCMS::getExternalFile(REPO_URL . 'version'));
+        return trim(wCMS::getFileFromRepo('version'));
     }
 
     private static function hook()
@@ -782,7 +788,7 @@ EOT;
             return;
         }
         if (hash_equals($_POST['token'], wCMS::generateToken())) {
-            $contents = wCMS::getExternalFile(REPO_URL . 'index.php');
+            $contents = wCMS::getFileFromRepo('index.php');
             if ($contents) {
                 file_put_contents(__FILE__, $contents);
             }
