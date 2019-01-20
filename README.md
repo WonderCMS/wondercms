@@ -12,20 +12,30 @@
 
 ## Extra small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
-  - Runs on [52 functions](https://github.com/robiso/wondercms/wiki/List-of-all-functions) and a couple hundred lines of code.
+  - Runs on a couple hundred lines of code.
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files.
   - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
+## Requirements
+- PHP version 7.1 or greater with:
+  - cURL extension
+  - mbstring extension
+  - Zip extension
+- A webserver:
+  - Apache with module `rewrite` and `AllowOverride All` directive
+  - or NGINX ([see configuration setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config))
+  - or IIS ([see configuration setup](https://github.com/robiso/wondercms/wiki/IIS-server-config))
+
+*WonderCMS works on most Apache servers/hosts (even free ones) out of the box.*
+
 ## Installation
 
-### From ZIP archive
-
+### Install from ZIP archive (unzip and upload)
 Simply unzip and upload the [latest version](https://www.wondercms.com/latest) to your server.
 
-### From GIT
-
+#### Or clone from GIT
 Clone from GitHub in a directory served by your webserver:
 
 ~~~bash
@@ -34,7 +44,7 @@ cd /var/www/html
 git clone https://github.com/robiso/wondercms.git
 ~~~
 
-### Deploy with Docker
+#### Or deploy with Docker
 
 ~~~bash
 git clone https://github.com/robiso/wondercms.git
@@ -45,31 +55,14 @@ docker volume create wondercms
 docker run --name wondercms -d -p 8080:80 -v wondercms:/var/www/html robiso/wondercms
 ~~~
 
-### Install with cPanel (and Softaculous)
+#### Or install with cPanel (and Softaculous)
+See this [video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&t=25).
 
-See this [video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&t=25)
+#### Or get hosting with WonderCMS pre-installed
+[Hosting with WonderCMS - A2 Hosting](https://www.wondercms.com/hosting).
 
-### Use a hosted (pre-installed) solution
-
-Get hosting with WonderCMS pre-installed -> https://www.wondercms.com/hosting (A2 Hosting)
-
-### Deploy on Microsoft Azure
-
-See instructions on [Microsoft.com](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template).
-
-## Requirements
-- PHP 7.1 or greater
-  - cURL extension
-  - mbstring extension
-  - Zip extension
-- mod_rewrite module
-- any type of server (Apache, NGINX or IIS)
-
-*For setting up WonderCMS on NGINX or IIS servers, there is 1 additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
-
-**WonderCMS works on most Apache servers/hosts (even free ones) by default.
-It will also work with lower PHP versions (5.5+), but we highly advise against using unsupported PHP versions.**
-
+#### Or deploy on Microsoft Azure
+Deploy WonderCMS on [Microsoft.com](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template). Video tutorial: [how to deploy on Microsoft Azure in 2 minutes](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes).
 
 ## Libraries used (6)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).

@@ -9,6 +9,7 @@
 
 session_start();
 define('VERSION', '2.6.0');
+define('REPO_URL', 'https://raw.githubusercontent.com/robiso/wondercms/master/');
 mb_internal_encoding('UTF-8');
 
 /**
@@ -145,14 +146,14 @@ class wCMS
         if (wCMS::$loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
             if (hash_equals($_POST['token'], wCMS::generateToken())) {
                 if ($_POST['betterSecurity'] == 'on') {
-                    $contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess-ultimate');
+                    $contents = wCMS::getFileFromRepo('.htaccess-ultimate');
                     if ($contents) {
                         file_put_contents('.htaccess', trim($contents));
                     }
                     wCMS::alert('success', 'Better security turned ON.');
                     wCMS::redirect();
                 } elseif ($_POST['betterSecurity'] == 'off') {
-                    $contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess');
+                    $contents = wCMS::getFileFromRepo('.htaccess');
                     if ($contents) {
                         file_put_contents('.htaccess', trim($contents));
                     }
@@ -188,8 +189,8 @@ class wCMS
                     wCMS::alert('danger', 'Wrong password.');
                     wCMS::redirect();
                 }
-                if (strlen($_POST['new_password']) < 4) {
-                    wCMS::alert('danger', 'Password must be longer than 4 characters.');
+                if (strlen($_POST['new_password']) < 8) {
+                    wCMS::alert('danger', 'Password must be longer than 8 characters.');
                     wCMS::redirect();
                 }
                 wCMS::set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
@@ -209,14 +210,16 @@ class wCMS
         if (wCMS::db() !== false) {
             return;
         }
+        $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
+        $generateRandomPassword = substr(str_shuffle($characters), 0, 8);
         wCMS::save([
             'config' => [
-                'dbVersion' => VERSION,
+                'dbVersion' => '2.6.0',
                 'siteTitle' => 'Website title',
                 'theme' => 'default',
                 'defaultPage' => 'home',
                 'login' => 'loginURL',
-                'password' => password_hash('admin', PASSWORD_DEFAULT),
+                'password' => password_hash($generateRandomPassword, PASSWORD_DEFAULT),
                 'menuItems' => [
                     '0' => [
                         'name' => 'Home',
@@ -243,7 +246,7 @@ class wCMS
                     'description' => 'A short description is also good.',
                     'content' => '<h1>Website alive!</h1>
 
-<h4><a href="' . wCMS::url('loginURL') . '">Click to login, the password is <b>admin</b>.</a></h4>'
+<h4><a href="' . wCMS::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $generateRandomPassword . '</b></a></h4>'
                 ],
                 'example' => [
                     'title' => 'Example',
@@ -497,16 +500,16 @@ EOT;
     }
 
     /**
-     * Get a file from the internet with cURL
+     * Get the content of a file from the master branch of the github repository
      *
-     * @param string $url the URL to fetch
-     * @return string content of the file
+     * @param string $file the file we want
+     * @return string
      */
-    public static function getExternalFile(string $url): string
+    public static function getFileFromRepo(string $file): string
     {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_URL, REPO_URL . $file);
         $data = curl_exec($ch);
         curl_close($ch);
         return $data;
@@ -524,8 +527,7 @@ EOT;
      */
     private static function getOfficialVersion(): string
     {
-        $data = trim(wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
-        return $data;
+        return trim(wCMS::getFileFromRepo('version'));
     }
 
     private static function hook(): string
@@ -919,7 +921,7 @@ EOT;
             return;
         }
         if (hash_equals($_POST['token'], wCMS::generateToken())) {
-            $contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
+            $contents = wCMS::getFileFromRepo('index.php');
             if ($contents) {
                 file_put_contents(__FILE__, $contents);
             }
