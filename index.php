@@ -530,7 +530,7 @@ EOT;
         return trim(wCMS::getFileFromRepo('version'));
     }
 
-    private static function hook(): string
+    private static function hook(): array
     {
         $numArgs = func_num_args();
         $args = func_get_args();
@@ -604,7 +604,12 @@ EOT;
         return wCMS::hook('js', '')[0];
     }
 
-    private static function loadPlugins()
+    /**
+     * Load plugins if they exist
+     *
+     * @return void
+     */
+    private static function loadPlugins(): void
     {
         if (!is_dir(__DIR__ . '/plugins')) {
             mkdir(__DIR__ . '/plugins');
@@ -619,7 +624,12 @@ EOT;
         }
     }
 
-    public static function loadThemeAndFunctions()
+    /**
+     * This is the last function called by init() and will display HTML
+     *
+     * @return void
+     */
+    public static function loadThemeAndFunctions(): void
     {
         if (file_exists(__DIR__ . '/themes/' . wCMS::get('config', 'theme') . '/functions.php')) {
             require_once __DIR__ . '/themes/' . wCMS::get('config', 'theme') . '/functions.php';
@@ -649,7 +659,12 @@ EOT;
         wCMS::redirect(wCMS::get('config', 'login'));
     }
 
-    private static function loginStatus()
+    /**
+     * Check if we are logged in
+     *
+     * @return void
+     */
+    private static function loginStatus(): void
     {
         if (isset($_SESSION['l'], $_SESSION['i']) && $_SESSION['i'] == __DIR__) {
             wCMS::$loggedIn = true;
