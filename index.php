@@ -131,8 +131,8 @@ class wCMS
                     wCMS::alert('danger', 'Wrong password.');
                     wCMS::redirect();
                 }
-                if (strlen($_POST['new_password']) < 4) {
-                    wCMS::alert('danger', 'Password must be longer than 4 characters.');
+                if (strlen($_POST['new_password']) < 8) {
+                    wCMS::alert('danger', 'Password must be longer than 8 characters.');
                     wCMS::redirect();
                 }
                 wCMS::set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
@@ -147,14 +147,16 @@ class wCMS
         if (wCMS::db() !== false) {
             return;
         }
+        $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
+        $generateRandomPassword = substr(str_shuffle($characters), 0, 8);
         wCMS::save([
             'config' => [
-                'dbVersion' => VERSION,
+                'dbVersion' => '2.6.0',
                 'siteTitle' => 'Website title',
                 'theme' => 'default',
                 'defaultPage' => 'home',
                 'login' => 'loginURL',
-                'password' => password_hash('admin', PASSWORD_DEFAULT),
+                'password' => password_hash($generateRandomPassword, PASSWORD_DEFAULT),
                 'menuItems' => [
                     '0' => [
                         'name' => 'Home',
@@ -181,7 +183,7 @@ class wCMS
                     'description' => 'A short description is also good.',
                     'content' => '<h1>Website alive!</h1>
 
-<h4><a href="' . wCMS::url('loginURL') . '">Click to login, the password is <b>admin</b>.</a></h4>'
+<h4><a href="' . wCMS::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $generateRandomPassword . '</b></a></h4>'
                 ],
                 'example' => [
                     'title' => 'Example',
