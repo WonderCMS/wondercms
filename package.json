@@ -1,0 +1,16 @@
+{
+  "name": "wondercms",
+  "version": "3.0.0",
+  "description": "Small free flat file CMS with no setup",
+  "main": "index.php",
+  "repository": "https://github.com/robiso/wondercms",
+  "author": "@Robiso and contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "grunt": "^1.0.3",
+    "grunt-contrib-uglify": "^4.0.0"
+  },
+  "dependencies": {
+    "grunt-contrib-cssmin": "^3.0.0"
+  }
+}
