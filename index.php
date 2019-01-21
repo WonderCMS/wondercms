@@ -520,7 +520,7 @@ EOT;
         $repoUrl = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_URL, $repoUrl. $file);
+        curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
         $data = curl_exec($ch);
         curl_close($ch);
         return $data;
