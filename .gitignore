@@ -1,5 +1,4 @@
 database.js
-CONTRIBUTING.md
-license
-version
-.htaccess-ultimate
+files
+plugins
+node_modules
