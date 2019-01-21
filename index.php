@@ -812,10 +812,10 @@ EOT;
     /**
      * Save something in the database
      *
-     * @param string $db json formatted content
+     * @param string|array $db json formatted content
      * @return void
      */
-    public static function save(string $db): void
+    public static function save($db): void
     {
         file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     }
