@@ -9,7 +9,6 @@
 
 session_start();
 define('VERSION', '2.6.0');
-define('REPO_URL', 'https://raw.githubusercontent.com/robiso/wondercms/master/');
 mb_internal_encoding('UTF-8');
 
 /**
@@ -518,9 +517,10 @@ EOT;
      */
     public static function getFileFromRepo(string $file): string
     {
+        $repoUrl = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_URL, REPO_URL . $file);
+        curl_setopt($ch, CURLOPT_URL, $repoUrl. $file);
         $data = curl_exec($ch);
         curl_close($ch);
         return $data;
