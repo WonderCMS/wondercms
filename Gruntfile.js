@@ -14,15 +14,15 @@ module.exports = function(grunt) {
       },
       dist: {
         files: {
-          'assets/wondercms.min.js': 'assets/wondercms.js'
+          'assets/admin.min.js': 'assets/admin.js'
         }
       }
     },
     cssmin: {
       target: {
         files: {
-          'assets/wondercms.min.css': [
-              'assets/wondercms.css',
+          'assets/admin.min.css': [
+              'assets/admin.css',
               'assets/adminPanel.css'
           ]
         }
