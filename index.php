@@ -2,8 +2,7 @@
 /**
  * @package WonderCMS
  * @author Robert Isoski
- * @copyright 2015 Robert Isoski
- * @see https://www.wondercms.com Official website
+ * @see https://www.wondercms.com - offical website
  * @license MIT
  */
 
@@ -12,7 +11,7 @@ define('VERSION', '2.6.0');
 mb_internal_encoding('UTF-8');
 
 /**
- * This is the one and only class doing everything
+ * One and only class doing everything
  */
 class wCMS
 {
@@ -22,19 +21,19 @@ class wCMS
     /** @var string $currentPage the current page */
     public static $currentPage;
 
-    /** @var bool $currentPageExists does the current page exists? */
+    /** @var bool $currentPageExists does the current page exist? */
     public static $currentPageExists = false;
 
     /** @var array $listeners for hooks */
     private static $listeners = [];
 
-    /** @var bool|array $db the content of the database */
+    /** @var bool|array $db content of the database.js */
     private static $db = false;
 
     private const MIN_PASSWORD_LENGTH = 8;
 
     /**
-     * This function is called on each page load
+     * Init function called on each page load
      *
      * @return void
      */
@@ -71,7 +70,7 @@ class wCMS
     }
 
     /**
-     * Add an alert message for the user
+     * Add alert message for the user
      *
      * @param string $class see bootstrap alerts classes
      * @param string $message the message to display
@@ -91,7 +90,7 @@ class wCMS
     }
 
     /**
-     * Display an alert message to the user
+     * Display alert message to the user
      *
      * @return string
      */
@@ -112,7 +111,7 @@ class wCMS
     }
 
     /**
-     * Get an asset (returns the URL of the asset)
+     * Get an asset (returns URL of the asset)
      *
      * @return string
      */
@@ -122,7 +121,7 @@ class wCMS
     }
 
     /**
-     * Backup the installation
+     * Backup whole WonderCMS installation
      *
      * @return void
      */
@@ -175,7 +174,7 @@ class wCMS
     }
 
     /**
-     * Get block
+     * Get a static block
      *
      * @param string $key name of the block
      * @return string
@@ -187,7 +186,7 @@ class wCMS
     }
 
     /**
-     * Change the password
+     * Change password
      *
      * @return void
      */
@@ -211,7 +210,7 @@ class wCMS
     }
 
     /**
-     * Initialize the database if it is empty
+     * Initialize the database if it's empty
      *
      * @return void
      */
@@ -220,8 +219,7 @@ class wCMS
         if (wCMS::db() !== false) {
             return;
         }
-        $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
-        $generateRandomPassword = substr(str_shuffle($characters), 0, 8);
+        $password = wCMS::generatePassword();
         wCMS::save([
             'config' => [
                 'dbVersion' => '2.6.0',
@@ -229,7 +227,7 @@ class wCMS
                 'theme' => 'default',
                 'defaultPage' => 'home',
                 'login' => 'loginURL',
-                'password' => password_hash($generateRandomPassword, PASSWORD_DEFAULT),
+                'password' => password_hash($password, PASSWORD_DEFAULT),
                 'menuItems' => [
                     '0' => [
                         'name' => 'Home',
@@ -256,7 +254,7 @@ class wCMS
                     'description' => 'A short description is also good.',
                     'content' => '<h1>Website alive!</h1>
 
-<h4><a href="' . wCMS::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $generateRandomPassword . '</b></a></h4>'
+<h4><a href="' . wCMS::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
                 ],
                 'example' => [
                     'title' => 'Example',
@@ -289,7 +287,7 @@ class wCMS
     }
 
     /**
-     * Create a menu item
+     * Create menu item
      *
      * @param string $content
      * @param string $menu
@@ -333,7 +331,7 @@ class wCMS
     }
 
     /**
-     * Create a new page
+     * Create new page
      *
      * @param bool $slug the name of the page in URL
      * @return void
@@ -352,7 +350,7 @@ class wCMS
     }
 
     /**
-     * Inject CSS into the page
+     * Inject CSS into page
      *
      * @return string
      */
@@ -360,15 +358,15 @@ class wCMS
     {
         if (wCMS::$loggedIn) {
             // load the minified css file
-            $wonderCss = file_get_contents(__DIR__ . '/assets/wondercms.min.css');
-            $styles = '<style>' . $wonderCss . '</style>';
+            $wcmsCSS = file_get_contents(__DIR__ . '/assets/admin.min.css');
+            $styles = '<style>' . $wcmsCSS . '</style>';
             return wCMS::hook('css', $styles)[0];
         }
         return wCMS::hook('css', '')[0];
     }
 
     /**
-     * Get the content of the database
+     * Get content of the database
      *
      * @return string|false
      */
@@ -416,7 +414,7 @@ class wCMS
     }
 
     /**
-     * Delete a page
+     * Delete page
      *
      * @return void
      */
@@ -470,7 +468,19 @@ class wCMS
     }
 
     /**
-     * Get the CSRF token
+     * Generate random password
+     *
+     * @return string
+     */
+    private static function generatePassword(): string
+    {
+        $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
+        $randomPassword = substr(str_shuffle($characters), 0, 8);
+        return $randomPassword;
+    }
+
+    /**
+     * Get CSRF token
      *
      * @return string
      */
@@ -510,7 +520,7 @@ class wCMS
     }
 
     /**
-     * Get the content of a file from the master branch of the github repository
+     * Get content of a file from master branch on GitHub
      *
      * @param string $file the file we want
      * @return string
@@ -532,7 +542,7 @@ class wCMS
     }
 
     /**
-     * Get the latest version from the master branch of the github repo
+     * Get the latest version from master branch on GitHub
      *
      * @return string
      */
@@ -603,13 +613,13 @@ class wCMS
     private static function js()
     {
         if (wCMS::$loggedIn) {
-            $wonderJs = file_get_contents(__DIR__ . '/assets/wondercms.min.js');
+            $wcmsJS = file_get_contents(__DIR__ . '/assets/admin.min.js');
             $scripts = <<<'EOT'
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
 EOT;
-            $scripts .= '<script>' . $wonderJs . '</script>';
+            $scripts .= '<script>' . $wcmsJS . '</script>';
             $scripts .= '<script>var token = "' . wCMS::generateToken() . '";</script>';
             return wCMS::hook('js', $scripts)[0];
         }
@@ -617,7 +627,7 @@ EOT;
     }
 
     /**
-     * Load plugins if they exist
+     * Load plugins (if they exist)
      *
      * @return void
      */
@@ -637,7 +647,7 @@ EOT;
     }
 
     /**
-     * This is the last function called by init() and will display HTML
+     * Loads theme file and also loads the functions.php (if it exists)
      *
      * @return void
      */
@@ -672,7 +682,7 @@ EOT;
     }
 
     /**
-     * Check if we are logged in
+     * Check if the user is logged in
      *
      * @return void
      */
@@ -732,10 +742,7 @@ EOT;
             wCMS::alert('info', '<b>This page (' . wCMS::$currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.');
         }
         if (wCMS::get('config', 'login') === 'loginURL') {
-            wCMS::alert('warning', 'Change the default admin login URL. (<i>Settings -> Security</i>)', true);
-        }
-        if (password_verify('admin', wCMS::get('config', 'password'))) {
-            wCMS::alert('danger', 'Change the default password. (<i>Settings -> Security</i>)', true);
+            wCMS::alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
         }
         if (wCMS::getOfficialVersion() > VERSION) {
             wCMS::alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . VERSION . ' to ' . wCMS::getOfficialVersion() . '</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
@@ -811,7 +818,7 @@ EOT;
     }
 
     /**
-     * Save something in the database
+     * Save something to database.js
      *
      * @param string|array $db json formatted content
      * @return void
@@ -1022,7 +1029,7 @@ EOT;
     }
 
     /**
-     * Get the canonical URL
+     * Get canonical URL
      *
      * @param string $location
      * @return string
