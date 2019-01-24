@@ -475,8 +475,7 @@ class wCMS
     private static function generatePassword(): string
     {
         $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
-        $randomPassword = substr(str_shuffle($characters), 0, 8);
-        return $randomPassword;
+        return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
     }
 
     /**
