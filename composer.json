@@ -1,0 +1,14 @@
+{
+    "name": "robiso/wondercms",
+    "description": "Small CMS in PHP",
+    "type": "project",
+    "require": {
+        "symfony/http-foundation": "^4.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Robiso\\Wondercms\\" : ["src/classes"]
+        }
+    },
+    "license": "MIT"
+}

@@ -14,7 +14,7 @@ module.exports = function(grunt) {
       },
       dist: {
         files: {
-          'assets/admin.min.js': 'assets/admin.js'
+          'assets/admin.min.js': 'src/js/admin.js'
         }
       }
     },
@@ -22,8 +22,8 @@ module.exports = function(grunt) {
       target: {
         files: {
           'assets/admin.min.css': [
-              'assets/admin.css',
-              'assets/adminPanel.css'
+              'src/css/admin.css',
+              'src/css/adminPanel.css'
           ]
         }
       }

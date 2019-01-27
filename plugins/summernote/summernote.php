@@ -8,32 +8,35 @@
  * @forked by Robert Isoski @robertisoski
  * @version 3.0.0
  */
+namespace Robiso\Wondercms;
 
-if(defined('VERSION'))
+//require_once 'vendor/autoload.php';
+
+global $Wcms;
+
+if (defined('VERSION')) {
     define('version', VERSION);
     defined('version') OR die('Direct access is not allowed.');
 
-    $default_contents_path = 'files';
-
-    wCMS::addListener('js', 'loadSummerNoteJS');
-    wCMS::addListener('css', 'loadSummerNoteCSS');
-    wCMS::addListener('editable', 'initialSummerNoteVariables');
+    $Wcms->addListener('js', 'loadSummerNoteJS');
+    $Wcms->addListener('css', 'loadSummerNoteCSS');
+    $Wcms->addListener('editable', 'initialSummerNoteVariables');
+}
 
 function initialSummerNoteVariables($contents) {
+    global $Wcms;
     $content = $contents[0];
     $subside = $contents[1];
 
-    global $default_contents_path;
-
-    $contents_path = wCMS::getConfig('contents_path');
-    if ( ! $contents_path) {
-        wCMS::setConfig('contents_path', $default_contents_path);
-        $contents_path = $default_contents_path;
+    $contents_path = $Wcms->getConfig('contents_path');
+    if (!$contents_path) {
+        $Wcms->setConfig('contents_path', $Wcms->filesPath);
+        $contents_path = $Wcms->filesPath;
     }
     $contents_path_n = trim($contents_path, "/");
     if ($contents_path != $contents_path_n) {
         $contents_path = $contents_path_n;
-        wCMS::setConfig('contents_path', $contents_path);
+        $Wcms->setConfig('contents_path', $contents_path);
     }
     $_SESSION['contents_path'] = $contents_path;
 
@@ -41,18 +44,20 @@ function initialSummerNoteVariables($contents) {
 }
 
 function loadSummerNoteJS($args) {
-    if (wCMS::$loggedIn) {
+    global $Wcms;
+    if ($Wcms->loggedIn) {
         $script = <<<'EOT'
         <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.11/dist/summernote.min.js" integrity="sha384-PhgMYQdqAZv2QCETJ8/VeYtc0g2UWXtMhJ8ADFdVLi/4k+czJ5TT6mEnrZSnkYFJ" crossorigin="anonymous"></script>
         <script src="plugins/summernote/js/admin.js"></script>
 EOT;
     }
-    $args[0].=$script;
+    $args[0] .= $script;
     return $args;
 }
- 
+
 function loadSummerNoteCSS($args) {
-    if (wCMS::$loggedIn) {
+    global $Wcms;
+    if ($Wcms->loggedIn) {
         $script = <<<'EOT'
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote@0.8.11/dist/summernote.css" integrity="sha384-hHEPAd3Dkb316VuNPtIZ6LUrzxvD4PQOTW478Ww6c/aUJKXNDV9pEx5/jZgISR1G" crossorigin="anonymous">
         <link rel="stylesheet" href="plugins/summernote/css/admin.css" type="text/css" media="screen">
