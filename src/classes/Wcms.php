@@ -126,14 +126,13 @@ class Wcms
         if (!isset($_SESSION['alert'])) {
             return '';
         }
-        $session = $_SESSION['alert'];
         $output = '';
-        unset($_SESSION['alert']);
-        foreach ($session as $key => $value) {
-            foreach ($value as $key => $val) {
-                $output .= '<div class="alert alert-' . $val['class'] . (!$val['sticky'] ? ' alert-dismissible' : '') . '">' . (!$val['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '') . $val['message'] . '</div>';
+        foreach ($_SESSION['alert'] as $alertClass) {
+            foreach ($alertClass as $alert) {
+                $output .= '<div class="alert alert-' . $alert['class'] . (!$alert['sticky'] ? ' alert-dismissible' : '') . '">' . (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '') . $alert['message'] . '</div>';
             }
         }
+        unset($_SESSION['alert']);
         return $output;
     }
 
@@ -521,16 +520,12 @@ class Wcms
         switch ($numArgs) {
             case 1:
                 return $this->db->{$args[0]};
-                break;
             case 2:
                 return $this->db->{$args[0]}->{$args[1]};
-                break;
             case 3:
                 return $this->db->{$args[0]}->{$args[1]}->{$args[2]};
-                break;
             case 4:
                 return $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
-                break;
             default:
                 throw new \Exception('Too many arguments to get()');
         }
@@ -665,8 +660,8 @@ EOT;
         if (!is_dir($this->rootDir . '/plugins')) {
             mkdir($this->rootDir . '/plugins');
         }
-        if (!is_dir($this->filesDir)) {
-            mkdir($this->filesDir);
+        if (!is_dir($this->filesPath)) {
+            mkdir($this->filesPath);
         }
         foreach (glob($this->rootDir . '/plugins/*', GLOB_ONLYDIR) as $dir) {
             if (file_exists($dir . '/' . basename($dir) . '.php')) {
@@ -925,7 +920,7 @@ EOT;
         if (!$this->loggedIn) {
             return '';
         }
-        $fileList = array_slice(scandir($this->filesDir), 2);
+        $fileList = array_slice(scandir($this->filesPath), 2);
         $themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
         $pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
         $output = '<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="text-right padding20"><a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . $this->url('logout&token=' . $this->getToken()) . '">Logout</a></div><div class="modal" id="settingsModal"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div><div class="modal-body col-xs-12"><ul class="nav nav-tabs text-center" role="tablist"><li role="presentation" class="active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab">Current page</a></li><li role="presentation"><a href="#general" aria-controls="general" role="tab" data-toggle="tab">General</a></li><li role="presentation"><a href="#files" aria-controls="files" role="tab" data-toggle="tab">Files</a></li><li role="presentation"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab">Themes & plugins</a></li><li role="presentation"><a href="#security" aria-controls="security" role="tab" data-toggle="tab">Security</a></li></ul><div class="tab-content col-md-8 col-md-offset-2"><div role="tabpanel" class="tab-pane active" id="currentPage">';
@@ -1070,11 +1065,11 @@ EOT;
                     $mimeType = $allowedExtensions[$ext];
                 }
             }
-            if (false === $ext = array_search($mimeType, $allowedExtensions, true)) {
+            if (array_search($mimeType, $allowedExtensions, true) === false) {
                 $this->alert('danger', 'File format is not allowed.');
                 $this->redirect();
             }
-            if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesDir . '/' . basename($_FILES['uploadFile']['name']))) {
+            if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
                 throw new \Exception('Failed to move uploaded file!');
             }
             $this->alert('success', 'File uploaded.');
