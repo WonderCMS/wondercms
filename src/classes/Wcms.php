@@ -1086,8 +1086,7 @@ EOT;
     public function url(string $location = ''): string
     {
         $Request = Request::createFromGlobals();
-        $protocol = $Request->isSecure() ? 'https' : 'http';
-        return $protocol . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+        return $Request->getScheme() . '://' . $Request->getHttpHost() . $Request->getBasePath() . '/' . $location;
     }
 
     /**
