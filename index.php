@@ -580,10 +580,7 @@ EOT;
 			wCMS::alert('info', '<b>This page (' . wCMS::$currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.');
 		}
 		if (wCMS::get('config', 'login') === 'loginURL') {
-			wCMS::alert('warning', 'Change the default admin login URL. (<i>Settings -> Security</i>)', true);
-		}
-		if (password_verify('admin', wCMS::get('config', 'password'))) {
-			wCMS::alert('danger', 'Change the default password. (<i>Settings -> Security</i>)', true);
+			wCMS::alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
 		}
 		if (wCMS::getOfficialVersion() > VERSION) {
 			wCMS::alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . VERSION . ' to ' . wCMS::getOfficialVersion() . '</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
