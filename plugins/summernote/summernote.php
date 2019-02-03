@@ -43,7 +43,7 @@ function initialSummerNoteVariables($contents) {
 function loadSummerNoteJS($args) {
     if (wCMS::$loggedIn) {
         $script = <<<'EOT'
-        <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.11/dist/summernote.min.js" integrity="sha384-PhgMYQdqAZv2QCETJ8/VeYtc0g2UWXtMhJ8ADFdVLi/4k+czJ5TT6mEnrZSnkYFJ" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.8/dist/summernote.min.js" integrity="sha384-rv18XCwOLyh2rO/6Vz9eKWaSP+ljKfFed/npYlSg476id+996jfNDF+5iC3W5KKJ" crossorigin="anonymous"></script>
         <script src="plugins/summernote/js/admin.js"></script>
 EOT;
     }
