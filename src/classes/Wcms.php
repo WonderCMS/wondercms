@@ -82,6 +82,11 @@ class Wcms
         $this->notFoundResponse();
     }
 
+    /**
+     * Display the HTML. Called after init()
+     *
+     * @return void
+     */
     public function render(): void
     {
         $this->loadThemeAndFunctions();
@@ -143,7 +148,7 @@ class Wcms
      */
     public function asset(string $location): string
     {
-        return $this->url('themes/' . $this->get('config', 'theme') . '/' . $location);
+        return self::url('themes/' . $this->get('config', 'theme') . '/' . $location);
     }
 
     /**
@@ -271,7 +276,7 @@ class Wcms
                     'description' => 'A short description is also good.',
                     'content' => '<h1>Website alive!</h1>
 
-<h4><a href="' . $this->url('loginURL') . '">Click to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
+<h4><a href="' . self::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
                 ],
                 'example' => [
                     'title' => 'Example',
@@ -484,7 +489,7 @@ class Wcms
      */
     public function footer(): string
     {
-        $output = $this->get('blocks', 'footer')->content . (!$this->loggedIn ? (($this->get('config', 'login') == 'loginURL') ? ' &bull; <a href="' . $this->url('loginURL') . '">Login</a>' : '') : '');
+        $output = $this->get('blocks', 'footer')->content . (!$this->loggedIn ? (($this->get('config', 'login') == 'loginURL') ? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>' : '') : '');
         return $this->hook('footer', $output)[0];
     }
 
@@ -719,7 +724,7 @@ EOT;
 
     public function loginView(): array
     {
-        return ['title' => 'Login', 'description' => '', 'keywords' => '', 'content' => '<form action="' . $this->url($this->get('config', 'login')) . '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Login</button></span></div></form>'];
+        return ['title' => 'Login', 'description' => '', 'keywords' => '', 'content' => '<form action="' . self::url($this->get('config', 'login')) . '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Login</button></span></div></form>'];
     }
 
     private function logoutAction(): void
@@ -737,7 +742,7 @@ EOT;
             if ($item->visibility === 'hide') {
                 continue;
             }
-            $output .= '<li' . ($this->currentPage === $item->slug ? ' class="active"' : '') . '><a href="' . $this->url($item->slug) . '">' . $item->name . '</a></li>';
+            $output .= '<li' . ($this->currentPage === $item->slug ? ' class="active"' : '') . '><a href="' . self::url($item->slug) . '">' . $item->name . '</a></li>';
         }
         return $this->hook('menu', $output)[0];
     }
@@ -769,7 +774,7 @@ EOT;
             $this->alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
         }
         if ($this->getOfficialVersion() > self::VERSION) {
-            $this->alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . $this->url($this->currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . self::VERSION . ' to ' . $this->getOfficialVersion() . '</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form>', true);
+            $this->alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . self::VERSION . ' to ' . $this->getOfficialVersion() . '</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form>', true);
         }
     }
 
@@ -836,7 +841,7 @@ EOT;
 
     public function redirect(string $location = ''): void
     {
-        header('Location: ' . $this->url($location));
+        header('Location: ' . self::url($location));
         die();
     }
 
@@ -923,9 +928,9 @@ EOT;
         $fileList = array_slice(scandir($this->filesPath), 2);
         $themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
         $pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
-        $output = '<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="text-right padding20"><a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . $this->url('logout&token=' . $this->getToken()) . '">Logout</a></div><div class="modal" id="settingsModal"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div><div class="modal-body col-xs-12"><ul class="nav nav-tabs text-center" role="tablist"><li role="presentation" class="active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab">Current page</a></li><li role="presentation"><a href="#general" aria-controls="general" role="tab" data-toggle="tab">General</a></li><li role="presentation"><a href="#files" aria-controls="files" role="tab" data-toggle="tab">Files</a></li><li role="presentation"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab">Themes & plugins</a></li><li role="presentation"><a href="#security" aria-controls="security" role="tab" data-toggle="tab">Security</a></li></ul><div class="tab-content col-md-8 col-md-offset-2"><div role="tabpanel" class="tab-pane active" id="currentPage">';
+        $output = '<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="text-right padding20"><a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . self::url('logout&token=' . $this->getToken()) . '">Logout</a></div><div class="modal" id="settingsModal"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div><div class="modal-body col-xs-12"><ul class="nav nav-tabs text-center" role="tablist"><li role="presentation" class="active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab">Current page</a></li><li role="presentation"><a href="#general" aria-controls="general" role="tab" data-toggle="tab">General</a></li><li role="presentation"><a href="#files" aria-controls="files" role="tab" data-toggle="tab">Files</a></li><li role="presentation"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab">Themes & plugins</a></li><li role="presentation"><a href="#security" aria-controls="security" role="tab" data-toggle="tab">Security</a></li></ul><div class="tab-content col-md-8 col-md-offset-2"><div role="tabpanel" class="tab-pane active" id="currentPage">';
         if ($this->currentPageExists) {
-            $output .= '<p class="subTitle">Page title</p><div class="change"><div data-target="pages" id="title" class="editText">' . ($this->get('pages', $this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div></div><p class="subTitle">Page keywords</p><div class="change"><div data-target="pages" id="keywords" class="editText">' . ($this->get('pages', $this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div></div><p class="subTitle">Page description</p><div class="change"><div data-target="pages" id="description" class="editText">' . ($this->get('pages', $this->currentPage)->description != '' ? $this->get('pages', $this->currentPage)->description : '') . '</div></div><a href="' . $this->url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')">Delete page (' . $this->currentPage . ')</a>';
+            $output .= '<p class="subTitle">Page title</p><div class="change"><div data-target="pages" id="title" class="editText">' . ($this->get('pages', $this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div></div><p class="subTitle">Page keywords</p><div class="change"><div data-target="pages" id="keywords" class="editText">' . ($this->get('pages', $this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div></div><p class="subTitle">Page description</p><div class="change"><div data-target="pages" id="description" class="editText">' . ($this->get('pages', $this->currentPage)->description != '' ? $this->get('pages', $this->currentPage)->description : '') . '</div></div><a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')">Delete page (' . $this->currentPage . ')</a>';
         } else {
             $output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
         }
@@ -940,25 +945,25 @@ EOT;
             $output .= '<div class="row marginTop5"><div class="col-xs-1 col-sm-1 text-right"><i class="btn menu-toggle glyphicon' . ($value->visibility == "show" ? ' glyphicon-eye-open menu-item-hide' : ' glyphicon-eye-close menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i></div><div class="col-xs-4 col-sm-8"><div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div></div><div class="col-xs-2 col-sm-1 text-left">';
             $output .= ($key === $first) ? '' : '<a class="glyphicon glyphicon-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
             $output .= ($key === $end) ? '' : '<a class="glyphicon glyphicon-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
-            $output .= '</div><div class="col-xs-2 col-sm-1 text-left"><a class="glyphicon glyphicon-link" href="' . $this->url($value->slug) . '" title="Visit page">visit</a></div><div class="col-xs-2 col-sm-1 text-right"><a href="' . $this->url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a></div></div>';
+            $output .= '</div><div class="col-xs-2 col-sm-1 text-left"><a class="glyphicon glyphicon-link" href="' . self::url($value->slug) . '" title="Visit page">visit</a></div><div class="col-xs-2 col-sm-1 text-right"><a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a></div></div>';
         }
         $output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page">Add page</a></div></div><p class="subTitle">Theme</p><div class="form-group"><div class="change"><select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
         foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
             $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
         }
-        $output .= '</select></div></div><p class="subTitle">Main website title</p><div class="change"><div data-target="config" id="siteTitle" class="editText">' . ($this->get('config', 'siteTitle') != '' ? $this->get('config', 'siteTitle') : '') . '</div></div><p class="subTitle">Page to display on homepage</p><div class="change"><div data-target="config" id="defaultPage" class="editText">' . $this->get('config', 'defaultPage') . '</div></div><p class="subTitle">Footer</p><div class="change"><div data-target="blocks" id="footer" class="editText">' . ($this->get('blocks', 'footer')->content != '' ? $this->get('blocks', 'footer')->content : '') . '</div></div></div><div role="tabpanel" class="tab-pane" id="files"><p class="subTitle">Upload</p><div class="change"><form action="' . $this->url($this->currentPage) . '" method="post" enctype="multipart/form-data"><div class="input-group"><input type="file" name="uploadFile" class="form-control"><span class="input-group-btn"><button type="submit" class="btn btn-info">Upload</button></span><input type="hidden" name="token" value="' . $this->getToken() . '"></div></form></div><p class="subTitle marginTop20">Delete files</p><div class="change">';
+        $output .= '</select></div></div><p class="subTitle">Main website title</p><div class="change"><div data-target="config" id="siteTitle" class="editText">' . ($this->get('config', 'siteTitle') != '' ? $this->get('config', 'siteTitle') : '') . '</div></div><p class="subTitle">Page to display on homepage</p><div class="change"><div data-target="config" id="defaultPage" class="editText">' . $this->get('config', 'defaultPage') . '</div></div><p class="subTitle">Footer</p><div class="change"><div data-target="blocks" id="footer" class="editText">' . ($this->get('blocks', 'footer')->content != '' ? $this->get('blocks', 'footer')->content : '') . '</div></div></div><div role="tabpanel" class="tab-pane" id="files"><p class="subTitle">Upload</p><div class="change"><form action="' . self::url($this->currentPage) . '" method="post" enctype="multipart/form-data"><div class="input-group"><input type="file" name="uploadFile" class="form-control"><span class="input-group-btn"><button type="submit" class="btn btn-info">Upload</button></span><input type="hidden" name="token" value="' . $this->getToken() . '"></div></form></div><p class="subTitle marginTop20">Delete files</p><div class="change">';
         foreach ($fileList as $file) {
-            $output .= '<a href="' . $this->url('?deleteFile=' . $file . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a><span class="marginLeft5"><a href="' . $this->url('files/') . $file . '" class="normalFont" target="_blank">' . $this->url('files/') . '<b class="fontSize21">' . $file . '</b></a></span><p></p>';
+            $output .= '<a href="' . self::url('?deleteFile=' . $file . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a><span class="marginLeft5"><a href="' . self::url('files/') . $file . '" class="normalFont" target="_blank">' . self::url('files/') . '<b class="fontSize21">' . $file . '</b></a></span><p></p>';
         }
-        $output .= '</div></div><div role="tabpanel" class="tab-pane" id="themesAndPlugins"><p class="subTitle">Install or update</p><div class="change"><form action="' . $this->url($this->currentPage) . '" method="post"><div class="form-group"><label class="radio-inline"><input type="radio" name="installLocation" value="themes">Theme</label><label class="radio-inline"><input type="radio" name="installLocation" value="plugins">Plugin</label><p></p><div class="input-group"><input type="text" name="addonURL" class="form-control normalFont" placeholder="Paste link/URL to ZIP file"><span class="input-group-btn"><button type="submit" class="btn btn-info">Install/Update</button></span></div></div><input type="hidden" value="true" name="installAddon"><input type="hidden" name="token" value="' . $this->getToken() . '"></form></div><p class="subTitle">Delete themes</p><div class="change">';
+        $output .= '</div></div><div role="tabpanel" class="tab-pane" id="themesAndPlugins"><p class="subTitle">Install or update</p><div class="change"><form action="' . self::url($this->currentPage) . '" method="post"><div class="form-group"><label class="radio-inline"><input type="radio" name="installLocation" value="themes">Theme</label><label class="radio-inline"><input type="radio" name="installLocation" value="plugins">Plugin</label><p></p><div class="input-group"><input type="text" name="addonURL" class="form-control normalFont" placeholder="Paste link/URL to ZIP file"><span class="input-group-btn"><button type="submit" class="btn btn-info">Install/Update</button></span></div></div><input type="hidden" value="true" name="installAddon"><input type="hidden" name="token" value="' . $this->getToken() . '"></form></div><p class="subTitle">Delete themes</p><div class="change">';
         foreach ($themeList as $theme) {
-            $output .= '<a href="' . $this->url('?deleteTheme=' . $theme . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
+            $output .= '<a href="' . self::url('?deleteTheme=' . $theme . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
         }
         $output .= '</div><p class="subTitle">Delete plugins</p><div class="change">';
         foreach ($pluginList as $plugin) {
-            $output .= '<a href="' . $this->url('?deletePlugin=' . $plugin . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '<p></p>';
+            $output .= '<a href="' . self::url('?deletePlugin=' . $plugin . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '<p></p>';
         }
-        $output .= '</div></div><div role="tabpanel" class="tab-pane" id="security"><p class="subTitle">Admin login URL</p><div class="change"><div data-target="config" id="login" class="editText">' . $this->get('config', 'login') . '</div><p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont text-right"><b>' . $this->url($this->get('config', 'login')) . '</b></span></div><p class="subTitle">Password</p><div class="change"><form action="' . $this->url($this->currentPage) . '" method="post"><div class="input-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"><span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Change password</button></span></div><input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '"></form></div><p class="subTitle">Backup</p><div class="change"><form action="' . $this->url($this->currentPage) . '" method="post">
+        $output .= '</div></div><div role="tabpanel" class="tab-pane" id="security"><p class="subTitle">Admin login URL</p><div class="change"><div data-target="config" id="login" class="editText">' . $this->get('config', 'login') . '</div><p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont text-right"><b>' . self::url($this->get('config', 'login')) . '</b></span></div><p class="subTitle">Password</p><div class="change"><form action="' . self::url($this->currentPage) . '" method="post"><div class="input-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"><span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Change password</button></span></div><input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '"></form></div><p class="subTitle">Backup</p><div class="change"><form action="' . self::url($this->currentPage) . '" method="post">
             <button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank">How to restore backup</a></p><p class="subTitle">Better security (Apache only)</p><p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter refferer and cookie policy.</p><div class="change"><form method="post"><div class="btn-group btn-group-justified"><div class="btn-group"><button type="submit" class="btn btn-success" name="betterSecurity" value="on">ON (warning: may break your website)</button></div><div class="btn-group"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div></div><input type="hidden" name="token" value="' . $this->getToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank">Read more before enabling</a></p></div></div></div><div class="modal-footer clear"><p class="small"><a href="https://wondercms.com" target="_blank">WonderCMS</a> ' . self::VERSION . ' &nbsp; <b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; <a href="https://wondercms.com/donate" target="_blank">Donate</a></b></p></div></div></div></div></div>';
         return $this->hook('settings', $output)[0];
     }
@@ -1083,7 +1088,7 @@ EOT;
      * @param string $location
      * @return string
      */
-    public function url(string $location = ''): string
+    public static function url(string $location = ''): string
     {
         $Request = Request::createFromGlobals();
         return $Request->getScheme() . '://' . $Request->getHttpHost() . $Request->getBasePath() . '/' . $location;
