@@ -63,6 +63,6 @@ function loadSummerNoteCSS($args) {
         <link rel="stylesheet" href="plugins/summernote/css/admin.css" type="text/css" media="screen">
 EOT;
     }
-    $args[0].=$script;
+    $args[0] .= $script;
     return $args;
 }
