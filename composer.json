@@ -11,7 +11,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Robiso\\Wondercms\\" : ["src/classes"]
+            "Robiso\\Wondercms\\" : ["src/classes"],
+            "Robiso\\Wondercms\\Exceptions\\" : ["src/exceptions"]
         }
     },
     "license": "MIT"
