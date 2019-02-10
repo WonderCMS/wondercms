@@ -7,12 +7,18 @@
  */
 namespace Robiso\Wondercms;
 
+use Exception;
+
 require_once 'vendor/autoload.php';
 
 session_start();
 define('VERSION', '3.0.0');
 mb_internal_encoding('UTF-8');
 
-$Wcms = new Wcms();
-$Wcms->init();
-$Wcms->render();
+try {
+    $Wcms = new Wcms();
+    $Wcms->init();
+    $Wcms->render();
+} catch Exception($e) {
+    echo $e->getMessage();
+}
