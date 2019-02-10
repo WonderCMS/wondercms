@@ -397,8 +397,6 @@ class Wcms
         if (!\file_exists($this->dbPath)) {
             $this->createDb();
         }
-        //var_dump($this->rootDir . '/database.js');
-        //var_dump(\json_decode(\file_get_contents($this->rootDir . '/database.js')));die;
         return \json_decode(\file_get_contents($this->dbPath));
     }
 
