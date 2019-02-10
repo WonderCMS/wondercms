@@ -19,6 +19,6 @@ try {
     $Wcms = new Wcms();
     $Wcms->init();
     $Wcms->render();
-} catch Exception($e) {
+} catch (Exception $e) {
     echo $e->getMessage();
 }
