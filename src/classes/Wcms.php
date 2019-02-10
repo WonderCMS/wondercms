@@ -7,6 +7,7 @@
  */
 namespace Robiso\Wondercms;
 
+use Exception;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -235,6 +236,25 @@ class Wcms
     }
 
     /**
+     * Check if we can run the software properly
+     * Executed once before creating the database file
+     *
+     * @param string $folder the relative path of the folder to check/create
+     * @return void
+     */
+    private function checkFolder(string $folder): void
+    {
+        // check folder is here
+        if (!is_dir($folder) && !mkdir($folder, 0700) && !is_dir($folder)) {
+            throw new Exception(sprintf('Could not create the data folder! (%s). Check documentation to resolve this issue.', $folder));
+        }
+        // and check we can write to it
+        if (!is_writable($folder)) {
+            throw new Exception(sprintf('Cannot write in folder: %s!. Check documentation to resolve this issue.', $folder));
+        }
+    }
+
+    /**
      * Initialize the database if it's empty
      *
      * @return void
@@ -395,6 +415,9 @@ class Wcms
     {
         // initialize the database if it doesn't exist yet
         if (!\file_exists($this->dbPath)) {
+            // this code basically only runs one time, on first page load: install time
+            $this->checkFolder(dirname($this->dbPath));
+            $this->checkFolder($this->filesPath);
             $this->createDb();
         }
         return \json_decode(\file_get_contents($this->dbPath));
@@ -530,7 +553,7 @@ class Wcms
             case 4:
                 return $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
             default:
-                throw new \Exception('Too many arguments to get()');
+                throw new Exception('Too many arguments to get()');
         }
     }
 
@@ -548,7 +571,7 @@ class Wcms
         curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
         $content = curl_exec($ch);
         if ($content === false) {
-            throw new \Exception('Cannot get content from repository!');
+            throw new Exception('Cannot get content from repository!');
         }
         curl_close($ch);
         // cast to string because curl_exec() can return true
@@ -597,10 +620,10 @@ class Wcms
         }
 
         if (!\hash_equals($_POST['token'], $this->getToken())) {
-            throw new \Exception('Invalid token');
+            throw new Exception('Invalid token');
         }
         if (!\filter_var($_POST['addonURL'], FILTER_VALIDATE_URL)) {
-            throw new \Exception('Invalid addon URL');
+            throw new Exception('Invalid addon URL');
         }
         $addonURL = $_POST['addonURL'];
 
@@ -1073,7 +1096,7 @@ EOT;
                 $this->redirect();
             }
             if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
-                throw new \Exception('Failed to move uploaded file!');
+                throw new Exception('Failed to move uploaded file!');
             }
             $this->alert('success', 'File uploaded.');
             $this->redirect();
@@ -1099,13 +1122,13 @@ EOT;
     private function zipBackup(): void
     {
         if (!\extension_loaded('zip')) {
-            throw new \Exception('Zip extension is not loaded!');
+            throw new Exception('Zip extension is not loaded!');
         }
         $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
         $zipPath = $this->rootDir . '/files/' . $zipName;
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
-            throw new \Exception('Cannot create the zip archive!');
+            throw new Exception('Cannot create the zip archive!');
         }
         $iterator = new \RecursiveDirectoryIterator($this->rootDir);
         $iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
