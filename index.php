@@ -16,9 +16,9 @@ define('VERSION', '3.0.0');
 mb_internal_encoding('UTF-8');
 
 try {
-	$Wcms = new Wcms();
-	$Wcms->init();
-	$Wcms->render();
+    $Wcms = new Wcms();
+    $Wcms->init();
+    $Wcms->render();
 } catch (Exception $e) {
-	echo $e->getMessage();
+    echo $e->getMessage();
 }
