@@ -7,7 +7,10 @@
  */
 namespace Robiso\Wondercms;
 
-use Exception;
+use InvalidArgumentException;
+use Robiso\Wondercms\Exceptions\FilesystemErrorException;
+use Robiso\Wondercms\Exceptions\InvalidTokenException;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -246,11 +249,11 @@ class Wcms
     {
         // check folder is here
         if (!is_dir($folder) && !mkdir($folder, 0700) && !is_dir($folder)) {
-            throw new Exception(sprintf('Could not create the data folder! (%s). Check documentation to resolve this issue.', $folder));
+            throw new FilesystemErrorException(sprintf('Could not create the data folder! (%s). Check documentation to resolve this issue.', $folder));
         }
         // and check we can write to it
         if (!is_writable($folder)) {
-            throw new Exception(sprintf('Cannot write in folder: %s!. Check documentation to resolve this issue.', $folder));
+            throw new FilesystemErrorException(sprintf('Cannot write in folder: %s!. Check documentation to resolve this issue.', $folder));
         }
     }
 
@@ -553,7 +556,7 @@ class Wcms
             case 4:
                 return $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
             default:
-                throw new Exception('Too many arguments to get()');
+                throw new InvalidArgumentException('Too many arguments to get()');
         }
     }
 
@@ -571,7 +574,7 @@ class Wcms
         curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
         $content = curl_exec($ch);
         if ($content === false) {
-            throw new Exception('Cannot get content from repository!');
+            throw new RuntimeException('Cannot get content from repository!');
         }
         curl_close($ch);
         // cast to string because curl_exec() can return true
@@ -620,10 +623,10 @@ class Wcms
         }
 
         if (!\hash_equals($_POST['token'], $this->getToken())) {
-            throw new Exception('Invalid token');
+            throw new InvalidTokenException('Invalid token');
         }
         if (!\filter_var($_POST['addonURL'], FILTER_VALIDATE_URL)) {
-            throw new Exception('Invalid addon URL');
+            throw new InvalidArgumentException('Invalid addon URL');
         }
         $addonURL = $_POST['addonURL'];
 
@@ -1096,7 +1099,7 @@ EOT;
                 $this->redirect();
             }
             if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
-                throw new Exception('Failed to move uploaded file!');
+                throw new FilesystemErrorException('Failed to move uploaded file!');
             }
             $this->alert('success', 'File uploaded.');
             $this->redirect();
@@ -1122,13 +1125,13 @@ EOT;
     private function zipBackup(): void
     {
         if (!\extension_loaded('zip')) {
-            throw new Exception('Zip extension is not loaded!');
+            throw new RuntimeException('Zip extension is not loaded!');
         }
         $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
         $zipPath = $this->rootDir . '/files/' . $zipName;
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
-            throw new Exception('Cannot create the zip archive!');
+            throw new FilesystemErrorException('Cannot create the zip archive!');
         }
         $iterator = new \RecursiveDirectoryIterator($this->rootDir);
         $iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
