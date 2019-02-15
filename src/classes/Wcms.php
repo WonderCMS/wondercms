@@ -1128,7 +1128,7 @@ EOT;
             throw new RuntimeException('Zip extension is not loaded!');
         }
         $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
-        $zipPath = $this->rootDir . '/files/' . $zipName;
+        $zipPath = $this->rootDir . '/data/files/' . $zipName;
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
             throw new FilesystemErrorException('Cannot create the zip archive!');
@@ -1145,6 +1145,6 @@ EOT;
             }
         }
         $zip->close();
-        $this->redirect('files/' . $zipName);
+        $this->redirect('data/files/' . $zipName);
     }
 }
