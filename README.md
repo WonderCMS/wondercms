@@ -49,10 +49,16 @@ git clone https://github.com/robiso/wondercms.git
 ~~~bash
 git clone https://github.com/robiso/wondercms.git
 docker build -t robiso/wondercms .
-# create a volume for persistence
-docker volume create wondercms
-# launch the container on port 8080
-docker run --name wondercms -d -p 8080:80 -v wondercms:/var/www/html robiso/wondercms
+# create a folder where your data will be kept
+# you can have this folder anywhere you want
+# with any name you want
+mkdir wondercms-data
+# let the webserver write to this folder
+# 33 is the uid and gid of www-data (the Apache/webserver user)
+sudo chown 33:33 wondercms-data
+# launch the container on port 8080 (use port 80 if nothing else is running on this port)
+# replace with full path to the wondercms-data folder (or whatever you named it)
+docker run --name wondercms -d -p 8080:80 -v /path/to/wondercms-data:/var/www/html/data robiso/wondercms
 ~~~
 
 #### Or install with cPanel (and Softaculous)
