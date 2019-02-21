@@ -766,7 +766,7 @@ EOT;
             if ($item->visibility === 'hide') {
                 continue;
             }
-            $output .= '<li' . ($this->currentPage === $item->slug ? ' class="active"' : '') . '><a href="' . self::url($item->slug) . '">' . $item->name . '</a></li>';
+            $output .= '<li' . ($this->currentPage === $item->slug ? ' class="active"' : ' class="nav-item"') . '><a href="' . self::url($item->slug) . '">' . $item->name . '</a></li>';
         }
         return $this->hook('menu', $output)[0];
     }
