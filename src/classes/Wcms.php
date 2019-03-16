@@ -976,7 +976,7 @@ EOT;
                        </ul>
                        <div class="tab-content col-md-8 col-md-offset-2 offset-md-2">
                           <div role="tabpanel" class="tab-pane active" id="currentPage">';
-                             if ($this->currentPageExists) {
+                                if ($this->currentPageExists) {
                                 $output .= '
                                 <p class="subTitle">Page title</p>
                                 <div class="change">
@@ -991,23 +991,23 @@ EOT;
                                    <div data-target="pages" id="description" class="editText">' . ($this->get('pages', $this->currentPage)->description != '' ? $this->get('pages', $this->currentPage)->description : '') . '</div>
                                 </div>
                                 <a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')">Delete page (' . $this->currentPage . ')</a>';
-                             } else {
+                                } else {
                                 $output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
-                             }
-                             $output .= '
+                                }
+                                $output .= '
                           </div>
                           <div role="tabpanel" class="tab-pane" id="general">';
-                             $items = $this->get('config', 'menuItems');
-                             reset($items);
-                             $first = key($items);
-                             end($items);
-                             $end = key($items);
-                             $output .= '
+                                $items = $this->get('config', 'menuItems');
+                                reset($items);
+                                $first = key($items);
+                                end($items);
+                                $end = key($items);
+                                $output .= '
                              <p class="subTitle">Menu</p>
                              <div>
                                 <div id="menuSettings" class="container-fluid">';
-                                   foreach ($items as $key => $value) {
-                                       $output .= '
+                                    foreach ($items as $key => $value) {
+                                        $output .= '
                                        <div class="row marginTop5">
                                           <div class="col-xs-1 col-sm-1 col-1 text-right">
                                              <i class="btn menu-toggle fas' . ($value->visibility == "show" ? ' fa-eye menu-item-hide' : ' fa-eye-slash menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
@@ -1016,9 +1016,9 @@ EOT;
                                              <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div>
                                           </div>
                                           <div class="col-xs-2 col-2 col-sm-1 text-left">';
-                                             $output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
-                                             $output .= ($key === $end) ? '' : ' <a class="fas fa-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
-                                             $output .= '
+                                                $output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
+                                                $output .= ($key === $end) ? '' : ' <a class="fas fa-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
+                                                $output .= '
                                           </div>
                                           <div class="col-xs-2 col-2 col-sm-1 text-left">
                                              <a class="fas fa-link" href="' . self::url($value->slug) . '" title="Visit page">visit</a>
@@ -1027,18 +1027,18 @@ EOT;
                                              <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a>
                                           </div>
                                        </div>';
-                                   }
-                                   $output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
+                                    }
+                                    $output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
                                 </div>
                              </div>
                              <p class="subTitle">Theme</p>
                              <div class="form-group">
                                 <div class="change">
                                    <select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-                                       foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
-                                           $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
-                                       }
-                                       $output .= '
+                                        foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
+                                            $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
+                                        }
+                                        $output .= '
                                    </select>
                                 </div>
                              </div>
