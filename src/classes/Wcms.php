@@ -14,7 +14,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * One and only class doing everything
+ * The class doing all the hard work
  */
 class Wcms
 {
@@ -559,7 +559,7 @@ EOT;
             case 4:
                 return $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
             default:
-                throw new InvalidArgumentException('Too many arguments to get()');
+                throw new InvalidArgumentException('Too many arguments to get().');
         }
     }
 
@@ -577,7 +577,7 @@ EOT;
         curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
         $content = curl_exec($ch);
         if ($content === false) {
-            throw new RuntimeException('Cannot get content from repository!');
+            throw new RuntimeException('Cannot get content from repository.');
         }
         curl_close($ch);
         // cast to string because curl_exec() can return true
@@ -626,10 +626,10 @@ EOT;
         }
 
         if (!\hash_equals($_POST['token'], $this->getToken())) {
-            throw new InvalidTokenException('Invalid token');
+            throw new InvalidTokenException('Invalid token.');
         }
         if (!\filter_var($_POST['addonURL'], FILTER_VALIDATE_URL)) {
-            throw new InvalidArgumentException('Invalid addon URL');
+            $this->alert('danger', 'Invalid addon URL.');
         }
         $addonURL = $_POST['addonURL'];
 
@@ -1275,7 +1275,7 @@ EOT;
                 $this->redirect();
             }
             if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
-                throw new FilesystemErrorException('Failed to move uploaded file!');
+                throw new FilesystemErrorException('Failed to move uploaded file.');
             }
             $this->alert('success', 'File uploaded.');
             $this->redirect();
@@ -1301,13 +1301,13 @@ EOT;
     private function zipBackup(): void
     {
         if (!\extension_loaded('zip')) {
-            throw new RuntimeException('Zip extension is not loaded!');
+            throw new RuntimeException('ZIP extension is not loaded.');
         }
         $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
         $zipPath = $this->rootDir . '/data/files/' . $zipName;
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
-            throw new FilesystemErrorException('Cannot create the zip archive!');
+            throw new FilesystemErrorException('Cannot create ZIP archive.');
         }
         $iterator = new \RecursiveDirectoryIterator($this->rootDir);
         $iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
