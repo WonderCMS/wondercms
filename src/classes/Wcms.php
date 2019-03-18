@@ -14,7 +14,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * The one class doing all the work
+ * One class doing all the work
  */
 class Wcms
 {
