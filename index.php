@@ -293,7 +293,7 @@ EOT;
 				];
 				foreach ($deleteList as $entry) {
 					list($folder, $request) = $entry;
-					$filename = isset($_REQUEST[$request]) ? str_ireplace(['./', '../', '..', '~', '~/'], null, trim($_REQUEST[$request])) : false;
+					$filename = isset($_REQUEST[$request]) ? str_ireplace(['/', './', '../', '..', '~', '~/'], null, trim($_REQUEST[$request])) : false;
 					if (!$filename || empty($filename)) {
 						continue;
 					}
