@@ -1,7 +1,7 @@
 <?php // WonderCMS (MIT license: wondercms.com/license)
 
 session_start();
-define('VERSION', '2.7.0');
+define('version', '2.6.0');
 mb_internal_encoding('UTF-8');
 
 class wCMS
@@ -11,7 +11,6 @@ class wCMS
 	public static $currentPageExists = false;
 	private static $listeners = [];
 	private static $db = false;
-	private const MIN_PASSWORD_LENGTH = 8;
 
 	public static function init()
 	{
@@ -99,14 +98,14 @@ class wCMS
 		if (wCMS::$loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
 			if (hash_equals($_POST['token'], wCMS::generateToken())) {
 				if ($_POST['betterSecurity'] == 'on') {
-					$contents = wCMS::getFileFromRepo('.htaccess-ultimate');
+					$contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess-ultimate');
 					if ($contents) {
 						file_put_contents('.htaccess', trim($contents));
 					}
 					wCMS::alert('success', 'Better security turned ON.');
 					wCMS::redirect();
 				} elseif ($_POST['betterSecurity'] == 'off') {
-					$contents = wCMS::getFileFromRepo('.htaccess');
+					$contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/.htaccess');
 					if ($contents) {
 						file_put_contents('.htaccess', trim($contents));
 					}
@@ -131,8 +130,8 @@ class wCMS
 					wCMS::alert('danger', 'Wrong password.');
 					wCMS::redirect();
 				}
-				if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
-					wCMS::alert('danger', sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
+				if (strlen($_POST['new_password']) < 4) {
+					wCMS::alert('danger', 'Password must be longer than 4 characters.');
 					wCMS::redirect();
 				}
 				wCMS::set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
@@ -147,7 +146,6 @@ class wCMS
 		if (wCMS::db() !== false) {
 			return;
 		}
-		$password = wCMS::generatePassword();
 		wCMS::save([
 			'config' => [
 				'dbVersion' => '2.6.0',
@@ -155,7 +153,7 @@ class wCMS
 				'theme' => 'default',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
-				'password' => password_hash($password, PASSWORD_DEFAULT),
+				'password' => password_hash('admin', PASSWORD_DEFAULT),
 				'menuItems' => [
 					'0' => [
 						'name' => 'Home',
@@ -182,7 +180,7 @@ class wCMS
 					'description' => 'A short description is also good.',
 					'content' => '<h1>Website alive!</h1>
 
-<h4><a href="' . wCMS::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
+<h4><a href="' . wCMS::url('loginURL') . '">Click to login, the password is <b>admin</b>.</a></h4>'
 				],
 				'example' => [
 					'title' => 'Example',
@@ -232,7 +230,7 @@ class wCMS
 			}
 			$db->config->{$field}->{$menuCount} = new stdClass;
 			wCMS::save($db);
-			wCMS::set($conf, $field, $menuCount, 'name', str_replace('-', ' ', $content));
+			wCMS::set($conf, $field, $menuCount, 'name', str_replace("-", " ", $content));
 			wCMS::set($conf, $field, $menuCount, 'slug', $slug);
 			wCMS::set($conf, $field, $menuCount, 'visibility', $visibility);
 			if ($menu) {
@@ -255,7 +253,7 @@ class wCMS
 		$db = wCMS::db();
 		$db->pages->{(!$slug) ? wCMS::$currentPage : $slug} = new stdClass;
 		wCMS::save($db);
-		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'title', (!$slug) ? mb_convert_case(str_replace('-', ' ', wCMS::$currentPage), MB_CASE_TITLE) : mb_convert_case(str_replace('-', ' ', $slug), MB_CASE_TITLE));
+		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'title', (!$slug) ? mb_convert_case(str_replace("-", " ", wCMS::$currentPage), MB_CASE_TITLE) : mb_convert_case(str_replace("-", " ", $slug), MB_CASE_TITLE));
 		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'keywords', 'Keywords, are, good, for, search, engines');
 		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'description', 'A short description is also good.');
 		if (!$slug) {
@@ -293,7 +291,7 @@ EOT;
 				];
 				foreach ($deleteList as $entry) {
 					list($folder, $request) = $entry;
-					$filename = isset($_REQUEST[$request]) ? str_ireplace(['/', './', '../', '..', '~', '~/'], null, trim($_REQUEST[$request])) : false;
+					$filename = isset($_REQUEST[$request]) ? str_ireplace(['./', '../', '..', '~', '~/'], null, trim($_REQUEST[$request])) : false;
 					if (!$filename || empty($filename)) {
 						continue;
 					}
@@ -348,15 +346,9 @@ EOT;
 		return wCMS::hook('footer', $output)[0];
 	}
 
-	private static function generatePassword()
-	{
-		$characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
-		return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
-	}
-
 	public static function generateToken()
 	{
-		return (isset($_SESSION['token'])) ? $_SESSION['token'] : $_SESSION['token'] = bin2hex(openssl_random_pseudo_bytes(32));
+		return (isset($_SESSION["token"])) ? $_SESSION["token"] : $_SESSION["token"] = bin2hex(openssl_random_pseudo_bytes(32));
 	}
 
 	public static function get()
@@ -367,29 +359,24 @@ EOT;
 			wCMS::$db = wCMS::db();
 		}
 		switch ($numArgs) {
-			case 1:
-				return wCMS::$db->{$args[0]};
+			case 1: return wCMS::$db->{$args[0]};
 				break;
-			case 2:
-				return wCMS::$db->{$args[0]}->{$args[1]};
+			case 2: return wCMS::$db->{$args[0]}->{$args[1]};
 				break;
-			case 3:
-				return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]};
+			case 3: return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]};
 				break;
-			case 4:
-				return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
+			case 4: return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
 				break;
-			default:
-				return false;
+			default: return false;
+				break;
 		}
 	}
 
-	public static function getFileFromRepo($file)
+	public static function getExternalFile($url)
 	{
-		$repoUrl = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
+		curl_setopt($ch, CURLOPT_URL, $url);
 		$data = curl_exec($ch);
 		curl_close($ch);
 		return $data;
@@ -402,7 +389,8 @@ EOT;
 
 	private static function getOfficialVersion()
 	{
-		return trim(wCMS::getFileFromRepo('version'));
+		$data = trim(wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/version'));
+		return $data;
 	}
 
 	private static function hook()
@@ -431,7 +419,7 @@ EOT;
 			if (isset($_POST['installLocation'])) {
 				$installLocation = trim(strtolower($_POST['installLocation']));
 				$addonURL = $_POST['addonURL'];
-				$validPaths = array('themes', 'plugins');
+				$validPaths = array("themes", "plugins");
 			} else {
 				wCMS::alert('danger', 'Choose between theme or plugin.');
 				wCMS::redirect();
@@ -559,14 +547,14 @@ EOT;
 	public static function notFoundReponse()
 	{
 		if (!wCMS::$loggedIn && !wCMS::$currentPageExists) {
-			header('HTTP/1.1 404 Not Found');
+			header("HTTP/1.1 404 Not Found");
 		}
 	}
 
 	public static function notFoundView()
 	{
 		if (wCMS::$loggedIn) {
-			return ['title' => str_replace('-', ' ', wCMS::$currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
+			return ['title' => str_replace("-", " ", wCMS::$currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
 		}
 		return wCMS::get('pages', '404');
 	}
@@ -580,10 +568,13 @@ EOT;
 			wCMS::alert('info', '<b>This page (' . wCMS::$currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.');
 		}
 		if (wCMS::get('config', 'login') === 'loginURL') {
-			wCMS::alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
+			wCMS::alert('warning', 'Change the default admin login URL. (<i>Settings -> Security</i>)', true);
 		}
-		if (wCMS::getOfficialVersion() > VERSION) {
-			wCMS::alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . VERSION . ' to ' . wCMS::getOfficialVersion() . '</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
+		if (password_verify('admin', wCMS::get('config', 'password'))) {
+			wCMS::alert('danger', 'Change the default password. (<i>Settings -> Security</i>)', true);
+		}
+		if (wCMS::getOfficialVersion() > version) {
+			wCMS::alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . version . ' to ' . wCMS::getOfficialVersion() . '</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form>', true);
 		}
 	}
 
@@ -710,17 +701,13 @@ EOT;
 		$args = func_get_args();
 		$db = wCMS::db();
 		switch ($numArgs) {
-			case 2:
-				$db->{$args[0]} = $args[1];
+			case 2: $db->{$args[0]} = $args[1];
 				break;
-			case 3:
-				$db->{$args[0]}->{$args[1]} = $args[2];
+			case 3: $db->{$args[0]}->{$args[1]} = $args[2];
 				break;
-			case 4:
-				$db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3];
+			case 4: $db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3];
 				break;
-			case 5:
-				$db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4];
+			case 5: $db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4];
 				break;
 		}
 		wCMS::save($db);
@@ -769,7 +756,7 @@ EOT;
 		foreach ($pluginList as $plugin) {
 			$output .= '<a href="' . wCMS::url('?deletePlugin=' . $plugin . '&token=' . wCMS::generateToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '<p></p>';
 		}
-		$output .= '</div></div><div role="tabpanel" class="tab-pane" id="security"><p class="subTitle">Admin login URL</p><div class="change"><div data-target="config" id="login" class="editText">' . wCMS::get('config', 'login') . '</div><p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont text-right"><b>' . wCMS::url(wCMS::get('config', 'login')) . '</b></span></div><p class="subTitle">Password</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="input-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"><span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Change password</button></span></div><input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="subTitle">Backup</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank">How to restore backup</a></p><p class="subTitle">Better security (Apache only)</p><p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter refferer and cookie policy.</p><div class="change"><form method="post"><div class="btn-group btn-group-justified"><div class="btn-group"><button type="submit" class="btn btn-success" name="betterSecurity" value="on">ON (warning: may break your website)</button></div><div class="btn-group"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div></div><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank">Read more before enabling</a></p></div></div></div><div class="modal-footer clear"><p class="small"><a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp; <b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; <a href="https://wondercms.com/donate" target="_blank">Donate</a></b></p></div></div></div></div></div>';
+		$output .= '</div></div><div role="tabpanel" class="tab-pane" id="security"><p class="subTitle">Admin login URL</p><div class="change"><div data-target="config" id="login" class="editText">' . wCMS::get('config', 'login') . '</div><p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont text-right"><b>' . wCMS::url(wCMS::get('config', 'login')) . '</b></span></div><p class="subTitle">Password</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="input-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"><span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Change password</button></span></div><input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="subTitle">Backup</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank">How to restore backup</a></p><p class="subTitle">Better security (Apache only)</p><p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter refferer and cookie policy.</p><div class="change"><form method="post"><div class="btn-group btn-group-justified"><div class="btn-group"><button type="submit" class="btn btn-success" name="betterSecurity" value="on">ON (warning: may break your website)</button></div><div class="btn-group"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div></div><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank">Read more before enabling</a></p></div></div></div><div class="modal-footer clear"><p class="small"><a href="https://wondercms.com" target="_blank">WonderCMS</a> ' . version . ' &nbsp; <b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; <a href="https://wondercms.com/donate" target="_blank">Donate</a></b></p></div></div></div></div></div>';
 		return wCMS::hook('settings', $output)[0];
 	}
 
@@ -787,7 +774,7 @@ EOT;
 			return;
 		}
 		if (hash_equals($_POST['token'], wCMS::generateToken())) {
-			$contents = wCMS::getFileFromRepo('index.php');
+			$contents = wCMS::getExternalFile('https://raw.githubusercontent.com/robiso/wondercms/master/index.php');
 			if ($contents) {
 				file_put_contents(__FILE__, $contents);
 			}
@@ -798,8 +785,8 @@ EOT;
 
 	private static function updateDBVersion()
 	{
-		if (wCMS::get('config', 'dbVersion') < VERSION) {
-			wCMS::set('config', 'dbVersion', VERSION);
+		if (wCMS::get('config', 'dbVersion') < '2.6.0') {
+			wCMS::set('config', 'dbVersion', '2.6.0');
 		}
 	}
 
@@ -821,12 +808,10 @@ EOT;
 					case UPLOAD_ERR_NO_FILE:
 						wCMS::alert('danger', 'No file selected.');
 						wCMS::redirect();
-						break;
 					case UPLOAD_ERR_INI_SIZE:
 					case UPLOAD_ERR_FORM_SIZE:
 						wCMS::alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
 						wCMS::redirect();
-						break;
 					default:
 						wCMS::alert('danger', 'Unknown error.');
 						wCMS::redirect();
