@@ -14,7 +14,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * One class doing all the work
+ * The class doing all the hard work
  */
 class Wcms
 {
@@ -22,7 +22,7 @@ class Wcms
     private const MIN_PASSWORD_LENGTH = 8;
 
     /** @var string VERSION current version of WonderCMS */
-    public const VERSION = '2.6.0';
+    public const VERSION = '3.0.0';
 
     /** @var string $currentPage the current page */
     public $currentPage = '';
@@ -68,7 +68,7 @@ class Wcms
     public function init(): void
     {
         $this->installThemePluginAction();
-        // TODO $this->loadPlugins();
+        $this->loadPlugins();
         $this->loginStatus();
         $this->pageStatus();
         $this->updateDBVersion();
@@ -152,7 +152,7 @@ class Wcms
      */
     public function asset(string $location): string
     {
-        return self::url('themes/' . $this->get('config', 'theme') . '/' . $location);
+        return self::url('data/themes/' . $this->get('config', 'theme') . '/' . $location);
     }
 
     /**
@@ -443,8 +443,8 @@ EOT;
             if (hash_equals($_REQUEST['token'], $this->getToken())) {
                 $deleteList = [
                     [$this->filesPath, 'deleteFile'],
-                    [$this->rootDir . '/themes', 'deleteTheme'],
-                    [$this->rootDir . '/plugins', 'deletePlugin'],
+                    [$this->rootDir . 'data/themes', 'deleteTheme'],
+                    [$this->rootDir . 'data/plugins', 'deletePlugin'],
                 ];
                 foreach ($deleteList as $entry) {
                     list($folder, $request) = $entry;
@@ -629,7 +629,7 @@ EOT;
             throw new InvalidTokenException('Invalid token.');
         }
         if (!\filter_var($_POST['addonURL'], FILTER_VALIDATE_URL)) {
-            $this->alert('danger', 'Invalid addon URL.');
+            $this->alert('danger', 'Invalid theme/plugin URL.');
         }
         $addonURL = $_POST['addonURL'];
 
@@ -662,7 +662,7 @@ EOT;
     }
 
     /**
-     * Insert javascript if user is logged in
+     * Insert JS if the user is logged in
      *
      * @return string
      */
@@ -689,13 +689,13 @@ EOT;
      */
     private function loadPlugins(): void
     {
-        if (!is_dir($this->rootDir . '/plugins')) {
-            mkdir($this->rootDir . '/plugins');
+        if (!is_dir($this->rootDir . '/data/plugins')) {
+            mkdir($this->rootDir . '/data/plugins');
         }
         if (!is_dir($this->filesPath)) {
             mkdir($this->filesPath);
         }
-        foreach (glob($this->rootDir . '/plugins/*', GLOB_ONLYDIR) as $dir) {
+        foreach (glob($this->rootDir . '/data/plugins/*', GLOB_ONLYDIR) as $dir) {
             if (file_exists($dir . '/' . basename($dir) . '.php')) {
                 include $dir . '/' . basename($dir) . '.php';
             }
@@ -709,10 +709,10 @@ EOT;
      */
     public function loadThemeAndFunctions(): void
     {
-        if (file_exists($this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php')) {
-            require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php';
+        if (file_exists($this->rootDir . '/data/themes/' . $this->get('config', 'theme') . '/functions.php')) {
+            require_once $this->rootDir . '/data/themes/' . $this->get('config', 'theme') . '/functions.php';
         }
-        require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/theme.php';
+        require_once $this->rootDir . '/data/themes/' . $this->get('config', 'theme') . '/theme.php';
     }
 
     private function loginAction(): void
@@ -756,7 +756,7 @@ EOT;
 
     private function logoutAction(): void
     {
-        if ($this->currentPage === 'logout' && hash_equals($_REQUEST['token'], $this->getToken())) {
+        if ($this->currentPage === 'logout' && isset($_REQUEST['token']) && hash_equals($_REQUEST['token'], $this->getToken())) {
             unset($_SESSION['l'], $_SESSION['i'], $_SESSION['token']);
             $this->redirect();
         }
@@ -781,7 +781,7 @@ EOT;
         }
     }
 
-    public function notFoundView(): array
+    public function notFoundView()
     {
         if ($this->loggedIn) {
             return ['title' => str_replace("-", " ", $this->currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
@@ -809,6 +809,7 @@ EOT;
     {
         $conf = 'config';
         $field = 'menuItems';
+        $content = (int) trim(htmlentities($content, ENT_QUOTES, 'UTF-8'));
         $move = $this->get($conf, $field, $menu);
         $menu += $content;
         $tmp = $this->get($conf, $field, $menu);
@@ -909,7 +910,7 @@ EOT;
                 }
             }
             if ($fieldname === 'theme') {
-                if (!is_dir($this->rootDir . '/themes/' . $content)) {
+                if (!is_dir($this->rootDir . '/data/themes/' . $content)) {
                     return;
                 }
             }
@@ -953,8 +954,8 @@ EOT;
             return '';
         }
         $fileList = array_slice(scandir($this->filesPath), 2);
-        $themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
-        $pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
+        $themeList = array_slice(scandir($this->rootDir . '/data/themes/'), 2);
+        $pluginList = array_slice(scandir($this->rootDir . '/data/plugins/'), 2);
         $output = '
         <div id="save">
            <h2>Saving...</h2>
@@ -1036,7 +1037,7 @@ EOT;
                              <div class="form-group">
                                 <div class="change">
                                    <select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-                                        foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
+                                        foreach (glob($this->rootDir . '/data/themes/*', GLOB_ONLYDIR) as $dir) {
                                             $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
                                         }
                                         $output .= '
