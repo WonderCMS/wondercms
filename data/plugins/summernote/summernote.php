@@ -46,6 +46,7 @@ function loadSummerNoteJS($args) {
         $script = <<<'EOT'
         <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.8/dist/summernote.min.js" integrity="sha384-rv18XCwOLyh2rO/6Vz9eKWaSP+ljKfFed/npYlSg476id+996jfNDF+5iC3W5KKJ" crossorigin="anonymous"></script>
         <script src="data/plugins/summernote/js/admin.js"></script>
+        <script src="data/plugins/summernote/js/files.js"></script>
 EOT;
     }
     $args[0] .= $script;
