@@ -152,7 +152,7 @@ class Wcms
      */
     public function asset(string $location): string
     {
-        return self::url('data/themes/' . $this->get('config', 'theme') . '/' . $location);
+        return self::url('themes/' . $this->get('config', 'theme') . '/' . $location);
     }
 
     /**
@@ -443,8 +443,8 @@ EOT;
             if (hash_equals($_REQUEST['token'], $this->getToken())) {
                 $deleteList = [
                     [$this->filesPath, 'deleteFile'],
-                    [$this->rootDir . 'data/themes', 'deleteTheme'],
-                    [$this->rootDir . 'data/plugins', 'deletePlugin'],
+                    [$this->rootDir . 'themes', 'deleteTheme'],
+                    [$this->rootDir . 'plugins', 'deletePlugin'],
                 ];
                 foreach ($deleteList as $entry) {
                     list($folder, $request) = $entry;
@@ -689,13 +689,13 @@ EOT;
      */
     private function loadPlugins(): void
     {
-        if (!is_dir($this->rootDir . '/data/plugins')) {
-            mkdir($this->rootDir . '/data/plugins');
+        if (!is_dir($this->rootDir . '/plugins')) {
+            mkdir($this->rootDir . '/plugins');
         }
         if (!is_dir($this->filesPath)) {
             mkdir($this->filesPath);
         }
-        foreach (glob($this->rootDir . '/data/plugins/*', GLOB_ONLYDIR) as $dir) {
+        foreach (glob($this->rootDir . '/plugins/*', GLOB_ONLYDIR) as $dir) {
             if (file_exists($dir . '/' . basename($dir) . '.php')) {
                 include $dir . '/' . basename($dir) . '.php';
             }
@@ -709,10 +709,10 @@ EOT;
      */
     public function loadThemeAndFunctions(): void
     {
-        if (file_exists($this->rootDir . '/data/themes/' . $this->get('config', 'theme') . '/functions.php')) {
-            require_once $this->rootDir . '/data/themes/' . $this->get('config', 'theme') . '/functions.php';
+        if (file_exists($this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php')) {
+            require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php';
         }
-        require_once $this->rootDir . '/data/themes/' . $this->get('config', 'theme') . '/theme.php';
+        require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/theme.php';
     }
 
     private function loginAction(): void
@@ -910,7 +910,7 @@ EOT;
                 }
             }
             if ($fieldname === 'theme') {
-                if (!is_dir($this->rootDir . '/data/themes/' . $content)) {
+                if (!is_dir($this->rootDir . '/themes/' . $content)) {
                     return;
                 }
             }
@@ -954,8 +954,8 @@ EOT;
             return '';
         }
         $fileList = array_slice(scandir($this->filesPath), 2);
-        $themeList = array_slice(scandir($this->rootDir . '/data/themes/'), 2);
-        $pluginList = array_slice(scandir($this->rootDir . '/data/plugins/'), 2);
+        $themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
+        $pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
         $output = '
         <div id="save">
            <h2>Saving...</h2>
@@ -1037,7 +1037,7 @@ EOT;
                              <div class="form-group">
                                 <div class="change">
                                    <select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-                                        foreach (glob($this->rootDir . '/data/themes/*', GLOB_ONLYDIR) as $dir) {
+                                        foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
                                             $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
                                         }
                                         $output .= '
