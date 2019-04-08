@@ -48,8 +48,8 @@ function loadSummerNoteJS($args) {
         <script src="plugins/summernote/js/admin.js" type="text/javascript"></script>
         <script src="plugins/summernote/js/files.js" type="text/javascript"></script>
 EOT;
+        $args[0] .= $script;
     }
-    $args[0] .= $script;
     return $args;
 }
 
@@ -60,7 +60,7 @@ function loadSummerNoteCSS($args) {
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote@0.8.11/dist/summernote.css" integrity="sha384-hHEPAd3Dkb316VuNPtIZ6LUrzxvD4PQOTW478Ww6c/aUJKXNDV9pEx5/jZgISR1G" crossorigin="anonymous">
         <link rel="stylesheet" href="plugins/summernote/css/admin.css" type="text/css" media="screen">
 EOT;
+        $args[0] .= $script;
     }
-    $args[0] .= $script;
     return $args;
 }
