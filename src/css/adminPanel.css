@@ -7,6 +7,12 @@
     font-variant: small-caps
 }
 
+#adminPanel .fas,
+.cursorPointer,
+div.editText {
+    cursor: pointer
+}
+
 #adminPanel .btn {
     overflow: hidden;
     white-space: nowrap;
@@ -25,11 +31,8 @@
     text-decoration: none
 }
 
+#adminPanel a.btn,
 #adminpanel .alert a {
-    color: #fff
-}
-
-#adminPanel a.btn {
     color: #fff
 }
 
@@ -53,18 +56,20 @@
     position: absolute;
     width: 100%;
     left: 0;
-    bottom: -1px;
+    bottom: -2px;
     transition: all 250ms ease 0s;
     transform: scale(0)
 }
 
-#adminPanel .nav-tabs>li>a:hover {
-    border-bottom: 1px solid #1ab!important
+#adminPanel .nav-tabs>li.active>a:after,
+#adminPanel .nav-tabs>li:hover>a,
+#adminPanel .nav-tabs>li:hover>a:after,
+#adminPanel .nav-tabs>li>a {
+    transform: scale(1)
 }
 
-#adminPanel .nav-tabs>li.active>a:after,
-#adminPanel .nav-tabs>li:hover>a:after {
-    transform: scale(1)
+#adminPanel .nav-tabs>li>a.active {
+    border-bottom: 2px solid #1ab!important
 }
 
 #adminPanel .modal-content {
@@ -81,10 +86,17 @@
     display: inline-block
 }
 
+,
 #adminPanel .tab-pane.active a.btn {
     color: #fff
 }
 
+#adminPanel .btn-info {
+    background-color: #5bc0de;
+    border-color: #5bc0de
+}
+
+#adminPanel .nav-link.active,
 #adminPanel .nav-tabs>li.active a,
 #adminPanel .tab-pane.active {
     background: 0!important;

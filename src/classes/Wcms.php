@@ -14,7 +14,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * One class doing all the work
+ * The class doing all the hard work
  */
 class Wcms
 {
@@ -22,7 +22,7 @@ class Wcms
     private const MIN_PASSWORD_LENGTH = 8;
 
     /** @var string VERSION current version of WonderCMS */
-    public const VERSION = '2.6.0';
+    public const VERSION = '3.0.0';
 
     /** @var string $currentPage the current page */
     public $currentPage = '';
@@ -68,7 +68,7 @@ class Wcms
     public function init(): void
     {
         $this->installThemePluginAction();
-        // TODO $this->loadPlugins();
+        $this->loadPlugins();
         $this->loginStatus();
         $this->pageStatus();
         $this->updateDBVersion();
@@ -443,8 +443,8 @@ EOT;
             if (hash_equals($_REQUEST['token'], $this->getToken())) {
                 $deleteList = [
                     [$this->filesPath, 'deleteFile'],
-                    [$this->rootDir . '/themes', 'deleteTheme'],
-                    [$this->rootDir . '/plugins', 'deletePlugin'],
+                    [$this->rootDir . 'themes', 'deleteTheme'],
+                    [$this->rootDir . 'plugins', 'deletePlugin'],
                 ];
                 foreach ($deleteList as $entry) {
                     list($folder, $request) = $entry;
@@ -629,7 +629,7 @@ EOT;
             throw new InvalidTokenException('Invalid token.');
         }
         if (!\filter_var($_POST['addonURL'], FILTER_VALIDATE_URL)) {
-            $this->alert('danger', 'Invalid addon URL.');
+            $this->alert('danger', 'Invalid theme/plugin URL.');
         }
         $addonURL = $_POST['addonURL'];
 
@@ -662,7 +662,7 @@ EOT;
     }
 
     /**
-     * Insert javascript if user is logged in
+     * Insert JS if the user is logged in
      *
      * @return string
      */
@@ -756,7 +756,7 @@ EOT;
 
     private function logoutAction(): void
     {
-        if ($this->currentPage === 'logout' && hash_equals($_REQUEST['token'], $this->getToken())) {
+        if ($this->currentPage === 'logout' && isset($_REQUEST['token']) && hash_equals($_REQUEST['token'], $this->getToken())) {
             unset($_SESSION['l'], $_SESSION['i'], $_SESSION['token']);
             $this->redirect();
         }
@@ -781,7 +781,7 @@ EOT;
         }
     }
 
-    public function notFoundView(): array
+    public function notFoundView()
     {
         if ($this->loggedIn) {
             return ['title' => str_replace("-", " ", $this->currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
@@ -809,6 +809,7 @@ EOT;
     {
         $conf = 'config';
         $field = 'menuItems';
+        $content = (int) trim(htmlentities($content, ENT_QUOTES, 'UTF-8'));
         $move = $this->get($conf, $field, $menu);
         $menu += $content;
         $tmp = $this->get($conf, $field, $menu);

@@ -4,13 +4,8 @@
 
 div.editText {
     word-wrap: break-word;
-    cursor: pointer;
     border: 2px dashed #ccc;
     display: block
-}
-
-.cursorPointer {
-    cursor: pointer
 }
 
 div.editText textarea {
