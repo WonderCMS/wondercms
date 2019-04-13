@@ -443,8 +443,8 @@ EOT;
             if (hash_equals($_REQUEST['token'], $this->getToken())) {
                 $deleteList = [
                     [$this->filesPath, 'deleteFile'],
-                    [$this->rootDir . 'themes', 'deleteTheme'],
-                    [$this->rootDir . 'plugins', 'deletePlugin'],
+                    [$this->rootDir . '/themes', 'deleteTheme'],
+                    [$this->rootDir . '/plugins', 'deletePlugin'],
                 ];
                 foreach ($deleteList as $entry) {
                     list($folder, $request) = $entry;
