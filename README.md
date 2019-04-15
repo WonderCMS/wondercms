@@ -33,10 +33,10 @@
 ## Installation
 
 ### Install from ZIP archive (unzip and upload)
-Simply unzip and upload the [latest version](https://www.wondercms.com/latest) to your server.
+- Simply unzip and upload the [latest version](https://www.wondercms.com/latest) to your server.
 
 #### Or clone from GIT
-Clone from GitHub in a directory served by your webserver:
+- Clone from GitHub in a directory served by your webserver:
 
 ~~~bash
 # example directory
@@ -62,13 +62,13 @@ docker run --name wondercms -d -p 8080:80 -v /path/to/wondercms-data:/var/www/ht
 ~~~
 
 #### Or install with cPanel (and Softaculous)
-See this [video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&t=25).
+- See this [video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&t=25).
 
 #### Or get hosting with WonderCMS pre-installed
-[Hosting with WonderCMS - A2 Hosting](https://www.wondercms.com/hosting).
+- [Hosting with WonderCMS - A2 Hosting](https://www.wondercms.com/hosting).
 
 #### Or deploy on Microsoft Azure
-Deploy WonderCMS on [Microsoft.com](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template). Video tutorial: [how to deploy on Microsoft Azure in 2 minutes](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes).
+- Deploy WonderCMS on [Microsoft.com](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template). Video tutorial: [how to deploy on Microsoft Azure in 2 minutes](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes).
 
 ## Libraries used (6)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
