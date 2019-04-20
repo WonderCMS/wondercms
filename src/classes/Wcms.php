@@ -805,18 +805,36 @@ EOT;
         }
     }
 
+    /**
+     * Reorder the pages
+     *
+     * @param int $content 1 for down arrow, or -1 for up arrow clicked
+     * @param int $menu
+     * @return void
+     */
     private function orderMenuItem(int $content, int $menu): void
     {
+        // check if content is 1 or -1 as only those values are acceptable
+        if (!in_array($content, [1, -1])) {
+            throw new InvalidArgumentException('Bad content value.');
+        }
+
         $conf = 'config';
         $field = 'menuItems';
-        $content = (int) trim(htmlentities($content, ENT_QUOTES, 'UTF-8'));
+
+        $targetPosition = $menu + $content;
+
+        // save the target to avoid overwrite
+        // use clone to copy the object entirely
+        $tmp = clone $this->get($conf, $field, $targetPosition);
         $move = $this->get($conf, $field, $menu);
-        $menu += $content;
-        $this->set($conf, $field, $menu, 'name', $move->name);
-        $this->set($conf, $field, $menu, 'slug', $move->slug);
-        $this->set($conf, $field, $menu, 'visibility', $move->visibility);
-        $menu -= $content;
-        $tmp = $this->get($conf, $field, $menu);
+
+        // move the menu to new position
+        $this->set($conf, $field, $targetPosition, 'name', $move->name);
+        $this->set($conf, $field, $targetPosition, 'slug', $move->slug);
+        $this->set($conf, $field, $targetPosition, 'visibility', $move->visibility);
+
+        // now write the other one in the previous position
         $this->set($conf, $field, $menu, 'name', $tmp->name);
         $this->set($conf, $field, $menu, 'slug', $tmp->slug);
         $this->set($conf, $field, $menu, 'visibility', $tmp->visibility);
@@ -897,7 +915,7 @@ EOT;
                 $this->set('config', $fieldname, $menu, 'visibility', $visibility);
             }
             if ($target === 'menuItemOrder') {
-                $this->orderMenuItem($content, $menu);
+                $this->orderMenuItem((int) $content, (int) $menu);
             }
             if ($fieldname === 'defaultPage') {
                 if (!isset($this->get('pages')->$content)) {

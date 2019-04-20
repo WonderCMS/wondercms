@@ -18,6 +18,13 @@ function fieldSave(a, b, c, d, e) {
     });
 }
 
+// Add slugify function to strings
+String.prototype.slugify = function() {
+  return toLowerCase().trim()
+      .replace(/&/g, '-and-')         // Replace & with 'and'
+      .replace(/[\s\W-]+/g, '-')      // Replace spaces, non-word characters and dashes with a single dash (-)
+}
+
 var changing = !1;
 $(document).ready(function() {
     $('body').on('click', 'div.editText', function() {
@@ -48,11 +55,10 @@ $(document).ready(function() {
         if (!newPage) {
             return !1;
         }
-        newPage = newPage.replace(/[`~;:'",.<>\{\}\[\]\\\/]/gi, '').trim();
         $.post("", {
             fieldname: "menuItems",
             token: token,
-            content: newPage,
+            content: newPage.slugify(),
             target: "menuItem",
             menu: "none",
             visibility: "show"
