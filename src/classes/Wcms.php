@@ -1177,6 +1177,32 @@ EOT;
         return empty($text) ? "-" : $text;
     }
 
+    /**
+     * Delete something from the database
+     * Has variadic arguments
+     * @return void
+     */
+    public function unset(): void
+    {
+        $numArgs = func_num_args();
+        $args = func_get_args();
+        switch ($numArgs) {
+            case 1:
+                unset($this->db->{$args[0]});
+                break;
+            case 2:
+                unset($this->db->{$args[0]}->{$args[1]});
+                break;
+            case 3:
+                unset($this->db->{$args[0]}->{$args[1]}->{$args[2]});
+                break;
+            case 4:
+                unset($this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]});
+                break;
+        }
+        $this->save();
+    }
+
     private function updateAction(): void
     {
         if (!$this->loggedIn || !isset($_POST['update'])) {
