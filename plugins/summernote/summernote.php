@@ -11,14 +11,14 @@
 
 global $Wcms;
 
-if (defined('VERSION')) {
+if (defined('VERSION')  && !defined('version')) {
     define('version', VERSION);
     defined('version') OR die('Direct access is not allowed.');
-
-    $Wcms->addListener('js', 'loadSummerNoteJS');
-    $Wcms->addListener('css', 'loadSummerNoteCSS');
-    $Wcms->addListener('editable', 'initialSummerNoteVariables');
 }
+
+$Wcms->addListener('js', 'loadSummerNoteJS');
+$Wcms->addListener('css', 'loadSummerNoteCSS');
+$Wcms->addListener('editable', 'initialSummerNoteVariables');
 
 function initialSummerNoteVariables($contents) {
     global $Wcms;
