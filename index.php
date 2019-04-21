@@ -1,193 +1,310 @@
-<?php // WonderCMS (MIT license: wondercms.com/license)
+<?php
+/**
+ * @package WonderCMS
+ * @author Robert Isoski
+ * @see https://www.wondercms.com - offical website
+ * @license MIT
+ */
+namespace Robiso\Wondercms;
 
 session_start();
-define('VERSION', '2.7.0');
+define('VERSION', '3.0.0');
 mb_internal_encoding('UTF-8');
 
-class wCMS
+try {
+    $Wcms = new Wcms();
+    $Wcms->init();
+    $Wcms->render();
+} catch (Exception $e) {
+    echo $e->getMessage();
+}
+
+class Wcms
 {
-	public static $loggedIn = false;
-	public static $currentPage;
-	public static $currentPageExists = false;
-	private static $listeners = [];
-	private static $db = false;
-	private const MIN_PASSWORD_LENGTH = 8;
+    /** @var int MIN_PASSWORD_LENGTH minimum number of characters for password */
+    private const MIN_PASSWORD_LENGTH = 8;
 
-	public static function init()
-	{
-		wCMS::createDatabase();
-		wCMS::installThemePluginAction();
-		wCMS::loadPlugins();
-		wCMS::loginStatus();
-		wCMS::pageStatus();
-		wCMS::updateDBVersion();
-		wCMS::changePasswordAction();
-		wCMS::deleteFileThemePluginAction();
-		wCMS::backupAction();
-		wCMS::betterSecurityAction();
-		wCMS::loginAction();
-		wCMS::deletePageAction();
-		wCMS::logoutAction();
-		wCMS::saveAction();
-		wCMS::uploadFileAction();
-		wCMS::notifyAction();
-		wCMS::notFoundReponse();
-		wCMS::loadThemeAndFunctions();
-	}
+    /** @var string VERSION current version of WonderCMS */
+    public const VERSION = '3.0.0';
 
-	private static function addListener($hook, $functionName)
-	{
-		wCMS::$listeners[$hook][] = $functionName;
-	}
+    /** @var string $currentPage the current page */
+    public $currentPage = '';
 
-	private static function alert($class, $message, $sticky = false)
-	{
-		if (isset($_SESSION['alert'][$class])) {
-			foreach ($_SESSION['alert'][$class] as $k => $v) {
-				if ($v['message'] == $message) {
-					return;
-				}
-			}
-		}
-		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
-	}
+    /** @var bool $currentPageExists does the current page exist? */
+    public $currentPageExists = false;
 
-	private static function alerts()
-	{
-		if (!isset($_SESSION['alert'])) {
-			return;
-		}
-		$session = $_SESSION['alert'];
-		$output = '';
-		unset($_SESSION['alert']);
-		foreach ($session as $key => $value) {
-			foreach ($value as $key => $val) {
-				$output .= '<div class="alert alert-' . $val['class'] . (!$val['sticky'] ? ' alert-dismissible' : '') . '">' . (!$val['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '') . $val['message'] . '</div>';
-			}
-		}
-		return $output;
-	}
+    /** @var object $db content of the database.js */
+    private $db;
 
-	public static function asset($location)
-	{
-		return wCMS::url('themes/' . wCMS::get('config', 'theme') . '/' . $location);
-	}
+    /** @var bool $loggedIn is the user logged in? */
+    public $loggedIn = false;
 
-	private static function backupAction()
-	{
-		if (!wCMS::$loggedIn) {
-			return;
-		}
-		$backupList = glob(__DIR__ . '/files/backup-*.zip');
-		if (!empty($backupList)) {
-			wCMS::alert('danger', 'Delete backup files. (<i>Settings -> Files</i>)');
-		}
-		$backup = 'backup-' . uniqid(date('Y-m-d-')) . '.zip';
-		if (!isset($_POST['backup'])) {
-			return;
-		}
-		if (hash_equals($_POST['token'], wCMS::generateToken())) {
-			if (wCMS::zipBackup(__DIR__, __DIR__ . '/files/' . $backup) !== false) {
-				wCMS::redirect('files/' . $backup);
-			}
-		}
-	}
+    /** @var array $listeners for hooks */
+    public $listeners = [];
 
-	private static function betterSecurityAction()
-	{
-		if (wCMS::$loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
-			if (hash_equals($_POST['token'], wCMS::generateToken())) {
-				if ($_POST['betterSecurity'] == 'on') {
-					$contents = wCMS::getFileFromRepo('.htaccess-ultimate');
-					if ($contents) {
-						file_put_contents('.htaccess', trim($contents));
-					}
-					wCMS::alert('success', 'Better security turned ON.');
-					wCMS::redirect();
-				} elseif ($_POST['betterSecurity'] == 'off') {
-					$contents = wCMS::getFileFromRepo('.htaccess');
-					if ($contents) {
-						file_put_contents('.htaccess', trim($contents));
-					}
-					wCMS::alert('success', 'Better security turned OFF.');
-					wCMS::redirect();
-				}
-			}
-		}
-	}
+    /** @var string $dbPath path to database.js */
+    private $dbPath;
 
-	public static function block($key)
-	{
-		$blocks = wCMS::get('blocks');
-		return isset($blocks->{$key}) ? (wCMS::$loggedIn ? wCMS::editable($key, $blocks->{$key}->content, 'blocks') : $blocks->{$key}->content) : '';
-	}
+    /** @var string $filesPath path to uploaded files */
+    public $filesPath;
 
-	private static function changePasswordAction()
-	{
-		if (wCMS::$loggedIn && isset($_POST['old_password']) && isset($_POST['new_password'])) {
-			if ($_SESSION['token'] === $_POST['token'] && hash_equals($_POST['token'], wCMS::generateToken())) {
-				if (!password_verify($_POST['old_password'], wCMS::get('config', 'password'))) {
-					wCMS::alert('danger', 'Wrong password.');
-					wCMS::redirect();
-				}
-				if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
-					wCMS::alert('danger', sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
-					wCMS::redirect();
-				}
-				wCMS::set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-				wCMS::alert('success', 'Password changed.');
-				wCMS::redirect();
-			}
-		}
-	}
+    /**
+     * Constructor
+     *
+     */
+    public function __construct()
+    {
+        $this->dbPath = __DIR__ . '/data/database.js';
+        $this->filesPath = __DIR__ . '/data/files';
+        $this->db = $this->getDb();
+    }
 
-	private static function createDatabase()
-	{
-		if (wCMS::db() !== false) {
-			return;
-		}
-		$password = wCMS::generatePassword();
-		wCMS::save([
-			'config' => [
-				'dbVersion' => '2.6.0',
-				'siteTitle' => 'Website title',
-				'theme' => 'default',
-				'defaultPage' => 'home',
-				'login' => 'loginURL',
-				'password' => password_hash($password, PASSWORD_DEFAULT),
-				'menuItems' => [
-					'0' => [
-						'name' => 'Home',
-						'slug' => 'home',
-						'visibility' => 'show'
-					],
-					'1' => [
-						'name' => 'Example',
-						'slug' => 'example',
-						'visibility' => 'show'
-					]
-				]
-			],
-			'pages' => [
-				'404' => [
-					'title' => '404',
-					'keywords' => '404',
-					'description' => '404',
-					'content' => '<h1>Sorry, page not found. :(</h1>'
-				],
-				'home' => [
-					'title' => 'Home',
-					'keywords' => 'Keywords, are, good, for, search, engines',
-					'description' => 'A short description is also good.',
-					'content' => '<h1>Website alive!</h1>
+    /**
+     * Init function called on each page load
+     *
+     * @return void
+     */
+    public function init(): void
+    {
+        $this->installThemePluginAction();
+        $this->loadPlugins();
+        $this->loginStatus();
+        $this->pageStatus();
+        $this->updateDBVersion();
+        $this->changePasswordAction();
+        $this->deleteFileThemePluginAction();
+        $this->backupAction();
+        $this->betterSecurityAction();
+        $this->loginAction();
+        $this->deletePageAction();
+        $this->logoutAction();
+        $this->saveAction();
+        $this->updateAction();
+        $this->uploadFileAction();
+        $this->notifyAction();
+        $this->notFoundResponse();
+    }
 
-<h4><a href="' . wCMS::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
-				],
-				'example' => [
-					'title' => 'Example',
-					'keywords' => 'Keywords, are, good, for, search, engines',
-					'description' => 'A short description is also good.',
-					'content' => '<h1>How to create new pages</h1>
+    /**
+     * Display the HTML. Called after init()
+     *
+     * @return void
+     */
+    public function render(): void
+    {
+        $this->loadThemeAndFunctions();
+    }
+
+    /**
+     * Function used by plugins to add a hook
+     *
+     */
+    public function addListener(string $hook, string $functionName): void
+    {
+        $this->listeners[$hook][] = $functionName;
+    }
+
+    /**
+     * Add alert message for the user
+     *
+     * @param string $class see bootstrap alerts classes
+     * @param string $message the message to display
+     * @param bool $sticky can it be closed?
+     * @return void
+     */
+    private function alert(string $class, string $message, bool $sticky = false): void
+    {
+        if (isset($_SESSION['alert'][$class])) {
+            foreach ($_SESSION['alert'][$class] as $v) {
+                if ($v['message'] == $message) {
+                    return;
+                }
+            }
+        }
+        $_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
+    }
+
+    /**
+     * Display alert message to the user
+     *
+     * @return string
+     */
+    public function alerts(): string
+    {
+        if (!isset($_SESSION['alert'])) {
+            return '';
+        }
+        $output = '';
+        foreach ($_SESSION['alert'] as $alertClass) {
+            foreach ($alertClass as $alert) {
+                $output .= '<div class="alert alert-' . $alert['class'] . (!$alert['sticky'] ? ' alert-dismissible' : '') . '">' . (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '') . $alert['message'] . '</div>';
+            }
+        }
+        unset($_SESSION['alert']);
+        return $output;
+    }
+
+    /**
+     * Get an asset (returns URL of the asset)
+     *
+     * @return string
+     */
+    public function asset(string $location): string
+    {
+        return self::url('themes/' . $this->get('config', 'theme') . '/' . $location);
+    }
+
+    /**
+     * Backup whole WonderCMS installation
+     *
+     * @return void
+     */
+    private function backupAction(): void
+    {
+        if (!$this->loggedIn || !isset($_POST['backup'])) {
+            return;
+        }
+        $backupList = \glob($this->filesPath . '/*wcms-backup-*.zip');
+        if (!empty($backupList)) {
+            $this->alert('danger', 'Delete backup files. (<i>Settings -> Files</i>)');
+        }
+        if (\hash_equals($_POST['token'], $this->getToken())) {
+            $this->zipBackup();
+        }
+    }
+
+    /**
+     * Replace the .htaccess with one adding security settings
+     *
+     * @return void
+     */
+    private function betterSecurityAction(): void
+    {
+        if ($this->loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
+            if (hash_equals($_POST['token'], $this->getToken())) {
+                if ($_POST['betterSecurity'] == 'on') {
+                    $contents = $this->getFileFromRepo('.htaccess-ultimate');
+                    if ($contents) {
+                        file_put_contents('.htaccess', trim($contents));
+                    }
+                    $this->alert('success', 'Better security turned ON.');
+                    $this->redirect();
+                } elseif ($_POST['betterSecurity'] == 'off') {
+                    $contents = $this->getFileFromRepo('.htaccess');
+                    if ($contents) {
+                        file_put_contents('.htaccess', trim($contents));
+                    }
+                    $this->alert('success', 'Better security turned OFF.');
+                    $this->redirect();
+                }
+            }
+        }
+    }
+
+    /**
+     * Get a static block
+     *
+     * @param string $key name of the block
+     * @return string
+     */
+    public function block(string $key): string
+    {
+        $blocks = $this->get('blocks');
+        return isset($blocks->{$key}) ? ($this->loggedIn ? $this->editable($key, $blocks->{$key}->content, 'blocks') : $blocks->{$key}->content) : '';
+    }
+
+    /**
+     * Change password
+     *
+     * @return void
+     */
+    private function changePasswordAction(): void
+    {
+        if ($this->loggedIn && isset($_POST['old_password']) && isset($_POST['new_password'])) {
+            if ($_SESSION['token'] === $_POST['token'] && hash_equals($_POST['token'], $this->getToken())) {
+                if (!password_verify($_POST['old_password'], $this->get('config', 'password'))) {
+                    $this->alert('danger', 'Wrong password.');
+                    $this->redirect();
+                }
+                if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
+                    $this->alert('danger', sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
+                    $this->redirect();
+                }
+                $this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
+                $this->alert('success', 'Password changed.');
+                $this->redirect();
+            }
+        }
+    }
+
+    /**
+     * Check if we can run the software properly
+     * Executed once before creating the database file
+     *
+     * @param string $folder the relative path of the folder to check/create
+     * @return void
+     */
+    private function checkFolder(string $folder): void
+    {
+        // check folder is here
+        if (!is_dir($folder) && !mkdir($folder, 0700) && !is_dir($folder)) {
+            $this->alert('danger', 'Could not create the data folder.');
+        }
+        // and check we can write to it
+        if (!is_writable($folder)) {
+            $this->alert('danger', 'Could write to the data folder.');
+        }
+    }
+
+    /**
+     * Initialize the database if it's empty
+     *
+     * @return void
+     */
+    private function createDb(): void
+    {
+        $password = $this->generatePassword();
+        $this->db = (object) [
+            'config' => [
+                'dbVersion' => '2.6.0',
+                'siteTitle' => 'Website title',
+                'theme' => 'default',
+                'defaultPage' => 'home',
+                'login' => 'loginURL',
+                'password' => password_hash($password, PASSWORD_DEFAULT),
+                'menuItems' => [
+                    '0' => [
+                        'name' => 'Home',
+                        'slug' => 'home',
+                        'visibility' => 'show'
+                    ],
+                    '1' => [
+                        'name' => 'Example',
+                        'slug' => 'example',
+                        'visibility' => 'show'
+                    ]
+                ]
+            ],
+            'pages' => [
+                '404' => [
+                    'title' => '404',
+                    'keywords' => '404',
+                    'description' => '404',
+                    'content' => '<h1>Sorry, page not found. :(</h1>'
+                ],
+                'home' => [
+                    'title' => 'Home',
+                    'keywords' => 'Keywords, are, good, for, search, engines',
+                    'description' => 'A short description is also good.',
+                    'content' => '<h1>Website alive!</h1>
+
+<h4><a href="' . self::url('loginURL') . '">Click to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
+                ],
+                'example' => [
+                    'title' => 'Example',
+                    'keywords' => 'Keywords, are, good, for, search, engines',
+                    'description' => 'A short description is also good.',
+                    'content' => '<h1>How to create new pages</h1>
 <p><i>Settings -> General -> Add page</i></p>
 
 <h1>How to edit anything</h1>
@@ -197,686 +314,1051 @@ class wCMS
 <p>1. Copy link/URL to ZIP file.</p>
 <p>2. Paste link in <i>Settings -> Themes and plugins</i> and click <i>Install/update</i>.</p>
 <p><a href="https://wondercms.com/themes" target="_blank">WonderCMS themes</a> | <a href="https://wondercms.com/plugins" target="_blank">WonderCMS plugins</a></p>'
-				]
-			],
-			'blocks' => [
-				'subside' => [
-					'content' => '<h3>About your website</h3>
+                ]
+            ],
+            'blocks' => [
+                'subside' => [
+                    'content' => '<h3>About your website</h3>
 
 <p>Website description, photo, contact information, mini map or anything else.</p>
 <p>This block is visible on all pages.</p>'
-				],
-				'footer' => [
-					'content' => '&copy;' . date('Y') . ' Your website'
-				]
-			]
-		]);
-	}
+                ],
+                'footer' => [
+                    'content' => '&copy;' . date('Y') . ' Your website'
+                ]
+            ]
+        ];
+        $this->save();
+    }
 
-	private static function createMenuItem($content, $menu, $visibility)
-	{
-		$conf = 'config';
-		$field = 'menuItems';
-		$exist = is_numeric($menu);
-		$visibility = (isset($visibility) && $visibility == "show") ? "show" : "hide";
-		$content = empty($content) ? "empty" : str_replace(array(PHP_EOL, '<br>'), '', $content);
-		$slug = wCMS::slugify($content);
-		$menuCount = count(get_object_vars(wCMS::get($conf, $field)));
-		if (!$exist) {
-			$db = wCMS::db();
-			foreach ($db->config->{$field} as $key => $value) {
-				if ($value->slug == $slug) {
-					$slug .= "-" . $menuCount;
-				}
-			}
-			$db->config->{$field}->{$menuCount} = new stdClass;
-			wCMS::save($db);
-			wCMS::set($conf, $field, $menuCount, 'name', str_replace('-', ' ', $content));
-			wCMS::set($conf, $field, $menuCount, 'slug', $slug);
-			wCMS::set($conf, $field, $menuCount, 'visibility', $visibility);
-			if ($menu) {
-				wCMS::createPage($slug);
-			}
-		} else {
-			$oldSlug = wCMS::get($conf, $field, $menu, 'slug');
-			wCMS::set($conf, $field, $menu, 'name', $content);
-			wCMS::set($conf, $field, $menu, 'slug', $slug);
-			wCMS::set($conf, $field, $menu, 'visibility', $visibility);
-			if ($slug !== $oldSlug) {
-				wCMS::createPage($slug);
-				wCMS::deletePageAction($oldSlug, false);
-			}
-		}
-	}
+    /**
+     * Create menu item
+     *
+     * @param string $content
+     * @param string $menu
+     * @param string $visibility show or hide
+     * @return void
+     */
+    private function createMenuItem(string $content, string $menu, string $visibility = 'show'): void
+    {
+        $conf = 'config';
+        $field = 'menuItems';
+        $exist = is_numeric($menu);
+        $content = empty($content) ? "empty" : str_replace(array(PHP_EOL, '<br>'), '', $content);
+        $slug = $this->slugify($content);
+        $menuCount = count(get_object_vars($this->get($conf, $field)));
+        if (!$exist) {
+            $db = $this->getDb();
+            foreach ($db->config->{$field} as $value) {
+                if ($value->slug == $slug) {
+                    $slug .= "-" . $menuCount;
+                }
+            }
+            $db->config->{$field}->{$menuCount} = new \stdClass;
+            $this->save();
+            $this->set($conf, $field, $menuCount, 'name', str_replace("-", " ", $content));
+            $this->set($conf, $field, $menuCount, 'slug', $slug);
+            $this->set($conf, $field, $menuCount, 'visibility', $visibility);
+            if ($menu) {
+                $this->createPage($slug);
+            }
+        } else {
+            $oldSlug = $this->get($conf, $field, $menu, 'slug');
+            $this->set($conf, $field, $menu, 'name', $content);
+            $this->set($conf, $field, $menu, 'slug', $slug);
+            $this->set($conf, $field, $menu, 'visibility', $visibility);
+            if ($slug !== $oldSlug) {
+                $this->createPage($slug);
+                $this->deletePageAction($oldSlug, false);
+            }
+        }
+    }
 
-	private static function createPage($slug = false)
-	{
-		$db = wCMS::db();
-		$db->pages->{(!$slug) ? wCMS::$currentPage : $slug} = new stdClass;
-		wCMS::save($db);
-		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'title', (!$slug) ? mb_convert_case(str_replace('-', ' ', wCMS::$currentPage), MB_CASE_TITLE) : mb_convert_case(str_replace('-', ' ', $slug), MB_CASE_TITLE));
-		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'keywords', 'Keywords, are, good, for, search, engines');
-		wCMS::set('pages', (!$slug) ? wCMS::slugify(wCMS::$currentPage) : $slug, 'description', 'A short description is also good.');
-		if (!$slug) {
-			wCMS::createMenuItem(wCMS::slugify(wCMS::$currentPage), null, "show");
-		}
-	}
+    /**
+     * Create new page
+     *
+     * @param string $slug the name of the page in URL
+     * @return void
+     */
+    private function createPage($slug = '')
+    {
+        $this->db->pages->{(!$slug) ? $this->currentPage : $slug} = new \stdClass;
+        $this->save();
+        $this->set('pages', (!$slug) ? $this->slugify($this->currentPage) : $slug, 'title', (!$slug) ? mb_convert_case(str_replace("-", " ", $this->currentPage), MB_CASE_TITLE) : mb_convert_case(str_replace("-", " ", $slug), MB_CASE_TITLE));
+        $this->set('pages', (!$slug) ? $this->slugify($this->currentPage) : $slug, 'keywords', 'Keywords, are, good, for, search, engines');
+        $this->set('pages', (!$slug) ? $this->slugify($this->currentPage) : $slug, 'description', 'A short description is also good.');
+        if (!$slug) {
+            $this->createMenuItem($this->slugify($this->currentPage), '', "show");
+        }
+    }
 
-	private static function css()
-	{
-		if (wCMS::$loggedIn) {
-			$styles = <<<'EOT'
-<style>#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;text-align:left;font-variant:small-caps}#adminPanel .btn{overflow:hidden;white-space:nowrap;display:inline-block;text-overflow:ellipsis}#adminPanel .fontSize21{font-size:21px}.alert{margin-bottom:0}#adminPanel a{color:#aaa;outline:0;border:0;text-decoration:none}#adminpanel .alert a{color:#fff}#adminPanel a.btn{color:#fff}#adminPanel div.editText{color:#555;font-variant:normal}#adminPanel .normalFont{font-variant:normal}div.editText{word-wrap:break-word;cursor:pointer;border:2px dashed #ccc;display:block}.cursorPointer{cursor:pointer}div.editText textarea{outline:0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color:#ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop5{margin-top:5px}.marginTop20{margin-top:20px}.marginLeft5{margin-left:5px}.padding20{padding:20px}.subTitle{color:#aaa;font-size:24px;margin:20px 0 5px;font-variant:all-small-caps}.menu-item-hide{color:#5bc0de}.menu-item-delete,.menu-item-hide,.menu-item-show{padding:0 10%}#adminPanel .nav-tabs{border-bottom:2px solid #ddd}#adminPanel .nav-tabs>li>a:after{content:"";background:#1ab;height:2px;position:absolute;width:100%;left:0;bottom:-1px;transition:all 250ms ease 0s;transform:scale(0)}#adminPanel .nav-tabs>li>a:hover{border-bottom:1px solid #1ab!important}#adminPanel .nav-tabs>li.active>a:after,#adminPanel .nav-tabs>li:hover>a:after{transform:scale(1)}.tab-content{padding:20px}#adminPanel .modal-content{background-color:#eee}#adminPanel .modal-header{border:0}#adminPanel .nav li{font-size:30px;float:none;display:inline-block}#adminPanel .tab-pane.active a.btn{color:#fff}#adminPanel .nav-tabs>li.active a,#adminPanel .tab-pane.active{background:0!important;border:0!important;color:#aaa!important}#adminPanel .clear{clear:both}@media(min-width:768px){#adminPanel .modal-xl{width:90%;max-width:1200px}}</style>
+    /**
+     * Inject CSS into page
+     *
+     * @return string
+     */
+    public function css(): string
+    {
+        if ($this->loggedIn) {
+            $styles = <<<'EOT'
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<style>.alert{margin-bottom:0}div.editText{word-wrap:break-word;border:2px dashed #ccc;display:block}div.editText textarea{outline:0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color:#ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop5{margin-top:5px}.marginTop20{margin-top:20px}.marginLeft5{margin-left:5px}.padding20{padding:20px}.subTitle{color:#aaa;font-size:24px;margin:20px 0 5px;font-variant:all-small-caps}.menu-item-hide{color:#5bc0de}.menu-item-delete,.menu-item-hide,.menu-item-show{padding:0 10%}.tab-content{padding:20px}#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;text-align:left;font-variant:small-caps}#adminPanel .fas,.cursorPointer,div.editText{cursor:pointer}#adminPanel .btn{overflow:hidden;white-space:nowrap;display:inline-block;text-overflow:ellipsis}#adminPanel .fontSize21{font-size:21px}#adminPanel a{color:#aaa;outline:0;border:0;text-decoration:none}#adminPanel a.btn,#adminpanel .alert a{color:#fff}#adminPanel div.editText{color:#555;font-variant:normal}#adminPanel .normalFont{font-variant:normal}#adminPanel .nav-tabs{border-bottom:2px solid #ddd}#adminPanel .nav-tabs>li>a:after{content:"";background:#1ab;height:2px;position:absolute;width:100%;left:0;bottom:-2px;transition:all 250ms ease 0s;transform:scale(0)}#adminPanel .nav-tabs>li.active>a:after,#adminPanel .nav-tabs>li:hover>a,#adminPanel .nav-tabs>li:hover>a:after,#adminPanel .nav-tabs>li>a{transform:scale(1)}#adminPanel .nav-tabs>li>a.active{border-bottom:2px solid #1ab!important}#adminPanel .modal-content{background-color:#eee}#adminPanel .modal-header{border:0}#adminPanel .nav li{font-size:30px;float:none;display:inline-block},#adminPanel .tab-pane.active a.btn{color:#fff}#adminPanel .btn-info{background-color:#5bc0de;border-color:#5bc0de}#adminPanel .nav-link.active,#adminPanel .nav-tabs>li.active a,#adminPanel .tab-pane.active{background:0!important;border:0!important;color:#aaa!important}#adminPanel .clear{clear:both}@media(min-width:768px){#adminPanel .modal-xl{width:90%;max-width:1200px}}</style>
 EOT;
-			return wCMS::hook('css', $styles)[0];
-		}
-		return wCMS::hook('css', '')[0];
-	}
+            return $this->hook('css', $styles)[0];
+        }
+        return $this->hook('css', '')[0];
+    }
 
-	public static function db()
-	{
-		return file_exists(__DIR__ . '/database.js') ? json_decode(file_get_contents(__DIR__ . '/database.js')) : false;
-	}
+    /**
+     * Get content of the database
+     *
+     * @return object
+     */
+    public function getDb()
+    {
+        // initialize the database if it doesn't exist yet
+        if (!\file_exists($this->dbPath)) {
+            // this code basically only runs one time, on first page load: install time
+            $this->checkFolder(dirname($this->dbPath));
+            $this->checkFolder($this->filesPath);
+            $this->createDb();
+        }
+        return \json_decode(\file_get_contents($this->dbPath));
+    }
 
-	private static function deleteFileThemePluginAction()
-	{
-		if (!wCMS::$loggedIn) {
-			return;
-		}
-		if (isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']) && isset($_REQUEST['token'])) {
-			if (hash_equals($_REQUEST['token'], wCMS::generateToken())) {
-				$deleteList = [
-					[__DIR__ . '/files', 'deleteFile'],
-					[__DIR__ . '/themes', 'deleteTheme'],
-					[__DIR__ . '/plugins', 'deletePlugin'],
-				];
-				foreach ($deleteList as $entry) {
-					list($folder, $request) = $entry;
-					$filename = isset($_REQUEST[$request]) ? str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST[$request])) : false;
-					if (!$filename || empty($filename)) {
-						continue;
-					}
-					if ($filename == wCMS::get('config', 'theme')) {
-						wCMS::alert('danger', 'Cannot delete currently active theme.');
-						wCMS::redirect();
-						continue;
-					}
-					if (file_exists("{$folder}/{$filename}")) {
-						wCMS::recursiveDelete("{$folder}/{$filename}");
-						wCMS::alert('success', "Deleted {$filename}.");
-						wCMS::redirect();
-					}
-				}
-			}
-		}
-	}
+    /**
+     * Delete theme
+     *
+     * @return void
+     */
+    private function deleteFileThemePluginAction(): void
+    {
+        if (!$this->loggedIn) {
+            return;
+        }
+        if (isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']) && isset($_REQUEST['token'])) {
+            if (hash_equals($_REQUEST['token'], $this->getToken())) {
+                $deleteList = [
+                    [$this->filesPath, 'deleteFile'],
+                    [__DIR__ . '/themes', 'deleteTheme'],
+                    [__DIR__ . '/plugins', 'deletePlugin'],
+                ];
+                foreach ($deleteList as $entry) {
+                    list($folder, $request) = $entry;
+                    $filename = isset($_REQUEST[$request]) ? str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST[$request])) : false;
+                    if (!$filename || empty($filename)) {
+                        continue;
+                    }
+                    if ($filename == $this->get('config', 'theme')) {
+                        $this->alert('danger', 'Cannot delete currently active theme.');
+                        $this->redirect();
+                        continue;
+                    }
+                    if (file_exists("{$folder}/{$filename}")) {
+                        $this->recursiveDelete("{$folder}/{$filename}");
+                        $this->alert('success', "Deleted {$filename}.");
+                        $this->redirect();
+                    }
+                }
+            }
+        }
+    }
 
-	private static function deletePageAction($needle = false, $menu = true)
-	{
-		if (!$needle) {
-			if (wCMS::$loggedIn && isset($_GET['delete']) && hash_equals($_REQUEST['token'], wCMS::generateToken())) {
-				$needle = $_GET['delete'];
-			}
-		}
-		$db = wCMS::db();
-		if (isset(wCMS::get('pages')->{$needle})) {
-			unset($db->pages->{$needle});
-		}
-		if ($menu) {
-			$menuItems = json_decode(json_encode(wCMS::get('config', 'menuItems')), true);
-			if (false === ($index = array_search($needle, array_column($menuItems, "slug")))) {
-				return;
-			}
-			unset($menuItems[$index]);
-			$newMenu = array_values($menuItems);
-			$db->config->menuItems = json_decode(json_encode($newMenu));
-		}
-		wCMS::save($db);
-		wCMS::alert('success', 'Page deleted.');
-		wCMS::redirect();
-	}
+    /**
+     * Delete page
+     *
+     * @return void
+     */
+    private function deletePageAction(bool $needle = false, bool $menu = true)
+    {
+        if (!$needle) {
+            if ($this->loggedIn && isset($_GET['delete']) && hash_equals($_REQUEST['token'], $this->getToken())) {
+                $needle = $_GET['delete'];
+            }
+        }
+        if (isset($this->get('pages')->{$needle})) {
+            unset($this->db->pages->{$needle});
+        }
+        if ($menu) {
+            $menuItems = json_decode(json_encode($this->get('config', 'menuItems')), true);
+            if (false === ($index = array_search($needle, array_column($menuItems, "slug")))) {
+                return;
+            }
+            unset($menuItems[$index]);
+            $newMenu = array_values($menuItems);
+            $this->db->config->menuItems = json_decode(json_encode($newMenu));
+        }
+        $this->save();
+        $this->alert('success', 'Page deleted.');
+        $this->redirect();
+    }
 
-	public static function editable($id, $content, $dataTarget = '')
-	{
-		return '<div' . ($dataTarget != '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
-	}
+    /**
+     * Get an editable block
+     *
+     * @param string $id id for the block
+     * @param string $content html content
+     * @param string $dataTarget
+     * @return string
+     */
+    public function editable(string $id, string $content, string $dataTarget = ''): string
+    {
+        return '<div' . ($dataTarget != '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
+    }
 
-	public static function footer()
-	{
-		$output = wCMS::get('blocks', 'footer')->content . (!wCMS::$loggedIn ? ((wCMS::get('config', 'login') == 'loginURL') ? ' &bull; <a href="' . wCMS::url('loginURL') . '">Login</a>' : '') : '');
-		return wCMS::hook('footer', $output)[0];
-	}
+    /**
+     * Get the footer
+     *
+     * @return string
+     */
+    public function footer(): string
+    {
+        $output = $this->get('blocks', 'footer')->content . (!$this->loggedIn ? (($this->get('config', 'login') == 'loginURL') ? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>' : '') : '');
+        return $this->hook('footer', $output)[0];
+    }
 
-	private static function generatePassword()
-	{
-		$characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
-		return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
-	}
+    /**
+     * Generate random password
+     *
+     * @return string
+     */
+    private function generatePassword(): string
+    {
+        $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
+        return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
+    }
 
-	public static function generateToken()
-	{
-		return (isset($_SESSION['token'])) ? $_SESSION['token'] : $_SESSION['token'] = bin2hex(openssl_random_pseudo_bytes(32));
-	}
+    /**
+     * Get CSRF token
+     *
+     * @return string
+     */
+    public function getToken(): string
+    {
+        return (isset($_SESSION["token"])) ? $_SESSION["token"] : $_SESSION["token"] = bin2hex(openssl_random_pseudo_bytes(32));
+    }
 
-	public static function get()
-	{
-		$numArgs = func_num_args();
-		$args = func_get_args();
-		if (!wCMS::$db) {
-			wCMS::$db = wCMS::db();
-		}
-		switch ($numArgs) {
-			case 1:
-				return wCMS::$db->{$args[0]};
-				break;
-			case 2:
-				return wCMS::$db->{$args[0]}->{$args[1]};
-				break;
-			case 3:
-				return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]};
-				break;
-			case 4:
-				return wCMS::$db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
-				break;
-			default:
-				return false;
-		}
-	}
+    /**
+     * Get something from the database
+     *
+     */
+    public function get()
+    {
+        $numArgs = func_num_args();
+        $args = func_get_args();
+        switch ($numArgs) {
+            case 1:
+                return $this->db->{$args[0]};
+            case 2:
+                return $this->db->{$args[0]}->{$args[1]};
+            case 3:
+                return $this->db->{$args[0]}->{$args[1]}->{$args[2]};
+            case 4:
+                return $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
+            default:
+                $this->alert('danger', 'Too many arguments to get().');
+        }
+    }
 
-	public static function getFileFromRepo($file)
-	{
-		$repoUrl = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
-		$data = curl_exec($ch);
-		curl_close($ch);
-		return $data;
-	}
+    /**
+     * Get content of a file from master branch on GitHub
+     *
+     * @param string $file the file we want
+     * @return string
+     */
+    public function getFileFromRepo(string $file): string
+    {
+        $repoUrl = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
+        $content = curl_exec($ch);
+        if ($content === false) {
+            $this->alert('danger', 'Cannot get content from repository.');
+        }
+        curl_close($ch);
+        // cast to string because curl_exec() can return true
+        // but it won't because of CURLOPT_RETURNTRANSFER
+        return (string) $content;
+    }
 
-	private static function getMenuSettings()
-	{
-		return wCMS::hook('getMenuSettings', $output)[0];
-	}
+    private function getMenuSettings()
+    {
+        return $this->hook('getMenuSettings', $output)[0];
+    }
 
-	private static function getOfficialVersion()
-	{
-		return trim(wCMS::getFileFromRepo('version'));
-	}
+    /**
+     * Get the latest version from master branch on GitHub
+     *
+     * @return string
+     */
+    private function getOfficialVersion(): string
+    {
+        return trim($this->getFileFromRepo('version'));
+    }
 
-	private static function hook()
-	{
-		$numArgs = func_num_args();
-		$args = func_get_args();
-		if ($numArgs < 2) {
-			trigger_error('Insufficient arguments', E_USER_ERROR);
-		}
-		$hookName = array_shift($args);
-		if (!isset(wCMS::$listeners[$hookName])) {
-			return $args;
-		}
-		foreach (wCMS::$listeners[$hookName] as $func) {
-			$args = $func($args);
-		}
-		return $args;
-	}
+    private function hook(): array
+    {
+        $numArgs = func_num_args();
+        $args = func_get_args();
+        if ($numArgs < 2) {
+            trigger_error('Insufficient arguments', E_USER_ERROR);
+        }
+        $hookName = array_shift($args);
+        if (!isset($this->listeners[$hookName])) {
+            return $args;
+        }
+        foreach ($this->listeners[$hookName] as $func) {
+            $args = $func($args);
+        }
+        return $args;
+    }
 
-	private static function installThemePluginAction()
-	{
-		if (!wCMS::$loggedIn && !isset($_POST['installAddon'])) {
-			return;
-		}
-		if (hash_equals($_POST['token'], wCMS::generateToken())) {
-			if (isset($_POST['installLocation'])) {
-				$installLocation = trim(strtolower($_POST['installLocation']));
-				$addonURL = $_POST['addonURL'];
-				$validPaths = array('themes', 'plugins');
-			} else {
-				wCMS::alert('danger', 'Choose between theme or plugin.');
-				wCMS::redirect();
-			}
-			if (in_array($installLocation, $validPaths) && !empty($addonURL)) {
-				$zipFile = __DIR__ . '/files/ZIPFromURL.zip';
-				$zipResource = fopen($zipFile, "w");
-				$ch = curl_init();
-				curl_setopt($ch, CURLOPT_URL, $addonURL);
-				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-				curl_setopt($ch, CURLOPT_FILE, $zipResource);
-				curl_exec($ch);
-				curl_close($ch);
-				$zip = new ZipArchive;
-				$extractPath = __DIR__ . '/' . $installLocation . '/';
-				if ($zip->open($zipFile) != 'true' || (stripos($addonURL, '.zip') != true)) {
-					wCMS::recursiveDelete(__DIR__ . '/files/ZIPFromURL.zip');
-					wCMS::alert('danger', 'Error opening ZIP file.');
-					wCMS::redirect();
-				}
-				$zip->extractTo($extractPath);
-				$zip->close();
-				wCMS::recursiveDelete(__DIR__ . '/files/ZIPFromURL.zip');
-				wCMS::alert('success', 'Installed successfully.');
-				wCMS::redirect();
-			} else {
-				wCMS::alert('danger', 'Enter URL to ZIP file.');
-				wCMS::redirect();
-			}
-		}
-	}
+    private function installThemePluginAction(): void
+    {
+        if (!$this->loggedIn && !isset($_POST['installAddon'])) {
+            return;
+        }
 
-	private static function js()
-	{
-		if (wCMS::$loggedIn) {
-			$scripts = <<<'EOT'
+        if (hash_equals($_POST['token'], $this->getToken())) {
+            if (isset($_POST['installLocation'])) {
+                $installLocation = trim(strtolower($_POST['installLocation']));
+                $addonURL = $_POST['addonURL'];
+                $validPaths = array('themes', 'plugins');
+            } else {
+                $this->alert('danger', 'Choose between theme or plugin.');
+                $this->redirect();
+            }
+            if(empty($addonURL)) {
+                $this->alert('danger', 'Invalid theme/plugin URL.');
+                $this->redirect();
+            }
+            if (in_array($installLocation, $validPaths)) {
+                $zipFile = $this->filesPath . '/ZIPFromURL.zip';
+                $zipResource = fopen($zipFile, "w");
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $addonURL);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_FILE, $zipResource);
+                curl_exec($ch);
+                curl_close($ch);
+                $zip = new \ZipArchive;
+                $extractPath = __DIR__ . '/' . $installLocation . '/';
+                if ($zip->open($zipFile) != 'true' || (stripos($addonURL, '.zip') != true)) {
+                    $this->recursiveDelete(__DIR__ . '/data/files/ZIPFromURL.zip');
+                    $this->alert('danger', 'Error opening ZIP file.');
+                    $this->redirect();
+                }
+                $zip->extractTo($extractPath);
+                $zip->close();
+                $this->recursiveDelete(__DIR__ . '/data/files/ZIPFromURL.zip');
+                $this->alert('success', 'Installed successfully.');
+                $this->redirect();
+            } else {
+                $this->alert('danger', 'Enter URL to ZIP file.');
+                $this->redirect();
+            }
+        }
+    }
+
+    /**
+     * Insert JS if the user is logged in
+     *
+     * @return string
+     */
+    public function js(): string
+    {
+        if ($this->loggedIn) {
+            $scripts = <<<'EOT'
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script>$(document).tabOverride(!0,"textarea");function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,token:token,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}var changing=!1;$(document).ready(function(){$('body').on('click','div.editText',function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),this.value,a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+'_field" onblur="fieldSave(a.attr(\'id\'),nl2br(this.value),a.data(\'target\'),a.data(\'menu\'),a.data(\'visibility\'));">'+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)});$('body').on('click','i.menu-toggle',function(){var a=$(this),c=(setTimeout(function(){window.location.reload()},500),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide page from menu").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems", token:token, content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show page in menu").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}))}),$('body').on('click','.menu-item-add',function(){var newPage=prompt("Enter page name");if(!newPage){return!1}var newPage=newPage.replace(/[`~;:'",.<>\{\}\[\]\\\/]/gi, '').trim();$.post("",{fieldname:"menuItems",token:token,content:newPage,target:"menuItem",menu:"none",visibility:"show"},function(a){}).done(setTimeout(function(){window.location.reload()},500))});$('body').on('click','.menu-item-up,.menu-item-down',function(){var a=$(this),b=(a.hasClass('menu-item-up'))?'-1':'1',c=a.attr("data-menu");$.post("",{fieldname:"menuItems",token:token,content:b,target:"menuItemOrder",menu:c,visibility:""},function(a){}).done(function(){$('#menuSettings').parent().load("index.php #menuSettings",{func:"getMenuSettings"})})})});</script>
+<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,token:token,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}$(document).tabOverride(!0,"textarea");var changing=!1;$(document).ready(function(){$("body").on("click","div.editText",function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+"_field\" onblur=\"fieldSave(a.attr('id'),this.value,a.data('target'),a.data('menu'),a.data('visibility'));\">"+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+"_field\" onblur=\"fieldSave(a.attr('id'),nl2br(this.value),a.data('target'),a.data('menu'),a.data('visibility'));\">"+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)}),$("body").on("click","i.menu-toggle",function(){var a=$(this),c=(setTimeout(function(){window.location.reload()},500),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide page from menu").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show page in menu").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}))}),$("body").on("click",".menu-item-add",function(){var newPage=prompt("Enter page name");if(!newPage)return!1;newPage=newPage.replace(/[`~;:'",.<>\{\}\[\]\\\/]/gi,"").trim(),$.post("",{fieldname:"menuItems",token:token,content:newPage,target:"menuItem",menu:"none",visibility:"show"},function(a){}).done(setTimeout(function(){window.location.reload()},500))}),$("body").on("click",".menu-item-up,.menu-item-down",function(){var a=$(this),b=a.hasClass("menu-item-up")?"-1":"1",c=a.attr("data-menu");$.post("",{fieldname:"menuItems",token:token,content:b,target:"menuItemOrder",menu:c,visibility:""},function(a){}).done(function(){$("#menuSettings").parent().load("index.php #menuSettings",{func:"getMenuSettings"})})})});</script>
 EOT;
-			$scripts .= '<script>var token = "' . wCMS::generateToken() . '";</script>';
-			return wCMS::hook('js', $scripts)[0];
-		}
-		return wCMS::hook('js', '')[0];
-	}
+            $scripts .= '<script>var token = "' . $this->getToken() . '";</script>';
+            return $this->hook('js', $scripts)[0];
+        }
+        return $this->hook('js', '')[0];
+    }
 
-	private static function loadPlugins()
-	{
-		if (!is_dir(__DIR__ . '/plugins')) {
-			mkdir(__DIR__ . '/plugins');
-		}
-		if (!is_dir(__DIR__ . '/files')) {
-			mkdir(__DIR__ . '/files');
-		}
-		foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) {
-			if (file_exists($dir . '/' . basename($dir) . '.php')) {
-				include $dir . '/' . basename($dir) . '.php';
-			}
-		}
-	}
+    /**
+     * Load plugins (if they exist)
+     *
+     * @return void
+     */
+    private function loadPlugins(): void
+    {
+        if (!is_dir(__DIR__ . '/plugins')) {
+            mkdir(__DIR__ . '/plugins');
+        }
+        if (!is_dir($this->filesPath)) {
+            mkdir($this->filesPath);
+        }
+        foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) {
+            if (file_exists($dir . '/' . basename($dir) . '.php')) {
+                include $dir . '/' . basename($dir) . '.php';
+            }
+        }
+    }
 
-	public static function loadThemeAndFunctions()
-	{
-		if (file_exists(__DIR__ . '/themes/' . wCMS::get('config', 'theme') . '/functions.php')) {
-			require_once __DIR__ . '/themes/' . wCMS::get('config', 'theme') . '/functions.php';
-		}
-		require_once __DIR__ . '/themes/' . wCMS::get('config', 'theme') . '/theme.php';
-	}
+    /**
+     * Loads theme file and also loads the functions.php (if it exists)
+     *
+     * @return void
+     */
+    public function loadThemeAndFunctions(): void
+    {
+        if (file_exists(__DIR__ . '/themes/' . $this->get('config', 'theme') . '/functions.php')) {
+            require_once __DIR__ . '/themes/' . $this->get('config', 'theme') . '/functions.php';
+        }
+        require_once __DIR__ . '/themes/' . $this->get('config', 'theme') . '/theme.php';
+    }
 
-	private static function loginAction()
-	{
-		if (wCMS::$currentPage !== wCMS::get('config', 'login')) {
-			return;
-		}
-		if (wCMS::$loggedIn) {
-			wCMS::redirect();
-		}
-		if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-			return;
-		}
-		$password = isset($_POST['password']) ? $_POST['password'] : '';
-		if (password_verify($password, wCMS::get('config', 'password'))) {
-			session_regenerate_id();
-			$_SESSION['l'] = true;
-			$_SESSION['i'] = __DIR__;
-			wCMS::redirect();
-		}
-		wCMS::alert('danger', 'Wrong password.');
-		wCMS::redirect(wCMS::get('config', 'login'));
-	}
+    private function loginAction(): void
+    {
+        if ($this->currentPage !== $this->get('config', 'login')) {
+            return;
+        }
+        if ($this->loggedIn) {
+            $this->redirect();
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return;
+        }
+        $password = isset($_POST['password']) ? $_POST['password'] : '';
+        if (password_verify($password, $this->get('config', 'password'))) {
+            session_regenerate_id();
+            $_SESSION['l'] = true;
+            $_SESSION['i'] = __DIR__;
+            $this->redirect();
+        }
+        $this->alert('danger', 'Wrong password.');
+        $this->redirect($this->get('config', 'login'));
+    }
 
-	private static function loginStatus()
-	{
-		if (isset($_SESSION['l'], $_SESSION['i']) && $_SESSION['i'] == __DIR__) {
-			wCMS::$loggedIn = true;
-		}
-	}
+    /**
+     * Check if the user is logged in
+     *
+     * @return void
+     */
+    private function loginStatus(): void
+    {
+        if (isset($_SESSION['l'], $_SESSION['i']) && $_SESSION['i'] == __DIR__) {
+            $this->loggedIn = true;
+        }
+    }
 
-	public static function loginView()
-	{
-		return ['title' => 'Login', 'description' => '', 'keywords' => '', 'content' => '<form action="' . wCMS::url(wCMS::get('config', 'login')) . '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Login</button></span></div></form>'];
-	}
+    public function loginView(): array
+    {
+        return ['title' => 'Login', 'description' => '', 'keywords' => '', 'content' => '<form action="' . self::url($this->get('config', 'login')) . '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Login</button></span></div></form>'];
+    }
 
-	private static function logoutAction()
-	{
-		if (wCMS::$currentPage === 'logout' && hash_equals($_REQUEST['token'], wCMS::generateToken())) {
-			unset($_SESSION['l'], $_SESSION['i'], $_SESSION['token']);
-			wCMS::redirect();
-		}
-	}
+    private function logoutAction(): void
+    {
+        if ($this->currentPage === 'logout' && isset($_REQUEST['token']) && hash_equals($_REQUEST['token'], $this->getToken())) {
+            unset($_SESSION['l'], $_SESSION['i'], $_SESSION['token']);
+            $this->redirect();
+        }
+    }
 
-	public static function menu()
-	{
-		$output = '';
-		foreach (wCMS::get('config', 'menuItems') as $key => $value) {
-			if ($value->visibility == "hide") {
-				continue;
-			}
-			$output .= '<li' . (wCMS::$currentPage === $value->slug ? ' class="active"' : '') . '><a href="' . wCMS::url($value->slug) . '">' . $value->name . '</a></li>';
-		}
-		return wCMS::hook('menu', $output)[0];
-	}
+    public function menu(): string
+    {
+        $output = '';
+        foreach ($this->get('config', 'menuItems') as $item) {
+            if ($item->visibility === 'hide') {
+                continue;
+            }
+            $output .= '<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . 'nav-item"><a class="nav-link" href="' . self::url($item->slug) . '">' . $item->name . '</a></li>';
+        }
+        return $this->hook('menu', $output)[0];
+    }
 
-	public static function notFoundReponse()
-	{
-		if (!wCMS::$loggedIn && !wCMS::$currentPageExists) {
-			header('HTTP/1.1 404 Not Found');
-		}
-	}
+    public function notFoundResponse(): void
+    {
+        if (!$this->loggedIn && !$this->currentPageExists) {
+            header("HTTP/1.1 404 Not Found");
+        }
+    }
 
-	public static function notFoundView()
-	{
-		if (wCMS::$loggedIn) {
-			return ['title' => str_replace('-', ' ', wCMS::$currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
-		}
-		return wCMS::get('pages', '404');
-	}
+    public function notFoundView()
+    {
+        if ($this->loggedIn) {
+            return ['title' => str_replace("-", " ", $this->currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
+        }
+        return $this->get('pages', '404');
+    }
 
-	private static function notifyAction()
-	{
-		if (!wCMS::$loggedIn) {
-			return;
-		}
-		if (!wCMS::$currentPageExists) {
-			wCMS::alert('info', '<b>This page (' . wCMS::$currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.');
-		}
-		if (wCMS::get('config', 'login') === 'loginURL') {
-			wCMS::alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
-		}
-		if (wCMS::getOfficialVersion() > VERSION) {
-			wCMS::alert('info', '<h4><b>New WonderCMS update available (requires manual updating)</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check how to manually update WonderCMS</u></a>.<form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form><div class="marginTop5"><a href="https://wondercms.com/whatsnew" target="_blank"><button class="btn btn-info">How to manually update WonderCMS ' . VERSION . ' to ' . wCMS::getOfficialVersion() . '</button></a></div>', true);
-		}
-	}
+    private function notifyAction(): void
+    {
+        if (!$this->loggedIn) {
+            return;
+        }
+        if (!$this->currentPageExists) {
+            $this->alert('info', '<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.');
+        }
+        if ($this->get('config', 'login') === 'loginURL') {
+            $this->alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
+        }
+        if ($this->getOfficialVersion() > self::VERSION) {
+            $this->alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form><form method="post" class="marginTop5"><button class="btn btn-info" name="update">Update WonderCMS ' . self::VERSION . ' to ' . $this->getOfficialVersion() . '</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form>', true);
+        }
+    }
 
-	private static function orderMenuItem($content, $menu)
-	{
-		$conf = 'config';
-		$field = 'menuItems';
-		$content = (int) trim(htmlentities($content, ENT_QUOTES, 'UTF-8'));
-		$move = wCMS::get($conf, $field, $menu);
-		$menu += $content;
-		$tmp = wCMS::get($conf, $field, $menu);
-		wCMS::set($conf, $field, $menu, 'name', $move->name);
-		wCMS::set($conf, $field, $menu, 'slug', $move->slug);
-		wCMS::set($conf, $field, $menu, 'visibility', $move->visibility);
-		$menu -= $content;
-		wCMS::set($conf, $field, $menu, 'name', $tmp->name);
-		wCMS::set($conf, $field, $menu, 'slug', $tmp->slug);
-		wCMS::set($conf, $field, $menu, 'visibility', $tmp->visibility);
-	}
+    /**
+     * Reorder the pages
+     *
+     * @param int $content 1 for down arrow, or -1 for up arrow clicked
+     * @param int $menu
+     * @return void
+     */
+    private function orderMenuItem(int $content, int $menu): void
+    {
+        // check if content is 1 or -1 as only those values are acceptable
+        if (!in_array($content, [1, -1])) {
+            throw new InvalidArgumentException('Bad content value.');
+        }
+        $conf = 'config';
+        $field = 'menuItems';
+        $targetPosition = $menu + $content;
+        // save the target to avoid overwrite
+        // use clone to copy the object entirely
+        $tmp = clone $this->get($conf, $field, $targetPosition);
+        $move = $this->get($conf, $field, $menu);
+        // move the menu to new position
+        $this->set($conf, $field, $targetPosition, 'name', $move->name);
+        $this->set($conf, $field, $targetPosition, 'slug', $move->slug);
+        $this->set($conf, $field, $targetPosition, 'visibility', $move->visibility);
+        // now write the other one in the previous position
+        $this->set($conf, $field, $menu, 'name', $tmp->name);
+        $this->set($conf, $field, $menu, 'slug', $tmp->slug);
+        $this->set($conf, $field, $menu, 'visibility', $tmp->visibility);
+    }
 
-	public static function page($key)
-	{
-		$segments = wCMS::$currentPageExists ? wCMS::get('pages', wCMS::$currentPage) : (wCMS::get('config', 'login') == wCMS::$currentPage ? (object) wCMS::loginView() : (object) wCMS::notFoundView());
-		$segments->content = isset($segments->content) ? $segments->content : '<h2>Click here add content</h2>';
-		$keys = ['title' => $segments->title, 'description' => $segments->description, 'keywords' => $segments->keywords, 'content' => (wCMS::$loggedIn ? wCMS::editable('content', $segments->content, 'pages') : $segments->content)];
-		$content = isset($keys[$key]) ? $keys[$key] : '';
-		return wCMS::hook('page', $content, $key)[0];
-	}
+    public function page(string $key): string
+    {
+        $segments = $this->currentPageExists ? $this->get('pages', $this->currentPage) : ($this->get('config', 'login') == $this->currentPage ? (object) $this->loginView() : (object) $this->notFoundView());
+        $segments->content = isset($segments->content) ? $segments->content : '<h2>Click here add content</h2>';
+        $keys = ['title' => $segments->title, 'description' => $segments->description, 'keywords' => $segments->keywords, 'content' => ($this->loggedIn ? $this->editable('content', $segments->content, 'pages') : $segments->content)];
+        $content = isset($keys[$key]) ? $keys[$key] : '';
+        return $this->hook('page', $content, $key)[0];
+    }
 
-	private static function pageStatus()
-	{
-		wCMS::$currentPage = empty(wCMS::parseUrl()) ? wCMS::get('config', 'defaultPage') : wCMS::parseUrl();
-		if (isset(wCMS::get('pages')->{wCMS::$currentPage})) {
-			wCMS::$currentPageExists = true;
-		}
-		if (isset($_GET['page']) && !wCMS::$loggedIn) {
-			if (wCMS::$currentPage !== wCMS::slugify($_GET['page'])) {
-				wCMS::$currentPageExists = false;
-			}
-		}
-	}
+    private function pageStatus(): void
+    {
+        $this->currentPage = empty($this->parseUrl()) ? $this->get('config', 'defaultPage') : $this->parseUrl();
+        if (isset($this->get('pages')->{$this->currentPage})) {
+            $this->currentPageExists = true;
+        }
+        if (isset($_GET['page']) && !$this->loggedIn) {
+            if ($this->currentPage !== $this->slugify($_GET['page'])) {
+                $this->currentPageExists = false;
+            }
+        }
+    }
 
-	public static function parseUrl()
-	{
-		if (isset($_GET['page']) && $_GET['page'] == wCMS::get('config', 'login')) {
-			return htmlspecialchars($_GET['page'], ENT_QUOTES);
-		}
-		return isset($_GET['page']) ? wCMS::slugify($_GET['page']) : '';
-	}
+    public function parseUrl(): string
+    {
+        if (isset($_GET['page']) && $_GET['page'] == $this->get('config', 'login')) {
+            return htmlspecialchars($_GET['page'], ENT_QUOTES);
+        }
+        return isset($_GET['page']) ? $this->slugify($_GET['page']) : '';
+    }
 
-	private static function recursiveDelete($file)
-	{
-		if (is_dir($file)) {
-			$list = glob($file . '*', GLOB_MARK);
-			foreach ($list as $dir) {
-				wCMS::recursiveDelete($dir);
-			}
-			if (file_exists($file)) {
-				rmdir($file);
-			}
-		} elseif (is_file($file)) {
-			unlink($file);
-		}
-	}
+    private function recursiveDelete($file): void
+    {
+        if (is_dir($file)) {
+            $files = new \DirectoryIterator($file);
+            foreach ($files as $dirFile) {
+                if (!$dirFile->isDot()) {
+                    $dirFile->isDir() ? $this->recursiveDelete($dirFile->getPathname()) : unlink($dirFile->getPathname());
+                }
+            }
+            rmdir($file);
+        } elseif (is_file($file)) {
+            unlink($file);
+        }
+    }
 
-	public static function redirect($location = '')
-	{
-		header('Location: ' . wCMS::url($location));
-		die();
-	}
+    public function redirect(string $location = ''): void
+    {
+        header('Location: ' . self::url($location));
+        die();
+    }
 
-	public static function save($db)
-	{
-		file_put_contents(__DIR__ . '/database.js', json_encode($db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-	}
+    /**
+     * Save database to disk
+     *
+     * @return void
+     */
+    public function save(): void
+    {
+        file_put_contents($this->dbPath, json_encode($this->db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
 
-	private static function saveAction()
-	{
-		if (!wCMS::$loggedIn) {
-			return;
-		}
-		if (isset($_POST['fieldname']) && isset($_POST['content']) && isset($_POST['target']) && isset($_POST['token']) && hash_equals($_POST['token'], wCMS::generateToken())) {
-			list($fieldname, $content, $target, $menu, $visibility) = wCMS::hook('save', $_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['menu'], $_POST['visibility']);
-			if ($target === 'menuItem') {
-				wCMS::createMenuItem($content, $menu, $visibility);
-			}
-			if ($target === 'menuItemVsbl') {
-				wCMS::set('config', $fieldname, $menu, 'visibility', $visibility);
-			}
-			if ($target === 'menuItemOrder') {
-				wCMS::orderMenuItem($content, $menu);
-			}
-			if ($fieldname === 'defaultPage') {
-				if (!isset(wCMS::get('pages')->$content)) {
-					return;
-				}
-			}
-			if ($fieldname === 'login') {
-				if (empty($content) || isset(wCMS::get('pages')->$content)) {
-					return;
-				}
-			}
-			if ($fieldname === 'theme') {
-				if (!is_dir(__DIR__ . '/themes/' . $content)) {
-					return;
-				}
-			}
-			if ($target === 'config') {
-				wCMS::set('config', $fieldname, $content);
-			} elseif ($target === 'blocks') {
-				wCMS::set('blocks', $fieldname, 'content', $content);
-			} elseif ($target === 'pages') {
-				if (!isset(wCMS::get('pages')->{wCMS::$currentPage})) {
-					wCMS::createPage();
-				}
-				wCMS::set('pages', wCMS::$currentPage, $fieldname, $content);
-			}
-		}
-	}
+    private function saveAction(): void
+    {
+        if (!$this->loggedIn) {
+            return;
+        }
+        if (isset($_POST['fieldname']) && isset($_POST['content']) && isset($_POST['target']) && isset($_POST['token']) && hash_equals($_POST['token'], $this->getToken())) {
+            list($fieldname, $content, $target, $menu, $visibility) = $this->hook('save', $_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['menu'], $_POST['visibility']);
+            if ($target === 'menuItem') {
+                $this->createMenuItem($content, $menu, $visibility);
+            }
+            if ($target === 'menuItemVsbl') {
+                $this->set('config', $fieldname, $menu, 'visibility', $visibility);
+            }
+            if ($target === 'menuItemOrder') {
+                $this->orderMenuItem($content, $menu);
+            }
+            if ($fieldname === 'defaultPage') {
+                if (!isset($this->get('pages')->$content)) {
+                    return;
+                }
+            }
+            if ($fieldname === 'login') {
+                if (empty($content) || isset($this->get('pages')->$content)) {
+                    return;
+                }
+            }
+            if ($fieldname === 'theme') {
+                if (!is_dir(__DIR__ . '/themes/' . $content)) {
+                    return;
+                }
+            }
+            if ($target === 'config') {
+                $this->set('config', $fieldname, $content);
+            } elseif ($target === 'blocks') {
+                $this->set('blocks', $fieldname, 'content', $content);
+            } elseif ($target === 'pages') {
+                if (!isset($this->get('pages')->{$this->currentPage})) {
+                    $this->createPage();
+                }
+                $this->set('pages', $this->currentPage, $fieldname, $content);
+            }
+        }
+    }
 
-	public static function set()
-	{
-		$numArgs = func_num_args();
-		$args = func_get_args();
-		$db = wCMS::db();
-		switch ($numArgs) {
-			case 2:
-				$db->{$args[0]} = $args[1];
-				break;
-			case 3:
-				$db->{$args[0]}->{$args[1]} = $args[2];
-				break;
-			case 4:
-				$db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3];
-				break;
-			case 5:
-				$db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4];
-				break;
-		}
-		wCMS::save($db);
-	}
+    public function set(): void
+    {
+        $numArgs = func_num_args();
+        $args = func_get_args();
+        switch ($numArgs) {
+            case 2:
+                $this->db->{$args[0]} = $args[1];
+                break;
+            case 3:
+                $this->db->{$args[0]}->{$args[1]} = $args[2];
+                break;
+            case 4:
+                $this->db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3];
+                break;
+            case 5:
+                $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4];
+                break;
+        }
+        $this->save();
+    }
 
-	public static function settings()
-	{
-		if (!wCMS::$loggedIn) {
-			return;
-		}
-		$fileList = array_slice(scandir(__DIR__ . '/files/'), 2);
-		$themeList = array_slice(scandir(__DIR__ . '/themes/'), 2);
-		$pluginList = array_slice(scandir(__DIR__ . '/plugins/'), 2);
-		$output = '<div id="save"><h2>Saving...</h2></div><div id="adminPanel" class="container-fluid"><div class="text-right padding20"><a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . wCMS::url('logout&token=' . wCMS::generateToken()) . '">Logout</a></div><div class="modal" id="settingsModal"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div><div class="modal-body col-xs-12"><ul class="nav nav-tabs text-center" role="tablist"><li role="presentation" class="active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab">Current page</a></li><li role="presentation"><a href="#general" aria-controls="general" role="tab" data-toggle="tab">General</a></li><li role="presentation"><a href="#files" aria-controls="files" role="tab" data-toggle="tab">Files</a></li><li role="presentation"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab">Themes & plugins</a></li><li role="presentation"><a href="#security" aria-controls="security" role="tab" data-toggle="tab">Security</a></li></ul><div class="tab-content col-md-8 col-md-offset-2"><div role="tabpanel" class="tab-pane active" id="currentPage">';
-		if (wCMS::$currentPageExists) {
-			$output .= '<p class="subTitle">Page title</p><div class="change"><div data-target="pages" id="title" class="editText">' . (wCMS::get('pages', wCMS::$currentPage)->title != '' ? wCMS::get('pages', wCMS::$currentPage)->title : '') . '</div></div><p class="subTitle">Page keywords</p><div class="change"><div data-target="pages" id="keywords" class="editText">' . (wCMS::get('pages', wCMS::$currentPage)->keywords != '' ? wCMS::get('pages', wCMS::$currentPage)->keywords : '') . '</div></div><p class="subTitle">Page description</p><div class="change"><div data-target="pages" id="description" class="editText">' . (wCMS::get('pages', wCMS::$currentPage)->description != '' ? wCMS::get('pages', wCMS::$currentPage)->description : '') . '</div></div><a href="' . wCMS::url('?delete=' . wCMS::$currentPage . '&token=' . wCMS::generateToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . wCMS::$currentPage . '?\')">Delete page (' . wCMS::$currentPage . ')</a>';
-		} else {
-			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
-		}
-		$output .= '</div><div role="tabpanel" class="tab-pane" id="general">';
-		$items = wCMS::get('config', 'menuItems');
-		reset($items);
-		$first = key($items);
-		end($items);
-		$end = key($items);
-		$output .= '<p class="subTitle">Menu</p><div><div id="menuSettings" class="container-fluid">';
-		foreach ($items as $key => $value) {
-			$output .= '<div class="row marginTop5"><div class="col-xs-1 col-sm-1 text-right"><i class="btn menu-toggle glyphicon' . ($value->visibility == "show" ? ' glyphicon-eye-open menu-item-hide' : ' glyphicon-eye-close menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i></div><div class="col-xs-4 col-sm-8"><div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div></div><div class="col-xs-2 col-sm-1 text-left">';
-			$output .= ($key === $first) ? '' : '<a class="glyphicon glyphicon-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
-			$output .= ($key === $end) ? '' : '<a class="glyphicon glyphicon-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
-			$output .= '</div><div class="col-xs-2 col-sm-1 text-left"><a class="glyphicon glyphicon-link" href="' . wCMS::url($value->slug) . '" title="Visit page">visit</a></div><div class="col-xs-2 col-sm-1 text-right"><a href="' . wCMS::url('?delete=' . $value->slug . '&token=' . wCMS::generateToken()) . '" title="Delete page" class="btn btn-xs btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a></div></div>';
-		}
-		$output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page">Add page</a></div></div><p class="subTitle">Theme</p><div class="form-group"><div class="change"><select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-		foreach (glob(__DIR__ . '/themes/*', GLOB_ONLYDIR) as $dir) {
-			$output .= '<option value="' . basename($dir) . '"' . (basename($dir) == wCMS::get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
-		}
-		$output .= '</select></div></div><p class="subTitle">Main website title</p><div class="change"><div data-target="config" id="siteTitle" class="editText">' . (wCMS::get('config', 'siteTitle') != '' ? wCMS::get('config', 'siteTitle') : '') . '</div></div><p class="subTitle">Page to display on homepage</p><div class="change"><div data-target="config" id="defaultPage" class="editText">' . wCMS::get('config', 'defaultPage') . '</div></div><p class="subTitle">Footer</p><div class="change"><div data-target="blocks" id="footer" class="editText">' . (wCMS::get('blocks', 'footer')->content != '' ? wCMS::get('blocks', 'footer')->content : '') . '</div></div></div><div role="tabpanel" class="tab-pane" id="files"><p class="subTitle">Upload</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post" enctype="multipart/form-data"><div class="input-group"><input type="file" name="uploadFile" class="form-control"><span class="input-group-btn"><button type="submit" class="btn btn-info">Upload</button></span><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></div></form></div><p class="subTitle marginTop20">Delete files</p><div class="change">';
-		foreach ($fileList as $file) {
-			$output .= '<a href="' . wCMS::url('?deleteFile=' . $file . '&token=' . wCMS::generateToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a><span class="marginLeft5"><a href="' . wCMS::url('files/') . $file . '" class="normalFont" target="_blank">' . wCMS::url('files/') . '<b class="fontSize21">' . $file . '</b></a></span><p></p>';
-		}
-		$output .= '</div></div><div role="tabpanel" class="tab-pane" id="themesAndPlugins"><p class="subTitle">Install or update</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="form-group"><label class="radio-inline"><input type="radio" name="installLocation" value="themes">Theme</label><label class="radio-inline"><input type="radio" name="installLocation" value="plugins">Plugin</label><p></p><div class="input-group"><input type="text" name="addonURL" class="form-control normalFont" placeholder="Paste link/URL to ZIP file"><span class="input-group-btn"><button type="submit" class="btn btn-info">Install/Update</button></span></div></div><input type="hidden" value="true" name="installAddon"><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="subTitle">Delete themes</p><div class="change">';
-		foreach ($themeList as $theme) {
-			$output .= '<a href="' . wCMS::url('?deleteTheme=' . $theme . '&token=' . wCMS::generateToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
-		}
-		$output .= '</div><p class="subTitle">Delete plugins</p><div class="change">';
-		foreach ($pluginList as $plugin) {
-			$output .= '<a href="' . wCMS::url('?deletePlugin=' . $plugin . '&token=' . wCMS::generateToken()) . '" class="btn btn-xs btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '<p></p>';
-		}
-		$output .= '</div></div><div role="tabpanel" class="tab-pane" id="security"><p class="subTitle">Admin login URL</p><div class="change"><div data-target="config" id="login" class="editText">' . wCMS::get('config', 'login') . '</div><p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont text-right"><b>' . wCMS::url(wCMS::get('config', 'login')) . '</b></span></div><p class="subTitle">Password</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><div class="input-group"><input type="password" name="old_password" class="form-control" placeholder="Old password"><span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password"><span class="input-group-btn"><button type="submit" class="btn btn-info">Change password</button></span></div><input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="subTitle">Backup</p><div class="change"><form action="' . wCMS::url(wCMS::$currentPage) . '" method="post"><button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank">How to restore backup</a></p><p class="subTitle">Better security (Apache only)</p><p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter refferer and cookie policy.</p><div class="change"><form method="post"><div class="btn-group btn-group-justified"><div class="btn-group"><button type="submit" class="btn btn-success" name="betterSecurity" value="on">ON (warning: may break your website)</button></div><div class="btn-group"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div></div><input type="hidden" name="token" value="' . wCMS::generateToken() . '"></form></div><p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank">Read more before enabling</a></p></div></div></div><div class="modal-footer clear"><p class="small"><a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp; <b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; <a href="https://wondercms.com/donate" target="_blank">Donate</a></b></p></div></div></div></div></div>';
-		return wCMS::hook('settings', $output)[0];
-	}
+    public function settings(): string
+    {
+        if (!$this->loggedIn) {
+            return '';
+        }
+        $fileList = array_slice(scandir($this->filesPath), 2);
+        $themeList = array_slice(scandir(__DIR__ . '/themes/'), 2);
+        $pluginList = array_slice(scandir(__DIR__ . '/plugins/'), 2);
+        $output = '
+        <div id="save">
+            <h2>Saving...</h2>
+        </div>
+        <div id="adminPanel" class="container-fluid">
+            <div class="text-right padding20">
+                <a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . self::url('logout&token=' . $this->getToken()) . '">Logout</a>
+            </div>
+            <div class="modal" id="settingsModal">
+                <div class="modal-dialog modal-xl">
+                 <div class="modal-content">
+                    <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div>
+                    <div class="modal-body col-xs-12 col-12">
+                        <ul class="nav nav-tabs justify-content-center text-center" role="tablist">
+                            <li role="presentation" class="nav-item active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab" class="nav-link">Current page</a></li>
+                            <li role="presentation" class="nav-item"><a href="#general" aria-controls="general" role="tab" data-toggle="tab" class="nav-link">General</a></li>
+                            <li role="presentation" class="nav-item"><a href="#files" aria-controls="files" role="tab" data-toggle="tab" class="nav-link">Files</a></li>
+                            <li role="presentation" class="nav-item"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab" class="nav-link">Themes & plugins</a></li>
+                            <li role="presentation" class="nav-item"><a href="#security" aria-controls="security" role="tab" data-toggle="tab" class="nav-link">Security</a></li>
+                        </ul>
+                        <div class="tab-content col-md-8 col-md-offset-2 offset-md-2">
+                            <div role="tabpanel" class="tab-pane active" id="currentPage">';
+                                if ($this->currentPageExists) {
+                                    $output .= '
+                                    <p class="subTitle">Page title</p>
+                                    <div class="change">
+                                        <div data-target="pages" id="title" class="editText">' . ($this->get('pages', $this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div>
+                                    </div>
+                                    <p class="subTitle">Page keywords</p>
+                                    <div class="change">
+                                        <div data-target="pages" id="keywords" class="editText">' . ($this->get('pages', $this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div>
+                                    </div>
+                                    <p class="subTitle">Page description</p>
+                                    <div class="change">
+                                        <div data-target="pages" id="description" class="editText">' . ($this->get('pages', $this->currentPage)->description != '' ? $this->get('pages', $this->currentPage)->description : '') . '</div>
+                                    </div>
+                                    <a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')">Delete page (' . $this->currentPage . ')</a>';
+                                } else {
+                                    $output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
+                                }
+                                $output .= '
+                            </div>
+                            <div role="tabpanel" class="tab-pane" id="general">';
+                                $items = $this->get('config', 'menuItems');
+                                reset($items);
+                                $first = key($items);
+                                end($items);
+                                $end = key($items);
+                                $output .= '
+                             <p class="subTitle">Menu</p>
+                             <div>
+                                <div id="menuSettings" class="container-fluid">';
+                                    foreach ($items as $key => $value) {
+                                        $output .= '
+                                        <div class="row marginTop5">
+                                            <div class="col-xs-1 col-sm-1 col-1 text-right">
+                                             <i class="btn menu-toggle fas' . ($value->visibility == "show" ? ' fa-eye menu-item-hide' : ' fa-eye-slash menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
+                                            </div>
+                                            <div class="col-xs-4 col-4 col-sm-8">
+                                             <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div>
+                                            </div>
+                                            <div class="col-xs-2 col-2 col-sm-1 text-left">';
+                                                $output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
+                                                $output .= ($key === $end) ? '' : ' <a class="fas fa-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
+                                                $output .= '
+                                            </div>
+                                            <div class="col-xs-2 col-2 col-sm-1 text-left">
+                                             <a class="fas fa-link" href="' . self::url($value->slug) . '" title="Visit page">visit</a>
+                                            </div>
+                                            <div class="col-xs-2 col-2 col-sm-1 text-right">
+                                             <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a>
+                                            </div>
+                                        </div>';
+                                    }
+                                    $output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
+                                </div>
+                             </div>
+                             <p class="subTitle">Theme</p>
+                             <div class="form-group">
+                                <div class="change">
+                                    <select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
+                                        foreach (glob(__DIR__ . '/themes/*', GLOB_ONLYDIR) as $dir) {
+                                            $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
+                                        }
+                                        $output .= '
+                                    </select>
+                                </div>
+                             </div>
+                             <p class="subTitle">Main website title</p>
+                             <div class="change">
+                                <div data-target="config" id="siteTitle" class="editText">' . ($this->get('config', 'siteTitle') != '' ? $this->get('config', 'siteTitle') : '') . '</div>
+                             </div>
+                             <p class="subTitle">Page to display on homepage</p>
+                             <div class="change">
+                                <div data-target="config" id="defaultPage" class="editText">' . $this->get('config', 'defaultPage') . '</div>
+                             </div>
+                             <p class="subTitle">Footer</p>
+                             <div class="change">
+                                <div data-target="blocks" id="footer" class="editText">' . ($this->get('blocks', 'footer')->content != '' ? $this->get('blocks', 'footer')->content : '') . '</div>
+                             </div>
+                            </div>
+                            <div role="tabpanel" class="tab-pane" id="files">
+                             <p class="subTitle">Upload</p>
+                             <div class="change">
+                                <form action="' . self::url($this->currentPage) . '" method="post" enctype="multipart/form-data">
+                                    <div class="input-group"><input type="file" name="uploadFile" class="form-control">
+                                        <span class="input-group-btn"><button type="submit" class="btn btn-info input-group-append">Upload</button></span>
+                                        <input type="hidden" name="token" value="' . $this->getToken() . '">
+                                    </div>
+                                </form>
+                             </div>
+                             <p class="subTitle marginTop20">Delete files</p>
+                             <div class="change">';
+                                foreach ($fileList as $file) {
+                                    $output .= '
+                                    <a href="' . self::url('?deleteFile=' . $file . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a>
+                                    <span class="marginLeft5">
+                                        <a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
+                                    </span>
+                                    <p></p>';
+                                }
+                                $output .= '
+                             </div>
+                            </div>
+                            <div role="tabpanel" class="tab-pane" id="themesAndPlugins">
+                             <p class="subTitle">Install or update</p>
+                             <div class="change">
+                                <form action="' . self::url($this->currentPage) . '" method="post">
+                                    <div class="form-group">
+                                        <label class="radio-inline form-check-inline"><input type="radio" name="installLocation" value="themes" class="form-check-input">Theme</label>
+                                        <label class="radio-inline form-check-inline"><input type="radio" name="installLocation" value="plugins" class="form-check-input">Plugin</label>
+                                        <div class="input-group marginTop5"><input type="text" name="addonURL" class="form-control normalFont" placeholder="Paste link/URL to ZIP file">
+                                            <span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Install/Update</button></span>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" value="true" name="installAddon"><input type="hidden" name="token" value="' . $this->getToken() . '">
+                                </form>
+                             </div>
+                             <p class="subTitle">Delete themes</p>
+                             <div class="change">';
+                                foreach ($themeList as $theme) {
+                                    $output .= '<a href="' . self::url('?deleteTheme=' . $theme . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
+                                }
+                                $output .= '
+                             </div>
+                             <p class="subTitle">Delete plugins</p>
+                             <div class="change">';
+                                foreach ($pluginList as $plugin) {
+                                    $output .= '<a href="' . self::url('?deletePlugin=' . $plugin . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '
+                                    <p></p>';
+                                }
+                                $output .= '
+                             </div>
+                            </div>
+                            <div role="tabpanel" class="tab-pane" id="security">
+                             <p class="subTitle">Admin login URL</p>
+                             <div class="change">
+                                <div data-target="config" id="login" class="editText">' . $this->get('config', 'login') . '</div>
+                                <p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont"><b>' . self::url($this->get('config', 'login')) . '</b></span>
+                             </div>
+                             <p class="subTitle">Password</p>
+                             <div class="change">
+                                <form action="' . self::url($this->currentPage) . '" method="post">
+                                    <div class="input-group">
+                                        <input type="password" name="old_password" class="form-control" placeholder="Old password">
+                                        <span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password">
+                                        <span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Change password</button></span>
+                                    </div>
+                                    <input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '">
+                                </form>
+                             </div>
+                             <p class="subTitle">Backup</p>
+                             <div class="change">
+                                <form action="' . self::url($this->currentPage) . '" method="post">
+                                    <button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
+                                </form>
+                             </div>
+                             <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank">How to restore backup</a></p>
+                             <p class="subTitle">Better security (Apache only)</p>
+                             <p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
+                             <div class="change">
+                                <form method="post">
+                                    <div class="btn-group btn-group-justified w-100">
+                                        <div class="btn-group w-50"><button type="submit" class="btn btn-success" name="betterSecurity" value="on">ON (warning: may break your website)</button></div>
+                                        <div class="btn-group w-50"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div>
+                                    </div>
+                                    <input type="hidden" name="token" value="' . $this->getToken() . '">
+                                </form>
+                             </div>
+                             <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank">Read more before enabling</a></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer clear">
+                        <p class="small">
+                            <a href="https://wondercms.com" target="_blank">WonderCMS</a> ' . self::VERSION . ' &nbsp; 
+                            <b>
+                             <a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; 
+                             <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; 
+                             <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; 
+                             <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; 
+                             <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; 
+                             <a href="https://wondercms.com/donate" target="_blank">Donate</a>
+                            </b>
+                        </p>
+                    </div>
+                 </div>
+                </div>
+            </div>
+        </div>';
+        return $this->hook('settings', $output)[0];
+    }
 
-	public static function slugify($text)
-	{
-		$text = preg_replace('~[^\\pL\d]+~u', '-', $text);
-		$text = trim(htmlspecialchars(mb_strtolower($text), ENT_QUOTES), '/');
-		$text = trim($text, '-');
-		return empty($text) ? "-" : $text;
-	}
+    public function slugify(string $text): string
+    {
+        $text = preg_replace('~[^\\pL\d]+~u', '-', $text);
+        $text = trim(htmlspecialchars(mb_strtolower($text), ENT_QUOTES), '/');
+        $text = trim($text, '-');
+        return empty($text) ? "-" : $text;
+    }
 
-	private static function updateDBVersion()
-	{
-		if (wCMS::get('config', 'dbVersion') < VERSION) {
-			wCMS::set('config', 'dbVersion', VERSION);
-		}
-	}
+    /**
+     * Delete something from the database
+     * Has variadic arguments
+     * @return void
+     */
+    public function unset(): void
+    {
+        $numArgs = func_num_args();
+        $args = func_get_args();
+        switch ($numArgs) {
+            case 1:
+                unset($this->db->{$args[0]});
+                break;
+            case 2:
+                unset($this->db->{$args[0]}->{$args[1]});
+                break;
+            case 3:
+                unset($this->db->{$args[0]}->{$args[1]}->{$args[2]});
+                break;
+            case 4:
+                unset($this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]});
+                break;
+        }
+        $this->save();
+    }
 
-	private static function uploadFileAction()
-	{
-		if (!wCMS::$loggedIn && !isset($_FILES['uploadFile']) && !isset($_POST['token'])) {
-			return;
-		}
-		$allowed = ['gif' => 'image/gif', 'jpg' => 'image/jpeg', 'ico' => 'image/x-icon', 'png' => 'image/png', 'svg' => 'image/svg+xml', 'txt' => 'text/plain', 'doc' => 'application/vnd.ms-word', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'kdbx' => 'application/octet-stream', 'ods' => 'application/vnd.oasis.opendocument.spreadsheet', 'odt' => 'application/vnd.oasis.opendocument.text', 'ogg' => 'application/ogg', 'pdf' => 'application/pdf', 'ppt' => 'application/vnd.ms-powerpoint', 'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'psd' => 'application/photoshop', 'rar' => 'application/rar', 'xls' => 'application/vnd.ms-excel', 'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'zip' => 'application/zip', 'm4a' => 'audio/mp4', 'mp3' => 'audio/mpeg', 'avi' => 'video/avi', 'flv' => 'video/x-flv', 'mkv' => 'video/x-matroska', 'mov' => 'video/quicktime', 'mp4' => 'video/mp4', 'mpg' => 'video/mpeg', 'ogv' => 'video/ogg', 'webm' => 'video/webm', 'wmv' => 'video/x-ms-wmv'];
-		if (isset($_POST['token']) && hash_equals($_POST['token'], wCMS::generateToken()) && isset($_FILES['uploadFile'])) {
-			try {
-				if (!isset($_FILES['uploadFile']['error']) || is_array($_FILES['uploadFile']['error'])) {
-					wCMS::alert('danger', 'Invalid parameters.');
-					wCMS::redirect();
-				}
-				switch ($_FILES['uploadFile']['error']) {
-					case UPLOAD_ERR_OK:
-						break;
-					case UPLOAD_ERR_NO_FILE:
-						wCMS::alert('danger', 'No file selected.');
-						wCMS::redirect();
-						break;
-					case UPLOAD_ERR_INI_SIZE:
-					case UPLOAD_ERR_FORM_SIZE:
-						wCMS::alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
-						wCMS::redirect();
-						break;
-					default:
-						wCMS::alert('danger', 'Unknown error.');
-						wCMS::redirect();
-				}
-				$mimeType = '';
-				if (class_exists('finfo')) {
-					$finfo = new finfo(FILEINFO_MIME_TYPE);
-					$mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
-				} elseif (function_exists('mime_content_type')) {
-					$mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
-				} else {
-					$ext = strtolower(array_pop(explode('.', $_FILES['uploadFile']['name'])));
-					if (array_key_exists($ext, $allowed)) {
-						$mimeType = $allowed[$ext];
-					}
-				}
-				if (false === $ext = array_search($mimeType, $allowed, true)) {
-					wCMS::alert('danger', 'File format is not allowed.');
-					wCMS::redirect();
-				}
-				if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], sprintf(__DIR__ . '/files/%s', $_FILES['uploadFile']['name']))) {
-					wCMS::alert('danger', 'Failed to move uploaded file.');
-					wCMS::redirect();
-				}
-				wCMS::alert('success', 'File uploaded.');
-				wCMS::redirect();
-			} catch (RuntimeException $e) {
-				wCMS::alert('danger', 'Error: ' . $e->getMessage());
-				wCMS::redirect();
-			}
-		}
-	}
+    private function updateAction(): void
+    {
+        if (!$this->loggedIn || !isset($_POST['update'])) {
+            return;
+        }
+        if (hash_equals($_POST['token'], $this->getToken())) {
+            $contents = $this->getFileFromRepo('index.php');
+            if ($contents) {
+                file_put_contents(__FILE__, $contents);
+            }
+            $this->alert('success', 'WonderCMS successfully updated. Wohoo!');
+            $this->redirect();
+        }
+    }
 
-	public static function url($location = '')
-	{
-		return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on')) || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on')) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
-	}
+    private function updateDBVersion(): void
+    {
+        if ($this->get('config', 'dbVersion') < self::VERSION) {
+            $this->set('config', 'dbVersion', self::VERSION);
+        }
+    }
 
-	private static function zipBackup($source, $destination)
-	{
-		if (extension_loaded('zip')) {
-			if (file_exists($source)) {
-				$zip = new ZipArchive();
-				if ($zip->open($destination, ZIPARCHIVE::CREATE)) {
-					$source = realpath($source);
-					if (is_dir($source)) {
-						$iterator = new RecursiveDirectoryIterator($source);
-						$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
-						$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
-						foreach ($files as $file) {
-							$file = realpath($file);
-							if (is_dir($file)) {
-								$zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
-							} elseif (is_file($file)) {
-								$zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
-							}
-						}
-					} elseif (is_file($source)) {
-						$zip->addFromString(basename($source), file_get_contents($source));
-					}
-				}
-				return $zip->close();
-			}
-		}
-		return false;
-	}
+    private function uploadFileAction(): void
+    {
+        if (!$this->loggedIn && !isset($_FILES['uploadFile']) && !isset($_POST['token'])) {
+            return;
+        }
+        $allowedExtensions = [
+            'avi' => 'video/avi',
+            'doc' => 'application/vnd.ms-word',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'flv' => 'video/x-flv',
+            'gif' => 'image/gif',
+            'ico' => 'image/x-icon',
+            'jpg' => 'image/jpeg',
+            'kdbx' => 'application/octet-stream',
+            'm4a' => 'audio/mp4',
+            'mkv' => 'video/x-matroska',
+            'mov' => 'video/quicktime',
+            'mp3' => 'audio/mpeg',
+            'mp4' => 'video/mp4',
+            'mpg' => 'video/mpeg',
+            'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+            'odt' => 'application/vnd.oasis.opendocument.text',
+            'ogg' => 'application/ogg',
+            'ogv' => 'video/ogg',
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'psd' => 'application/photoshop',
+            'rar' => 'application/rar',
+            'svg' => 'image/svg+xml',
+            'txt' => 'text/plain',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'webm' => 'video/webm',
+            'wmv' => 'video/x-ms-wmv',
+            'zip' => 'application/zip',
+        ];
+        if (isset($_POST['token']) && hash_equals($_POST['token'], $this->getToken()) && isset($_FILES['uploadFile'])) {
+            if (!isset($_FILES['uploadFile']['error']) || is_array($_FILES['uploadFile']['error'])) {
+                $this->alert('danger', 'Invalid parameters.');
+                $this->redirect();
+            }
+            switch ($_FILES['uploadFile']['error']) {
+                case \UPLOAD_ERR_OK:
+                    break;
+                case \UPLOAD_ERR_NO_FILE:
+                    $this->alert('danger', 'No file selected.');
+                    $this->redirect();
+                    break;
+                case \UPLOAD_ERR_INI_SIZE:
+                case \UPLOAD_ERR_FORM_SIZE:
+                    $this->alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
+                    $this->redirect();
+                    break;
+                default:
+                    $this->alert('danger', 'Unknown error.');
+                    $this->redirect();
+            }
+            $mimeType = '';
+            if (class_exists('finfo')) {
+                $finfo = new \finfo(\FILEINFO_MIME_TYPE);
+                $mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
+            } elseif (function_exists('mime_content_type')) {
+                $mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
+            } else {
+                $nameExploded = explode('.', $_FILES['uploadFile']['name']);
+                $ext = strtolower(array_pop($nameExploded));
+                if (array_key_exists($ext, $allowedExtensions)) {
+                    $mimeType = $allowedExtensions[$ext];
+                }
+            }
+            if (array_search($mimeType, $allowedExtensions, true) === false) {
+                $this->alert('danger', 'File format is not allowed.');
+                $this->redirect();
+            }
+            if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
+                $this->alert('danger', 'Failed to move uploaded file.');
+            }
+            $this->alert('success', 'File uploaded.');
+            $this->redirect();
+        }
+    }
+
+    /**
+     * Get canonical URL
+     *
+     * @param string $location
+     * @return string
+     */
+    public static function url(string $location = ''): string
+    {
+        return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on')) || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on')) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+    }
+
+    /**
+     * Create the zip backup of all content
+     *
+     */
+    private function zipBackup(): void
+    {
+        if (!\extension_loaded('zip')) {
+            $this->alert('danger', 'ZIP extension is not loaded.');
+        }
+        $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
+        $zipPath = __DIR__ . '/data/files/' . $zipName;
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            $this->alert('danger', 'Cannot create ZIP archive.');
+        }
+        $iterator = new \RecursiveDirectoryIterator(__DIR__);
+        $iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
+        $files = new \RecursiveIteratorIterator($iterator, \RecursiveIteratorIterator::SELF_FIRST);
+        foreach ($files as $file) {
+            $file = \basename($file);
+            if (is_dir($file)) {
+                $zip->addEmptyDir($file);
+            } elseif (is_file($file)) {
+                $zip->addFile($file);
+            }
+        }
+        $zip->close();
+        $this->redirect('data/files/' . $zipName);
+    }
 }
-
-wCMS::init();
