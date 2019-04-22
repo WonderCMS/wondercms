@@ -5,19 +5,14 @@
  * @see https://www.wondercms.com - offical website
  * @license MIT
  */
-namespace Robiso\Wondercms;
 
 session_start();
 define('VERSION', '3.0.0');
 mb_internal_encoding('UTF-8');
 
-try {
-    $Wcms = new Wcms();
-    $Wcms->init();
-    $Wcms->render();
-} catch (Exception $e) {
-    echo $e->getMessage();
-}
+$Wcms = new Wcms();
+$Wcms->init();
+$Wcms->render();
 
 class Wcms
 {
@@ -48,14 +43,18 @@ class Wcms
     /** @var string $filesPath path to uploaded files */
     public $filesPath;
 
+   /** @var string $rootDir root dir of the install (where index.php is) */
+    public $rootDir;
+
     /**
      * Constructor
      *
      */
     public function __construct()
     {
-        $this->dbPath = __DIR__ . '/data/database.js';
-        $this->filesPath = __DIR__ . '/data/files';
+        $this->rootDir = __DIR__;
+        $this->dbPath = $this->rootDir . '/data/database.js';
+        $this->filesPath = $this->rootDir . '/data/files';
         $this->db = $this->getDb();
     }
 
@@ -440,8 +439,8 @@ EOT;
             if (hash_equals($_REQUEST['token'], $this->getToken())) {
                 $deleteList = [
                     [$this->filesPath, 'deleteFile'],
-                    [__DIR__ . '/themes', 'deleteTheme'],
-                    [__DIR__ . '/plugins', 'deletePlugin'],
+                    [$this->rootDir . '/themes', 'deleteTheme'],
+                    [$this->rootDir . '/plugins', 'deletePlugin'],
                 ];
                 foreach ($deleteList as $entry) {
                     list($folder, $request) = $entry;
@@ -643,15 +642,15 @@ EOT;
                 curl_exec($ch);
                 curl_close($ch);
                 $zip = new \ZipArchive;
-                $extractPath = __DIR__ . '/' . $installLocation . '/';
+                $extractPath = $this->rootDir . '/' . $installLocation . '/';
                 if ($zip->open($zipFile) != 'true' || (stripos($addonURL, '.zip') != true)) {
-                    $this->recursiveDelete(__DIR__ . '/data/files/ZIPFromURL.zip');
+                    $this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
                     $this->alert('danger', 'Error opening ZIP file.');
                     $this->redirect();
                 }
                 $zip->extractTo($extractPath);
                 $zip->close();
-                $this->recursiveDelete(__DIR__ . '/data/files/ZIPFromURL.zip');
+                $this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
                 $this->alert('success', 'Installed successfully.');
                 $this->redirect();
             } else {
@@ -688,13 +687,13 @@ EOT;
      */
     private function loadPlugins(): void
     {
-        if (!is_dir(__DIR__ . '/plugins')) {
-            mkdir(__DIR__ . '/plugins');
+        if (!is_dir($this->rootDir . '/plugins')) {
+            mkdir($this->rootDir . '/plugins');
         }
         if (!is_dir($this->filesPath)) {
             mkdir($this->filesPath);
         }
-        foreach (glob(__DIR__ . '/plugins/*', GLOB_ONLYDIR) as $dir) {
+        foreach (glob($this->rootDir . '/plugins/*', GLOB_ONLYDIR) as $dir) {
             if (file_exists($dir . '/' . basename($dir) . '.php')) {
                 include $dir . '/' . basename($dir) . '.php';
             }
@@ -708,10 +707,10 @@ EOT;
      */
     public function loadThemeAndFunctions(): void
     {
-        if (file_exists(__DIR__ . '/themes/' . $this->get('config', 'theme') . '/functions.php')) {
-            require_once __DIR__ . '/themes/' . $this->get('config', 'theme') . '/functions.php';
+        if (file_exists($this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php')) {
+            require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php';
         }
-        require_once __DIR__ . '/themes/' . $this->get('config', 'theme') . '/theme.php';
+        require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/theme.php';
     }
 
     private function loginAction(): void
@@ -729,7 +728,7 @@ EOT;
         if (password_verify($password, $this->get('config', 'password'))) {
             session_regenerate_id();
             $_SESSION['l'] = true;
-            $_SESSION['i'] = __DIR__;
+            $_SESSION['i'] = $this->rootDir;
             $this->redirect();
         }
         $this->alert('danger', 'Wrong password.');
@@ -743,7 +742,7 @@ EOT;
      */
     private function loginStatus(): void
     {
-        if (isset($_SESSION['l'], $_SESSION['i']) && $_SESSION['i'] == __DIR__) {
+        if (isset($_SESSION['l'], $_SESSION['i']) && $_SESSION['i'] == $this->rootDir) {
             $this->loggedIn = true;
         }
     }
@@ -815,7 +814,7 @@ EOT;
     {
         // check if content is 1 or -1 as only those values are acceptable
         if (!in_array($content, [1, -1])) {
-            throw new InvalidArgumentException('Bad content value.');
+            $this->alert('danger', 'Bad content value.');
         }
         $conf = 'config';
         $field = 'menuItems';
@@ -922,7 +921,7 @@ EOT;
                 }
             }
             if ($fieldname === 'theme') {
-                if (!is_dir(__DIR__ . '/themes/' . $content)) {
+                if (!is_dir($this->rootDir . '/themes/' . $content)) {
                     return;
                 }
             }
@@ -966,8 +965,8 @@ EOT;
             return '';
         }
         $fileList = array_slice(scandir($this->filesPath), 2);
-        $themeList = array_slice(scandir(__DIR__ . '/themes/'), 2);
-        $pluginList = array_slice(scandir(__DIR__ . '/plugins/'), 2);
+        $themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
+        $pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
         $output = '
         <div id="save">
             <h2>Saving...</h2>
@@ -1049,7 +1048,7 @@ EOT;
                              <div class="form-group">
                                 <div class="change">
                                     <select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-                                        foreach (glob(__DIR__ . '/themes/*', GLOB_ONLYDIR) as $dir) {
+                                        foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
                                             $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
                                         }
                                         $output .= '
@@ -1329,7 +1328,10 @@ EOT;
      */
     public static function url(string $location = ''): string
     {
-        return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on')) || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on')) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+        return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on'))
+        || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on'))
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80')
+        || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
     }
 
     /**
@@ -1342,12 +1344,12 @@ EOT;
             $this->alert('danger', 'ZIP extension is not loaded.');
         }
         $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
-        $zipPath = __DIR__ . '/data/files/' . $zipName;
+        $zipPath = $this->rootDir . '/data/files/' . $zipName;
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
             $this->alert('danger', 'Cannot create ZIP archive.');
         }
-        $iterator = new \RecursiveDirectoryIterator(__DIR__);
+        $iterator = new \RecursiveDirectoryIterator($this->rootDir);
         $iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
         $files = new \RecursiveIteratorIterator($iterator, \RecursiveIteratorIterator::SELF_FIRST);
         foreach ($files as $file) {
