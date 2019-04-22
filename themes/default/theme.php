@@ -57,7 +57,6 @@
                 <div class="col-lg-12 text-center padding40">
                     <?= $Wcms->block('subside') ?>
 
-                    <?php echo contact_form(); ?>
                 </div>
             </div>
         </div>
