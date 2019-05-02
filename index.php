@@ -2,7 +2,7 @@
 /**
  * @package WonderCMS
  * @author Robert Isoski
- * @see https://www.wondercms.com - offical website
+ * @see https://www.wondercms.com
  * @license MIT
  */
 
@@ -160,12 +160,15 @@ class Wcms
      */
     private function backupAction(): void
     {
-        if (!$this->loggedIn || !isset($_POST['backup'])) {
+        if (!$this->loggedIn) {
             return;
         }
-        $backupList = \glob($this->filesPath . '/*wcms-backup-*.zip');
+        $backupList = \glob($this->filesPath . '/*-backup-*.zip');
         if (!empty($backupList)) {
             $this->alert('danger', 'Delete backup files. (<i>Settings -> Files</i>)');
+        }
+        if (!isset($_POST['backup'])) {
+            return;
         }
         if (\hash_equals($_POST['token'], $this->getToken())) {
             $this->zipBackup();
@@ -237,7 +240,7 @@ class Wcms
     }
 
     /**
-     * Check if we can run the software properly
+     * Check if we can run WonderCMS properly
      * Executed once before creating the database file
      *
      * @param string $folder the relative path of the folder to check/create
@@ -256,7 +259,7 @@ class Wcms
     }
 
     /**
-     * Initialize the database if it's empty
+     * Initialize the JSON database if doesn't exist
      *
      * @return void
      */
@@ -265,7 +268,7 @@ class Wcms
         $password = $this->generatePassword();
         $this->db = (object) [
             'config' => [
-                'dbVersion' => '2.6.0',
+                'dbVersion' => '3.0.0',
                 'siteTitle' => 'Website title',
                 'theme' => 'default',
                 'defaultPage' => 'home',
@@ -401,7 +404,7 @@ class Wcms
         if ($this->loggedIn) {
             $styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<style>.alert{margin-bottom:0}div.editText{word-wrap:break-word;border:2px dashed #ccc;display:block}div.editText textarea{outline:0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color:#ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop5{margin-top:5px}.marginTop20{margin-top:20px}.marginLeft5{margin-left:5px}.padding20{padding:20px}.subTitle{color:#aaa;font-size:24px;margin:20px 0 5px;font-variant:all-small-caps}.menu-item-hide{color:#5bc0de}.menu-item-delete,.menu-item-hide,.menu-item-show{padding:0 10%}.tab-content{padding:20px}#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;text-align:left;font-variant:small-caps}#adminPanel .fas,.cursorPointer,div.editText{cursor:pointer}#adminPanel .btn{overflow:hidden;white-space:nowrap;display:inline-block;text-overflow:ellipsis}#adminPanel .fontSize21{font-size:21px}#adminPanel a{color:#aaa;outline:0;border:0;text-decoration:none}#adminPanel a.btn,#adminpanel .alert a{color:#fff}#adminPanel div.editText{color:#555;font-variant:normal}#adminPanel .normalFont{font-variant:normal}#adminPanel .nav-tabs{border-bottom:2px solid #ddd}#adminPanel .nav-tabs>li>a:after{content:"";background:#1ab;height:2px;position:absolute;width:100%;left:0;bottom:-2px;transition:all 250ms ease 0s;transform:scale(0)}#adminPanel .nav-tabs>li.active>a:after,#adminPanel .nav-tabs>li:hover>a,#adminPanel .nav-tabs>li:hover>a:after,#adminPanel .nav-tabs>li>a{transform:scale(1)}#adminPanel .nav-tabs>li>a.active{border-bottom:2px solid #1ab!important}#adminPanel .modal-content{background-color:#eee}#adminPanel .modal-header{border:0}#adminPanel .nav li{font-size:30px;float:none;display:inline-block},#adminPanel .tab-pane.active a.btn{color:#fff}#adminPanel .btn-info{background-color:#5bc0de;border-color:#5bc0de}#adminPanel .nav-link.active,#adminPanel .nav-tabs>li.active a,#adminPanel .tab-pane.active{background:0!important;border:0!important;color:#aaa!important}#adminPanel .clear{clear:both}@media(min-width:768px){#adminPanel .modal-xl{width:90%;max-width:1200px}}</style>
+<style>.alert{margin-bottom:0}div.editText{word-wrap:break-word;border:2px dashed #ccc;display:block}div.editText textarea{outline:0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color:#ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop5{margin-top:5px}.marginTop20{margin-top:20px}.marginLeft5{margin-left:5px}.padding20{padding:20px}.subTitle{color:#aaa;font-size:24px;margin:20px 0 5px;font-variant:all-small-caps}.menu-item-hide{color:#5bc0de}.menu-item-delete,.menu-item-hide,.menu-item-show{padding:0 10%}.tab-content{padding:20px}#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;text-align:left;font-variant:small-caps}#adminPanel .fas,.cursorPointer,div.editText{cursor:pointer}#adminPanel .btn{overflow:hidden;white-space:nowrap;display:inline-block;text-overflow:ellipsis}#adminPanel .fontSize21{font-size:21px}#adminPanel a{color:#aaa;outline:0;border:0;text-decoration:none}#adminPanel a.btn,#adminpanel .alert a{color:#fff}#adminPanel div.editText{color:#555;font-variant:normal}#adminPanel .normalFont{font-variant:normal;word-wrap:break-word}#adminPanel .nav-tabs{border-bottom:2px solid #ddd}#adminPanel .nav-tabs>li>a:after{content:"";background:#1ab;height:2px;position:absolute;width:100%;left:0;bottom:-2px;transition:all 250ms ease 0s;transform:scale(0)}#adminPanel .nav-tabs>li.active>a:after,#adminPanel .nav-tabs>li:hover>a,#adminPanel .nav-tabs>li:hover>a:after,#adminPanel .nav-tabs>li>a{transform:scale(1)}#adminPanel .nav-tabs>li>a.active{border-bottom:2px solid #1ab!important}#adminPanel .modal-content{background-color:#eee}#adminPanel .modal-header{border:0}#adminPanel .nav li{font-size:30px;float:none;display:inline-block},#adminPanel .tab-pane.active a.btn{color:#fff}#adminPanel .btn-info{background-color:#5bc0de;border-color:#5bc0de}#adminPanel .nav-link.active,#adminPanel .nav-tabs>li.active a,#adminPanel .tab-pane.active{background:0!important;border:0!important;color:#aaa!important}#adminPanel .clear{clear:both}@media(min-width:768px){#adminPanel .modal-xl{width:90%;max-width:1200px}}</style>
 EOT;
             return $this->hook('css', $styles)[0];
         }
@@ -581,7 +584,12 @@ EOT;
         return (string) $content;
     }
 
-    private function getMenuSettings()
+    /**
+     * Hook for menu settings
+     *
+     * @return string
+     */
+    private function getMenuSettings(): string
     {
         return $this->hook('getMenuSettings', $output)[0];
     }
@@ -596,6 +604,11 @@ EOT;
         return trim($this->getFileFromRepo('version'));
     }
 
+    /**
+     * Returns hooks from plugins
+     *
+     * @return array
+     */
     private function hook(): array
     {
         $numArgs = func_num_args();
@@ -613,6 +626,11 @@ EOT;
         return $args;
     }
 
+    /**
+     * Theme/plugin installer and updater
+     *
+     * @return string
+     */
     private function installThemePluginAction(): void
     {
         if (!$this->loggedIn && !isset($_POST['installAddon'])) {
@@ -674,7 +692,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
 <script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,token:token,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}$(document).tabOverride(!0,"textarea");var changing=!1;$(document).ready(function(){$("body").on("click","div.editText",function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+"_field\" onblur=\"fieldSave(a.attr('id'),this.value,a.data('target'),a.data('menu'),a.data('visibility'));\">"+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+"_field\" onblur=\"fieldSave(a.attr('id'),nl2br(this.value),a.data('target'),a.data('menu'),a.data('visibility'));\">"+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)}),$("body").on("click","i.menu-toggle",function(){var a=$(this),c=(setTimeout(function(){window.location.reload()},500),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide page from menu").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show page in menu").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}))}),$("body").on("click",".menu-item-add",function(){var newPage=prompt("Enter page name");if(!newPage)return!1;newPage=newPage.replace(/[`~;:'",.<>\{\}\[\]\\\/]/gi,"").trim(),$.post("",{fieldname:"menuItems",token:token,content:newPage,target:"menuItem",menu:"none",visibility:"show"},function(a){}).done(setTimeout(function(){window.location.reload()},500))}),$("body").on("click",".menu-item-up,.menu-item-down",function(){var a=$(this),b=a.hasClass("menu-item-up")?"-1":"1",c=a.attr("data-menu");$.post("",{fieldname:"menuItems",token:token,content:b,target:"menuItemOrder",menu:c,visibility:""},function(a){}).done(function(){$("#menuSettings").parent().load("index.php #menuSettings",{func:"getMenuSettings"})})})});</script>
 EOT;
-            $scripts .= '<script>var token = "' . $this->getToken() . '";</script>';
+            $scripts .= '<script>let token = "' . $this->getToken() . '";</script>';
             return $this->hook('js', $scripts)[0];
         }
         return $this->hook('js', '')[0];
@@ -701,7 +719,7 @@ EOT;
     }
 
     /**
-     * Loads theme file and also loads the functions.php (if it exists)
+     * Loads theme files and the functions.php file, if they exists
      *
      * @return void
      */
@@ -713,6 +731,11 @@ EOT;
         require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/theme.php';
     }
 
+    /**
+     * Hook for fetching custom menu settings
+     *
+     * @return void
+     */
     private function loginAction(): void
     {
         if ($this->currentPage !== $this->get('config', 'login')) {
@@ -747,11 +770,21 @@ EOT;
         }
     }
 
+    /**
+     * Admin login form view
+     *
+     * @return array
+     */
     public function loginView(): array
     {
         return ['title' => 'Login', 'description' => '', 'keywords' => '', 'content' => '<form action="' . self::url($this->get('config', 'login')) . '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Login</button></span></div></form>'];
     }
 
+    /**
+     * Logout action
+     *
+     * @return void
+     */
     private function logoutAction(): void
     {
         if ($this->currentPage === 'logout' && isset($_REQUEST['token']) && hash_equals($_REQUEST['token'], $this->getToken())) {
@@ -760,6 +793,11 @@ EOT;
         }
     }
 
+    /**
+     * Return menu items, if they are set to be visible
+     *
+     * @return void
+     */
     public function menu(): string
     {
         $output = '';
@@ -772,13 +810,22 @@ EOT;
         return $this->hook('menu', $output)[0];
     }
 
+    /**
+     * 404 header response
+     *
+     * @return void
+     */
     public function notFoundResponse(): void
     {
         if (!$this->loggedIn && !$this->currentPageExists) {
             header("HTTP/1.1 404 Not Found");
         }
     }
-
+    
+    /**
+     * Rturns 404 page to visitors
+     * Admin can create a page that doesn't exist yet
+     */
     public function notFoundView()
     {
         if ($this->loggedIn) {
@@ -787,6 +834,10 @@ EOT;
         return $this->get('pages', '404');
     }
 
+    /**
+     * Admin notifications
+     * Alerts for non-existent page, changing default settings, new version/update
+     */
     private function notifyAction(): void
     {
         if (!$this->loggedIn) {
@@ -823,16 +874,22 @@ EOT;
         // use clone to copy the object entirely
         $tmp = clone $this->get($conf, $field, $targetPosition);
         $move = $this->get($conf, $field, $menu);
-        // move the menu to new position
+        // move the menu item to new position
         $this->set($conf, $field, $targetPosition, 'name', $move->name);
         $this->set($conf, $field, $targetPosition, 'slug', $move->slug);
         $this->set($conf, $field, $targetPosition, 'visibility', $move->visibility);
-        // now write the other one in the previous position
+        // now write the other menu item to the previous position
         $this->set($conf, $field, $menu, 'name', $tmp->name);
         $this->set($conf, $field, $menu, 'slug', $tmp->slug);
         $this->set($conf, $field, $menu, 'visibility', $tmp->visibility);
     }
 
+    /**
+     * Return pages and display correct view (actual page or 404)
+     * Display different content and editable areas for admin
+     *
+     * @return string
+     */
     public function page(string $key): string
     {
         $segments = $this->currentPageExists ? $this->get('pages', $this->currentPage) : ($this->get('config', 'login') == $this->currentPage ? (object) $this->loginView() : (object) $this->notFoundView());
@@ -842,6 +899,11 @@ EOT;
         return $this->hook('page', $content, $key)[0];
     }
 
+    /**
+     * Page status (exists or doesn't exist)
+     *
+     * @return void
+     */
     private function pageStatus(): void
     {
         $this->currentPage = empty($this->parseUrl()) ? $this->get('config', 'defaultPage') : $this->parseUrl();
@@ -855,6 +917,11 @@ EOT;
         }
     }
 
+    /**
+     * URL parser
+     *
+     * @return string
+     */
     public function parseUrl(): string
     {
         if (isset($_GET['page']) && $_GET['page'] == $this->get('config', 'login')) {
@@ -863,6 +930,11 @@ EOT;
         return isset($_GET['page']) ? $this->slugify($_GET['page']) : '';
     }
 
+    /**
+     * Recursive delete - used for deleting files, themes, plugins
+     *
+     * @return void
+     */
     private function recursiveDelete($file): void
     {
         if (is_dir($file)) {
@@ -878,6 +950,11 @@ EOT;
         }
     }
 
+    /**
+     * Redirect to any URL
+     *
+     * @return void
+     */
     public function redirect(string $location = ''): void
     {
         header('Location: ' . self::url($location));
@@ -894,6 +971,11 @@ EOT;
         file_put_contents($this->dbPath, json_encode($this->db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     }
 
+    /**
+     * Saving menu items, default page, login URL, theme, editable content
+     *
+     * @return void
+     */
     private function saveAction(): void
     {
         if (!$this->loggedIn) {
@@ -937,7 +1019,12 @@ EOT;
             }
         }
     }
-
+    
+    /**
+     * Set something to database
+     *
+     * @return void
+     */
     public function set(): void
     {
         $numArgs = func_num_args();
@@ -959,6 +1046,11 @@ EOT;
         $this->save();
     }
 
+    /**
+     * Display the admin settings panel
+     *
+     * @return string
+     */
     public function settings(): string
     {
         if (!$this->loggedIn) {
@@ -1049,7 +1141,7 @@ EOT;
                                 <div class="change">
                                     <select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
                                         foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
-                                            $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme' . '</option>';
+                                            $output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme</option>';
                                         }
                                         $output .= '
                                     </select>
@@ -1061,8 +1153,14 @@ EOT;
                              </div>
                              <p class="subTitle">Page to display on homepage</p>
                              <div class="change">
-                                <div data-target="config" id="defaultPage" class="editText">' . $this->get('config', 'defaultPage') . '</div>
-                             </div>
+                                <select class="form-control" name="defaultPage" onchange="fieldSave(\'defaultPage\',this.value,\'config\');">';
+                                    $items = $this->get('config', 'menuItems');
+                                    foreach ($items as $key => $value) {
+                                       $output .= '<option value="' . $value->slug . '"' . ($value->slug == $this->get('config', 'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
+                                    }
+                                    $output .= '
+                                </select>
+                            </div>
                              <p class="subTitle">Footer</p>
                              <div class="change">
                                 <div data-target="blocks" id="footer" class="editText">' . ($this->get('blocks', 'footer')->content != '' ? $this->get('blocks', 'footer')->content : '') . '</div>
@@ -1180,6 +1278,12 @@ EOT;
         return $this->hook('settings', $output)[0];
     }
 
+    /**
+     * Slugify page
+     * 
+     * @param string $text for slugyfing
+     * @return void
+     */
     public function slugify(string $text): string
     {
         $text = preg_replace('~[^\\pL\d]+~u', '-', $text);
@@ -1191,6 +1295,7 @@ EOT;
     /**
      * Delete something from the database
      * Has variadic arguments
+     * 
      * @return void
      */
     public function unset(): void
@@ -1214,6 +1319,12 @@ EOT;
         $this->save();
     }
 
+    /**
+     * Update WonderCMS function
+     * Overwrites index.php with latest from GitHub
+     * 
+     * @return void
+     */
     private function updateAction(): void
     {
         if (!$this->loggedIn || !isset($_POST['update'])) {
@@ -1229,6 +1340,12 @@ EOT;
         }
     }
 
+    /**
+     * Update dbVersion parameter in database.js
+     * Overwrites dbVersion with latest WonderCMS version
+     * 
+     * @return void
+     */
     private function updateDBVersion(): void
     {
         if ($this->get('config', 'dbVersion') < self::VERSION) {
@@ -1236,6 +1353,12 @@ EOT;
         }
     }
 
+    /**
+     * Upload file to files folder
+     * List of allowed extensions
+     * 
+     * @return void
+     */
     private function uploadFileAction(): void
     {
         if (!$this->loggedIn && !isset($_FILES['uploadFile']) && !isset($_POST['token'])) {
@@ -1335,16 +1458,14 @@ EOT;
     }
 
     /**
-     * Create the zip backup of all content
-     *
+     * Create a ZIP backup of all content
+     * 
+     * @return void
      */
     private function zipBackup(): void
     {
-        if (!\extension_loaded('zip')) {
-            $this->alert('danger', 'ZIP extension is not loaded.');
-        }
-        $zipName = date('Y-m-d') . '-wcms-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
-        $zipPath = $this->rootDir . '/data/files/' . $zipName;
+        $zipName = date('Y-m-d') . '-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
+        $zipPath = $this->rootDir . $filesPath . '/'. $zipName;
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
             $this->alert('danger', 'Cannot create ZIP archive.');
@@ -1353,14 +1474,15 @@ EOT;
         $iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
         $files = new \RecursiveIteratorIterator($iterator, \RecursiveIteratorIterator::SELF_FIRST);
         foreach ($files as $file) {
-            $file = \basename($file);
+            $file = \realpath($file);
+            $source = \realpath($source);
             if (is_dir($file)) {
-                $zip->addEmptyDir($file);
+                $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
             } elseif (is_file($file)) {
-                $zip->addFile($file);
+                $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
             }
         }
         $zip->close();
-        $this->redirect('data/files/' . $zipName);
+        $this->redirect($filesPath . '/'.  $zipName);
     }
 }
