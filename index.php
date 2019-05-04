@@ -249,7 +249,7 @@ class Wcms
     private function checkFolder(string $folder): void
     {
         // check folder is here
-        if (!is_dir($folder) && !mkdir($folder, 0700) && !is_dir($folder)) {
+        if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
             $this->alert('danger', 'Could not create the data folder.');
         }
         // and check we can write to it
