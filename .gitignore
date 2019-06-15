@@ -1,5 +1,8 @@
-database.js
+data
 CONTRIBUTING.md
 license
 version
 .htaccess-ultimate
+phpunit
+themes
+!themes/default
