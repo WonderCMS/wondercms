@@ -12,7 +12,10 @@ mb_internal_encoding('UTF-8');
 
 $Wcms = new Wcms();
 $Wcms->init();
-$Wcms->render();
+
+if (defined('PHPUNIT_TESTING') === false) {
+    $Wcms->render();
+}
 
 class Wcms
 {
@@ -56,9 +59,20 @@ class Wcms
     public function __construct()
     {
         $this->rootDir = __DIR__;
-        $this->dbPath = $this->rootDir . '/data/database.js';
-        $this->filesPath = $this->rootDir . '/data/files';
+        $this->setPaths();
         $this->db = $this->getDb();
+    }
+
+    /**
+     * Setting default paths
+     * @param string $dataFolder
+     * @param string $filesFolder
+     * @param string $dbName
+     */
+    public function setPaths(string $dataFolder = 'data', string $filesFolder = 'files', string $dbName = 'database.js'): void
+    {
+        $this->dbPath = sprintf('%s/%s/%s', $this->rootDir, $dataFolder, $dbName);
+        $this->filesPath = sprintf('%s/%s/%s', $this->rootDir, $dataFolder, $filesFolder);
     }
 
     /**
@@ -775,7 +789,7 @@ EOT;
      *
      * @return void
      */
-    private function loginAction(): void
+    public function loginAction(): void
     {
         if ($this->currentPage !== $this->get('config', 'login')) {
             return;

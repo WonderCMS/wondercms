@@ -6,3 +6,5 @@ version
 phpunit
 themes
 !themes/default
+.phpunit.result.cache
+data_test
