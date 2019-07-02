@@ -10,14 +10,19 @@ session_start();
 define('VERSION', '3.0.0');
 mb_internal_encoding('UTF-8');
 
-$Wcms = new Wcms();
-$Wcms->init();
-$Wcms->render();
+if (defined('PHPUNIT_TESTING') === false) {
+	$Wcms = new Wcms();
+	$Wcms->init();
+	$Wcms->render();
+}
 
 class Wcms
 {
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters for password */
-	private const MIN_PASSWORD_LENGTH = 8;
+	public const MIN_PASSWORD_LENGTH = 8;
+
+	/** @var string WonderCMS repository URL */
+	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
 
 	/** @var string VERSION current version of WonderCMS */
 	public const VERSION = '3.0.0';
@@ -29,7 +34,7 @@ class Wcms
 	public $currentPageExists = false;
 
 	/** @var object $db content of the database.js */
-	private $db;
+	protected $db;
 
 	/** @var bool $loggedIn is the user logged in? */
 	public $loggedIn = false;
@@ -38,30 +43,44 @@ class Wcms
 	public $listeners = [];
 
 	/** @var string $dbPath path to database.js */
-	private $dbPath;
+	protected $dbPath;
 
 	/** @var string $filesPath path to uploaded files */
 	public $filesPath;
 
-   /** @var string $rootDir root dir of the install (where index.php is) */
+	/** @var string $rootDir root dir of the install (where index.php is) */
 	public $rootDir;
 
 	/**
 	 * Constructor
-	 *
 	 */
 	public function __construct()
 	{
 		$this->rootDir = __DIR__;
-		$this->dbPath = $this->rootDir . '/data/database.js';
-		$this->filesPath = $this->rootDir . '/data/files';
+		$this->setPaths();
 		$this->db = $this->getDb();
+	}
+
+	/**
+	 * Setting default paths
+	 * @param string $dataFolder
+	 * @param string $filesFolder
+	 * @param string $dbName
+	 */
+	public function setPaths(
+		string $dataFolder = 'data',
+		string $filesFolder = 'files',
+		string $dbName = 'database.js'
+	): void {
+		$this->dbPath = sprintf('%s/%s/%s', $this->rootDir, $dataFolder, $dbName);
+		$this->filesPath = sprintf('%s/%s/%s', $this->rootDir, $dataFolder, $filesFolder);
 	}
 
 	/**
 	 * Init function called on each page load
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function init(): void
 	{
@@ -86,7 +105,6 @@ class Wcms
 
 	/**
 	 * Display the HTML. Called after init()
-	 *
 	 * @return void
 	 */
 	public function render(): void
@@ -97,6 +115,8 @@ class Wcms
 	/**
 	 * Function used by plugins to add a hook
 	 *
+	 * @param string $hook
+	 * @param string $functionName
 	 */
 	public function addListener(string $hook, string $functionName): void
 	{
@@ -115,7 +135,7 @@ class Wcms
 	{
 		if (isset($_SESSION['alert'][$class])) {
 			foreach ($_SESSION['alert'][$class] as $v) {
-				if ($v['message'] == $message) {
+				if ($v['message'] === $message) {
 					return;
 				}
 			}
@@ -125,7 +145,6 @@ class Wcms
 
 	/**
 	 * Display alert message to the user
-	 *
 	 * @return string
 	 */
 	public function alerts(): string
@@ -136,7 +155,13 @@ class Wcms
 		$output = '';
 		foreach ($_SESSION['alert'] as $alertClass) {
 			foreach ($alertClass as $alert) {
-				$output .= '<div class="alert alert-' . $alert['class'] . (!$alert['sticky'] ? ' alert-dismissible' : '') . '">' . (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '') . $alert['message'] . '</div>';
+				$output .= '<div class="alert alert-'
+					. $alert['class']
+					. (!$alert['sticky'] ? ' alert-dismissible' : '')
+					. '">'
+					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '')
+					. $alert['message']
+					. '</div>';
 			}
 		}
 		unset($_SESSION['alert']);
@@ -146,6 +171,7 @@ class Wcms
 	/**
 	 * Get an asset (returns URL of the asset)
 	 *
+	 * @param string $location
 	 * @return string
 	 */
 	public function asset(string $location): string
@@ -157,48 +183,46 @@ class Wcms
 	 * Backup whole WonderCMS installation
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	private function backupAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
 		}
-		$backupList = \glob($this->filesPath . '/*-backup-*.zip');
+		$backupList = glob($this->filesPath . '/*-backup-*.zip');
 		if (!empty($backupList)) {
 			$this->alert('danger', 'Delete backup files. (<i>Settings -> Files</i>)');
 		}
 		if (!isset($_POST['backup'])) {
 			return;
 		}
-		if (\hash_equals($_POST['token'], $this->getToken())) {
+		if ($this->hashVerify($_POST['token'])) {
 			$this->zipBackup();
 		}
 	}
 
 	/**
 	 * Replace the .htaccess with one adding security settings
-	 *
 	 * @return void
 	 */
 	private function betterSecurityAction(): void
 	{
-		if ($this->loggedIn && isset($_POST['betterSecurity']) && isset($_POST['token'])) {
-			if (hash_equals($_POST['token'], $this->getToken())) {
-				if ($_POST['betterSecurity'] == 'on') {
-					$contents = $this->getFileFromRepo('.htaccess-ultimate');
-					if ($contents) {
-						file_put_contents('.htaccess', trim($contents));
-					}
-					$this->alert('success', 'Better security turned ON.');
-					$this->redirect();
-				} elseif ($_POST['betterSecurity'] == 'off') {
-					$contents = $this->getFileFromRepo('.htaccess');
-					if ($contents) {
-						file_put_contents('.htaccess', trim($contents));
-					}
-					$this->alert('success', 'Better security turned OFF.');
-					$this->redirect();
+		if (isset($_POST['betterSecurity'], $_POST['token'])
+			&& $this->loggedIn
+			&& $this->hashVerify($_POST['token'])) {
+			if ($_POST['betterSecurity'] === 'on') {
+				if ($contents = $this->getFileFromRepo('.htaccess-ultimate')) {
+					file_put_contents('.htaccess', trim($contents));
 				}
+				$this->alert('success', 'Better security turned ON.');
+				$this->redirect();
+			} elseif ($_POST['betterSecurity'] === 'off') {
+				if ($contents = $this->getFileFromRepo('.htaccess')) {
+					file_put_contents('.htaccess', trim($contents));
+				}
+				$this->alert('success', 'Better security turned OFF.');
+				$this->redirect();
 			}
 		}
 	}
@@ -212,30 +236,33 @@ class Wcms
 	public function block(string $key): string
 	{
 		$blocks = $this->get('blocks');
-		return isset($blocks->{$key}) ? ($this->loggedIn ? $this->editable($key, $blocks->{$key}->content, 'blocks') : $blocks->{$key}->content) : '';
+		return isset($blocks->{$key})
+			? ($this->loggedIn ? $this->editable($key, $blocks->{$key}->content, 'blocks') : $blocks->{$key}->content)
+			: '';
 	}
 
 	/**
 	 * Change password
-	 *
 	 * @return void
 	 */
-	private function changePasswordAction(): void
+	public function changePasswordAction(): void
 	{
-		if ($this->loggedIn && isset($_POST['old_password']) && isset($_POST['new_password'])) {
-			if ($_SESSION['token'] === $_POST['token'] && hash_equals($_POST['token'], $this->getToken())) {
-				if (!password_verify($_POST['old_password'], $this->get('config', 'password'))) {
-					$this->alert('danger', 'Wrong password.');
-					$this->redirect();
-				}
-				if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
-					$this->alert('danger', sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
-					$this->redirect();
-				}
-				$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-				$this->alert('success', 'Password changed.');
+		if (isset($_POST['old_password'], $_POST['new_password'])
+			&& $this->loggedIn
+			&& $_SESSION['token'] === $_POST['token']
+			&& $this->hashVerify($_POST['token'])) {
+			if (!password_verify($_POST['old_password'], $this->get('config', 'password'))) {
+				$this->alert('danger', 'Wrong password.');
 				$this->redirect();
 			}
+			if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
+				$this->alert('danger',
+					sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
+				$this->redirect();
+			}
+			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
+			$this->alert('success', 'Password changed.');
+			$this->redirect();
 		}
 	}
 
@@ -248,11 +275,9 @@ class Wcms
 	 */
 	private function checkFolder(string $folder): void
 	{
-		// check folder is here
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
 			$this->alert('danger', 'Could not create the data folder.');
 		}
-		// and check we can write to it
 		if (!is_writable($folder)) {
 			$this->alert('danger', 'Could write to the data folder.');
 		}
@@ -260,13 +285,12 @@ class Wcms
 
 	/**
 	 * Initialize the JSON database if doesn't exist
-	 *
 	 * @return void
 	 */
 	private function createDb(): void
 	{
 		$password = $this->generatePassword();
-		$this->db = (object) [
+		$this->db = (object)[
 			'config' => [
 				'dbVersion' => '3.0.0',
 				'siteTitle' => 'Website title',
@@ -346,19 +370,19 @@ class Wcms
 		$conf = 'config';
 		$field = 'menuItems';
 		$exist = is_numeric($menu);
-		$content = empty($content) ? "empty" : str_replace(array(PHP_EOL, '<br>'), '', $content);
+		$content = empty($content) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $content);
 		$slug = $this->slugify($content);
 		$menuCount = count(get_object_vars($this->get($conf, $field)));
 		if (!$exist) {
 			$db = $this->getDb();
 			foreach ($db->config->{$field} as $value) {
-				if ($value->slug == $slug) {
-					$slug .= "-" . $menuCount;
+				if ($value->slug === $slug) {
+					$slug .= '-' . $menuCount;
 				}
 			}
 			$db->config->{$field}->{$menuCount} = new \stdClass;
 			$this->save();
-			$this->set($conf, $field, $menuCount, 'name', str_replace("-", " ", $content));
+			$this->set($conf, $field, $menuCount, 'name', str_replace('-', ' ', $content));
 			$this->set($conf, $field, $menuCount, 'slug', $slug);
 			$this->set($conf, $field, $menuCount, 'visibility', $visibility);
 			if ($menu) {
@@ -382,21 +406,25 @@ class Wcms
 	 * @param string $slug the name of the page in URL
 	 * @return void
 	 */
-	private function createPage($slug = '')
+	private function createPage($slug = ''): void
 	{
-		$this->db->pages->{(!$slug) ? $this->currentPage : $slug} = new \stdClass;
+		$this->db->pages->{$slug ?: $this->currentPage} = new \stdClass;
 		$this->save();
-		$this->set('pages', (!$slug) ? $this->slugify($this->currentPage) : $slug, 'title', (!$slug) ? mb_convert_case(str_replace("-", " ", $this->currentPage), MB_CASE_TITLE) : mb_convert_case(str_replace("-", " ", $slug), MB_CASE_TITLE));
-		$this->set('pages', (!$slug) ? $this->slugify($this->currentPage) : $slug, 'keywords', 'Keywords, are, good, for, search, engines');
-		$this->set('pages', (!$slug) ? $this->slugify($this->currentPage) : $slug, 'description', 'A short description is also good.');
+		$pageName = $slug ?: $this->slugify($this->currentPage);
+		$this->set('pages', $pageName, 'title', (!$slug)
+			? mb_convert_case(str_replace('-', ' ', $this->currentPage), MB_CASE_TITLE)
+			: mb_convert_case(str_replace('-', ' ', $slug), MB_CASE_TITLE));
+		$this->set('pages', $pageName, 'keywords',
+			'Keywords, are, good, for, search, engines');
+		$this->set('pages', $pageName, 'description',
+			'A short description is also good.');
 		if (!$slug) {
-			$this->createMenuItem($this->slugify($this->currentPage), '', "show");
+			$this->createMenuItem($this->slugify($this->currentPage), '');
 		}
 	}
 
 	/**
 	 * Inject CSS into page
-	 *
 	 * @return string
 	 */
 	public function css(): string
@@ -404,7 +432,7 @@ class Wcms
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<style>.alert{margin-bottom:0}div.editText{word-wrap:break-word;border:2px dashed #ccc;display:block}div.editText textarea{outline:0;border:none;width:100%;resize:none;color:inherit;font-size:inherit;font-family:inherit;background-color:transparent;overflow:hidden;box-sizing:content-box}div.editText:empty{min-height:20px}#save{color:#ccc;left:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448}.change{padding-left:15px}.marginTop5{margin-top:5px}.marginTop20{margin-top:20px}.marginLeft5{margin-left:5px}.padding20{padding:20px}.subTitle{color:#aaa;font-size:24px;margin:20px 0 5px;font-variant:all-small-caps}.menu-item-hide{color:#5bc0de}.menu-item-delete,.menu-item-hide,.menu-item-show{padding:0 10%}.tab-content{padding:20px}#adminPanel{background:#e5e5e5;color:#aaa;font-family:"Lucida Sans Unicode",Verdana;font-size:14px;text-align:left;font-variant:small-caps}#adminPanel .fas,.cursorPointer,div.editText{cursor:pointer}#adminPanel .btn{overflow:hidden;white-space:nowrap;display:inline-block;text-overflow:ellipsis}#adminPanel .fontSize21{font-size:21px}#adminPanel a{color:#aaa;outline:0;border:0;text-decoration:none}#adminPanel a.btn,#adminpanel .alert a{color:#fff}#adminPanel div.editText{color:#555;font-variant:normal}#adminPanel .normalFont{font-variant:normal;word-wrap:break-word}#adminPanel .nav-tabs{border-bottom:2px solid #ddd}#adminPanel .nav-tabs>li>a:after{content:"";background:#1ab;height:2px;position:absolute;width:100%;left:0;bottom:-2px;transition:all 250ms ease 0s;transform:scale(0)}#adminPanel .nav-tabs>li.active>a:after,#adminPanel .nav-tabs>li:hover>a,#adminPanel .nav-tabs>li:hover>a:after,#adminPanel .nav-tabs>li>a{transform:scale(1)}#adminPanel .nav-tabs>li>a.active{border-bottom:2px solid #1ab!important}#adminPanel .modal-content{background-color:#eee}#adminPanel .modal-header{border:0}#adminPanel .nav li{font-size:30px;float:none;display:inline-block},#adminPanel .tab-pane.active a.btn{color:#fff}#adminPanel .btn-info{background-color:#5bc0de;border-color:#5bc0de}#adminPanel .nav-link.active,#adminPanel .nav-tabs>li.active a,#adminPanel .tab-pane.active{background:0!important;border:0!important;color:#aaa!important}#adminPanel .clear{clear:both}@media(min-width:768px){#adminPanel .modal-xl{width:90%;max-width:1200px}}</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-files/wcms-admin.min.css" integrity="sha384-YmJRsgYqoll4KFTAbspI00K2gBpzVlEG9SFgK43fioyklBEdaCRuy+lXTWxSqam7" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -413,24 +441,22 @@ EOT;
 
 	/**
 	 * Get content of the database
-	 *
-	 * @return object
+	 * @return stdClass
 	 */
-	public function getDb()
+	public function getDb(): stdClass
 	{
 		// initialize the database if it doesn't exist yet
-		if (!\file_exists($this->dbPath)) {
+		if (!file_exists($this->dbPath)) {
 			// this code basically only runs one time, on first page load: install time
 			$this->checkFolder(dirname($this->dbPath));
 			$this->checkFolder($this->filesPath);
 			$this->createDb();
 		}
-		return \json_decode(\file_get_contents($this->dbPath));
+		return json_decode(file_get_contents($this->dbPath));
 	}
 
 	/**
 	 * Delete theme
-	 *
 	 * @return void
 	 */
 	private function deleteFileThemePluginAction(): void
@@ -438,29 +464,30 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']) && isset($_REQUEST['token'])) {
-			if (hash_equals($_REQUEST['token'], $this->getToken())) {
-				$deleteList = [
-					[$this->filesPath, 'deleteFile'],
-					[$this->rootDir . '/themes', 'deleteTheme'],
-					[$this->rootDir . '/plugins', 'deletePlugin'],
-				];
-				foreach ($deleteList as $entry) {
-					list($folder, $request) = $entry;
-					$filename = isset($_REQUEST[$request]) ? str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST[$request])) : false;
-					if (!$filename || empty($filename)) {
-						continue;
-					}
-					if ($filename == $this->get('config', 'theme')) {
-						$this->alert('danger', 'Cannot delete currently active theme.');
-						$this->redirect();
-						continue;
-					}
-					if (file_exists("{$folder}/{$filename}")) {
-						$this->recursiveDelete("{$folder}/{$filename}");
-						$this->alert('success', "Deleted {$filename}.");
-						$this->redirect();
-					}
+		if ((isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']))
+			&& isset($_REQUEST['token'])
+			&& $this->hashVerify($_REQUEST['token'])) {
+			$deleteList = [
+				[$this->filesPath, 'deleteFile'],
+				[$this->rootDir . '/themes', 'deleteTheme'],
+				[$this->rootDir . '/plugins', 'deletePlugin'],
+			];
+			foreach ($deleteList as [$folder, $request]) {
+				$filename = isset($_REQUEST[$request])
+					? str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST[$request]))
+					: false;
+				if (!$filename || empty($filename)) {
+					continue;
+				}
+				if ($filename === $this->get('config', 'theme')) {
+					$this->alert('danger', 'Cannot delete currently active theme.');
+					$this->redirect();
+					continue;
+				}
+				if (file_exists("{$folder}/{$filename}")) {
+					$this->recursiveDelete("{$folder}/{$filename}");
+					$this->alert('success', "Deleted {$filename}.");
+					$this->redirect();
 				}
 			}
 		}
@@ -469,21 +496,24 @@ EOT;
 	/**
 	 * Delete page
 	 *
+	 * @param bool $needle
+	 * @param bool $menu
 	 * @return void
 	 */
-	private function deletePageAction(bool $needle = false, bool $menu = true)
+	private function deletePageAction(bool $needle = false, bool $menu = true): void
 	{
-		if (!$needle) {
-			if ($this->loggedIn && isset($_GET['delete']) && hash_equals($_REQUEST['token'], $this->getToken())) {
-				$needle = $_GET['delete'];
-			}
+		if (!$needle
+			&& $this->loggedIn
+			&& isset($_GET['delete'])
+			&& $this->hashVerify($_REQUEST['token'])) {
+			$needle = $_GET['delete'];
 		}
 		if (isset($this->get('pages')->{$needle})) {
 			unset($this->db->pages->{$needle});
 		}
 		if ($menu) {
 			$menuItems = json_decode(json_encode($this->get('config', 'menuItems')), true);
-			if (false === ($index = array_search($needle, array_column($menuItems, "slug")))) {
+			if (false === ($index = array_search($needle, array_column($menuItems, 'slug')))) {
 				return;
 			}
 			unset($menuItems[$index]);
@@ -505,23 +535,24 @@ EOT;
 	 */
 	public function editable(string $id, string $content, string $dataTarget = ''): string
 	{
-		return '<div' . ($dataTarget != '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
+		return '<div' . ($dataTarget !== '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
 	}
 
 	/**
 	 * Get the footer
-	 *
 	 * @return string
 	 */
 	public function footer(): string
 	{
-		$output = $this->get('blocks', 'footer')->content . (!$this->loggedIn ? (($this->get('config', 'login') == 'loginURL') ? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>' : '') : '');
+		$output = $this->get('blocks', 'footer')->content . (!$this->loggedIn
+				? (($this->get('config',
+						'login') === 'loginURL') ? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>' : '')
+				: '');
 		return $this->hook('footer', $output)[0];
 	}
 
 	/**
 	 * Generate random password
-	 *
 	 * @return string
 	 */
 	private function generatePassword(): string
@@ -532,17 +563,15 @@ EOT;
 
 	/**
 	 * Get CSRF token
-	 *
 	 * @return string
 	 */
 	public function getToken(): string
 	{
-		return (isset($_SESSION["token"])) ? $_SESSION["token"] : $_SESSION["token"] = bin2hex(openssl_random_pseudo_bytes(32));
+		return $_SESSION['token'] ?? $_SESSION['token'] = bin2hex(openssl_random_pseudo_bytes(32));
 	}
 
 	/**
 	 * Get something from the database
-	 *
 	 */
 	public function get()
 	{
@@ -570,33 +599,20 @@ EOT;
 	 */
 	public function getFileFromRepo(string $file): string
 	{
-		$repoUrl = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_URL, $repoUrl . $file);
+		curl_setopt($ch, CURLOPT_URL, self::WCMS_REPO . $file);
 		$content = curl_exec($ch);
-		if ($content === false) {
+		if (false === $content) {
 			$this->alert('danger', 'Cannot get content from repository.');
 		}
 		curl_close($ch);
-		// cast to string because curl_exec() can return true
-		// but it won't because of CURLOPT_RETURNTRANSFER
-		return (string) $content;
-	}
 
-	/**
-	 * Hook for menu settings
-	 *
-	 * @return string
-	 */
-	private function getMenuSettings(): string
-	{
-		return $this->hook('getMenuSettings', $output)[0];
+		return (string)$content;
 	}
 
 	/**
 	 * Get the latest version from master branch on GitHub
-	 *
 	 * @return string
 	 */
 	private function getOfficialVersion(): string
@@ -605,8 +621,18 @@ EOT;
 	}
 
 	/**
-	 * Returns hooks from plugins
+	 * Checks token with hash_equals
 	 *
+	 * @param string $token
+	 * @return bool
+	 */
+	private function hashVerify(string $token): bool
+	{
+		return hash_equals($token, $this->getToken());
+	}
+
+	/**
+	 * Returns hooks from plugins
 	 * @return array
 	 */
 	private function hook(): array
@@ -628,8 +654,7 @@ EOT;
 
 	/**
 	 * Theme/plugin installer and updater
-	 *
-	 * @return string
+	 * @return void
 	 */
 	private function installThemePluginAction(): void
 	{
@@ -637,22 +662,22 @@ EOT;
 			return;
 		}
 
-		if (hash_equals($_POST['token'], $this->getToken())) {
+		if ($this->hashVerify($_POST['token'])) {
 			if (isset($_POST['installLocation'])) {
-				$installLocation = trim(strtolower($_POST['installLocation']));
+				$installLocation = strtolower(trim($_POST['installLocation']));
 				$addonURL = $_POST['addonURL'];
-				$validPaths = array('themes', 'plugins');
+				$validPaths = ['themes', 'plugins'];
 			} else {
 				$this->alert('danger', 'Choose between theme or plugin.');
 				$this->redirect();
 			}
-			if(empty($addonURL)) {
+			if (empty($addonURL)) {
 				$this->alert('danger', 'Invalid theme/plugin URL.');
 				$this->redirect();
 			}
 			if (in_array($installLocation, $validPaths)) {
 				$zipFile = $this->filesPath . '/ZIPFromURL.zip';
-				$zipResource = fopen($zipFile, "w");
+				$zipResource = fopen($zipFile, 'w');
 				$ch = curl_init();
 				curl_setopt($ch, CURLOPT_URL, $addonURL);
 				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -661,7 +686,7 @@ EOT;
 				curl_close($ch);
 				$zip = new \ZipArchive;
 				$extractPath = $this->rootDir . '/' . $installLocation . '/';
-				if ($zip->open($zipFile) != 'true' || (stripos($addonURL, '.zip') != true)) {
+				if ($zip->open($zipFile) !== true || (stripos($addonURL, '.zip') === false)) {
 					$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
 					$this->alert('danger', 'Error opening ZIP file.');
 					$this->redirect();
@@ -671,16 +696,14 @@ EOT;
 				$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
 				$this->alert('success', 'Installed successfully.');
 				$this->redirect();
-			} else {
-				$this->alert('danger', 'Enter URL to ZIP file.');
-				$this->redirect();
 			}
+			$this->alert('danger', 'Enter URL to ZIP file.');
+			$this->redirect();
 		}
 	}
 
 	/**
 	 * Insert JS if the user is logged in
-	 *
 	 * @return string
 	 */
 	public function js(): string
@@ -690,7 +713,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script>function nl2br(a){return(a+"").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g,"$1<br>$2")}function fieldSave(a,b,c,d,e){$("#save").show(),$.post("",{fieldname:a,token:token,content:b,target:c,menu:d,visibility:e},function(a){}).always(function(){window.location.reload()})}$(document).tabOverride(!0,"textarea");var changing=!1;$(document).ready(function(){$("body").on("click","div.editText",function(){changing||(a=$(this),title=a.attr("title")?title='"'+a.attr("title")+'" ':"",a.hasClass("editable")?a.html("<textarea "+title+' id="'+a.attr("id")+"_field\" onblur=\"fieldSave(a.attr('id'),this.value,a.data('target'),a.data('menu'),a.data('visibility'));\">"+a.html()+"</textarea>"):a.html("<textarea "+title+' id="'+a.attr("id")+"_field\" onblur=\"fieldSave(a.attr('id'),nl2br(this.value),a.data('target'),a.data('menu'),a.data('visibility'));\">"+a.html().replace(/<br>/gi,"\n")+"</textarea>"),a.children(":first").focus(),autosize($("textarea")),changing=!0)}),$("body").on("click","i.menu-toggle",function(){var a=$(this),c=(setTimeout(function(){window.location.reload()},500),a.attr("data-menu"));a.hasClass("menu-item-hide")?(a.removeClass("glyphicon-eye-open menu-item-hide").addClass("glyphicon-eye-close menu-item-show"),a.attr("title","Hide page from menu").attr("data-visibility","hide"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"hide"},function(a){})):a.hasClass("menu-item-show")&&(a.removeClass("glyphicon-eye-close menu-item-show").addClass("glyphicon-eye-open menu-item-hide"),a.attr("title","Show page in menu").attr("data-visibility","show"),$.post("",{fieldname:"menuItems",token:token,content:" ",target:"menuItemVsbl",menu:c,visibility:"show"},function(a){}))}),$("body").on("click",".menu-item-add",function(){var newPage=prompt("Enter page name");if(!newPage)return!1;newPage=newPage.replace(/[`~;:'",.<>\{\}\[\]\\\/]/gi,"").trim(),$.post("",{fieldname:"menuItems",token:token,content:newPage,target:"menuItem",menu:"none",visibility:"show"},function(a){}).done(setTimeout(function(){window.location.reload()},500))}),$("body").on("click",".menu-item-up,.menu-item-down",function(){var a=$(this),b=a.hasClass("menu-item-up")?"-1":"1",c=a.attr("data-menu");$.post("",{fieldname:"menuItems",token:token,content:b,target:"menuItemOrder",menu:c,visibility:""},function(a){}).done(function(){$("#menuSettings").parent().load("index.php #menuSettings",{func:"getMenuSettings"})})})});</script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.2/wcms-admin.min.js" integrity="sha384-8UGfrafhPEcVc2EA31dY+HCuGEg4oQQWC4zA1BH4XdyBKX/BFtty01yTCUklqokk" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>let token = "' . $this->getToken() . '";</script>';
 			return $this->hook('js', $scripts)[0];
@@ -700,18 +723,18 @@ EOT;
 
 	/**
 	 * Load plugins (if they exist)
-	 *
 	 * @return void
 	 */
 	private function loadPlugins(): void
 	{
-		if (!is_dir($this->rootDir . '/plugins')) {
-			mkdir($this->rootDir . '/plugins');
+		$plugins = $this->rootDir . '/plugins';
+		if (!is_dir($plugins) && !mkdir($plugins) && !is_dir($plugins)) {
+			return;
 		}
-		if (!is_dir($this->filesPath)) {
-			mkdir($this->filesPath);
+		if (!is_dir($this->filesPath) && !mkdir($this->filesPath) && !is_dir($this->filesPath)) {
+			return;
 		}
-		foreach (glob($this->rootDir . '/plugins/*', GLOB_ONLYDIR) as $dir) {
+		foreach (glob($plugins . '/*', GLOB_ONLYDIR) as $dir) {
 			if (file_exists($dir . '/' . basename($dir) . '.php')) {
 				include $dir . '/' . basename($dir) . '.php';
 			}
@@ -720,23 +743,22 @@ EOT;
 
 	/**
 	 * Loads theme files and the functions.php file, if they exists
-	 *
 	 * @return void
 	 */
 	public function loadThemeAndFunctions(): void
 	{
-		if (file_exists($this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php')) {
-			require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/functions.php';
+		$location = $this->rootDir . '/themes/' . $this->get('config', 'theme');
+		if (file_exists($location . '/functions.php')) {
+			require_once $location . '/functions.php';
 		}
-		require_once $this->rootDir . '/themes/' . $this->get('config', 'theme') . '/theme.php';
+		require_once $location . '/theme.php';
 	}
 
 	/**
 	 * Hook for fetching custom menu settings
-	 *
 	 * @return void
 	 */
-	private function loginAction(): void
+	public function loginAction(): void
 	{
 		if ($this->currentPage !== $this->get('config', 'login')) {
 			return;
@@ -747,11 +769,11 @@ EOT;
 		if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 			return;
 		}
-		$password = isset($_POST['password']) ? $_POST['password'] : '';
+		$password = $_POST['password'] ?? '';
 		if (password_verify($password, $this->get('config', 'password'))) {
 			session_regenerate_id();
-			$_SESSION['l'] = true;
-			$_SESSION['i'] = $this->rootDir;
+			$_SESSION['loggedIn'] = true;
+			$_SESSION['rootDir'] = $this->rootDir;
 			$this->redirect();
 		}
 		$this->alert('danger', 'Wrong password.');
@@ -760,43 +782,46 @@ EOT;
 
 	/**
 	 * Check if the user is logged in
-	 *
 	 * @return void
 	 */
-	private function loginStatus(): void
+	public function loginStatus(): void
 	{
-		if (isset($_SESSION['l'], $_SESSION['i']) && $_SESSION['i'] == $this->rootDir) {
-			$this->loggedIn = true;
-		}
+		$this->loggedIn = isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
 	}
 
 	/**
 	 * Admin login form view
-	 *
 	 * @return array
 	 */
 	public function loginView(): array
 	{
-		return ['title' => 'Login', 'description' => '', 'keywords' => '', 'content' => '<form action="' . self::url($this->get('config', 'login')) . '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Login</button></span></div></form>'];
+		return [
+			'title' => 'Login',
+			'description' => '',
+			'keywords' => '',
+			'content' => '<form action="'
+				. self::url($this->get('config', 'login'))
+				. '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Login</button></span></div></form>'
+		];
 	}
 
 	/**
 	 * Logout action
-	 *
 	 * @return void
 	 */
-	private function logoutAction(): void
+	public function logoutAction(): void
 	{
-		if ($this->currentPage === 'logout' && isset($_REQUEST['token']) && hash_equals($_REQUEST['token'], $this->getToken())) {
-			unset($_SESSION['l'], $_SESSION['i'], $_SESSION['token']);
+		if ($this->currentPage === 'logout'
+			&& isset($_REQUEST['token'])
+			&& $this->hashVerify($_REQUEST['token'])) {
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token']);
 			$this->redirect();
 		}
 	}
 
 	/**
 	 * Return menu items, if they are set to be visible
-	 *
-	 * @return void
+	 * @return string
 	 */
 	public function menu(): string
 	{
@@ -805,31 +830,38 @@ EOT;
 			if ($item->visibility === 'hide') {
 				continue;
 			}
-			$output .= '<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . 'nav-item"><a class="nav-link" href="' . self::url($item->slug) . '">' . $item->name . '</a></li>';
+			$output .=
+				'<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . 'nav-item">
+					<a class="nav-link" href="' . self::url($item->slug) . '">' . $item->name . '</a>
+				</li>';
 		}
 		return $this->hook('menu', $output)[0];
 	}
 
 	/**
 	 * 404 header response
-	 *
 	 * @return void
 	 */
 	public function notFoundResponse(): void
 	{
 		if (!$this->loggedIn && !$this->currentPageExists) {
-			header("HTTP/1.1 404 Not Found");
+			header('HTTP/1.1 404 Not Found');
 		}
 	}
-	
+
 	/**
-	 * Rturns 404 page to visitors
+	 * Returns 404 page to visitors
 	 * Admin can create a page that doesn't exist yet
 	 */
 	public function notFoundView()
 	{
 		if ($this->loggedIn) {
-			return ['title' => str_replace("-", " ", $this->currentPage), 'description' => '', 'keywords' => '', 'content' => '<h2>Click to create content</h2>'];
+			return [
+				'title' => str_replace('-', ' ', $this->currentPage),
+				'description' => '',
+				'keywords' => '',
+				'content' => '<h2>Click to create content</h2>'
+			];
 		}
 		return $this->get('pages', '404');
 	}
@@ -837,6 +869,7 @@ EOT;
 	/**
 	 * Admin notifications
 	 * Alerts for non-existent page, changing default settings, new version/update
+	 * @return void
 	 */
 	private function notifyAction(): void
 	{
@@ -844,13 +877,27 @@ EOT;
 			return;
 		}
 		if (!$this->currentPageExists) {
-			$this->alert('info', '<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.');
+			$this->alert(
+				'info',
+				'<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.'
+			);
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
 			$this->alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
 		}
 		if ($this->getOfficialVersion() > self::VERSION) {
-			$this->alert('info', '<h4><b>New WonderCMS update available</b></h4>- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.<form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5"><button type="submit" class="btn btn-info" name="backup">Download backup</button><div class="clear"></div><button class="btn btn-info marginTop5" name="update">Update WonderCMS ' . self::VERSION . ' to ' . $this->getOfficialVersion() . '</button><input type="hidden" name="token" value="' . $this->getToken() . '"></form>', true);
+			$this->alert(
+				'info',
+				'<h4><b>New WonderCMS update available</b></h4>
+						- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.
+						 <form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5">
+							<button type="submit" class="btn btn-info" name="backup">Download backup</button>
+							<div class="clear"></div>
+							<button class="btn btn-info marginTop5" name="update">Update WonderCMS ' . self::VERSION . ' to ' . $this->getOfficialVersion() . '</button>
+							<input type="hidden" name="token" value="' . $this->getToken() . '">
+						</form>',
+				true
+			);
 		}
 	}
 
@@ -865,7 +912,7 @@ EOT;
 	{
 		// check if content is 1 or -1 as only those values are acceptable
 		if (!in_array($content, [1, -1])) {
-			$this->alert('danger', 'Bad content value.');
+			return;
 		}
 		$conf = 'config';
 		$field = 'menuItems';
@@ -888,20 +935,31 @@ EOT;
 	 * Return pages and display correct view (actual page or 404)
 	 * Display different content and editable areas for admin
 	 *
+	 * @param string $key
 	 * @return string
 	 */
 	public function page(string $key): string
 	{
-		$segments = $this->currentPageExists ? $this->get('pages', $this->currentPage) : ($this->get('config', 'login') == $this->currentPage ? (object) $this->loginView() : (object) $this->notFoundView());
-		$segments->content = isset($segments->content) ? $segments->content : '<h2>Click here add content</h2>';
-		$keys = ['title' => $segments->title, 'description' => $segments->description, 'keywords' => $segments->keywords, 'content' => ($this->loggedIn ? $this->editable('content', $segments->content, 'pages') : $segments->content)];
-		$content = isset($keys[$key]) ? $keys[$key] : '';
+		$segments = $this->currentPageExists
+			? $this->get('pages', $this->currentPage)
+			: ($this->get('config', 'login') === $this->currentPage
+				? (object)$this->loginView()
+				: (object)$this->notFoundView());
+		$segments->content = $segments->content ?? '<h2>Click here add content</h2>';
+		$keys = [
+			'title' => $segments->title,
+			'description' => $segments->description,
+			'keywords' => $segments->keywords,
+			'content' => $this->loggedIn
+				? $this->editable('content', $segments->content, 'pages')
+				: $segments->content
+		];
+		$content = $keys[$key] ?? '';
 		return $this->hook('page', $content, $key)[0];
 	}
 
 	/**
 	 * Page status (exists or doesn't exist)
-	 *
 	 * @return void
 	 */
 	private function pageStatus(): void
@@ -910,21 +968,18 @@ EOT;
 		if (isset($this->get('pages')->{$this->currentPage})) {
 			$this->currentPageExists = true;
 		}
-		if (isset($_GET['page']) && !$this->loggedIn) {
-			if ($this->currentPage !== $this->slugify($_GET['page'])) {
-				$this->currentPageExists = false;
-			}
+		if (isset($_GET['page']) && !$this->loggedIn && $this->currentPage !== $this->slugify($_GET['page'])) {
+			$this->currentPageExists = false;
 		}
 	}
 
 	/**
 	 * URL parser
-	 *
 	 * @return string
 	 */
 	public function parseUrl(): string
 	{
-		if (isset($_GET['page']) && $_GET['page'] == $this->get('config', 'login')) {
+		if (isset($_GET['page']) && $_GET['page'] === $this->get('config', 'login')) {
 			return htmlspecialchars($_GET['page'], ENT_QUOTES);
 		}
 		return isset($_GET['page']) ? $this->slugify($_GET['page']) : '';
@@ -933,12 +988,13 @@ EOT;
 	/**
 	 * Recursive delete - used for deleting files, themes, plugins
 	 *
+	 * @param string $file
 	 * @return void
 	 */
-	private function recursiveDelete($file): void
+	private function recursiveDelete(string $file): void
 	{
 		if (is_dir($file)) {
-			$files = new \DirectoryIterator($file);
+			$files = new DirectoryIterator($file);
 			foreach ($files as $dirFile) {
 				if (!$dirFile->isDot()) {
 					$dirFile->isDir() ? $this->recursiveDelete($dirFile->getPathname()) : unlink($dirFile->getPathname());
@@ -953,6 +1009,7 @@ EOT;
 	/**
 	 * Redirect to any URL
 	 *
+	 * @param string $location
 	 * @return void
 	 */
 	public function redirect(string $location = ''): void
@@ -963,17 +1020,18 @@ EOT;
 
 	/**
 	 * Save database to disk
-	 *
 	 * @return void
 	 */
 	public function save(): void
 	{
-		file_put_contents($this->dbPath, json_encode($this->db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		file_put_contents(
+			$this->dbPath,
+			json_encode($this->db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+		);
 	}
 
 	/**
 	 * Saving menu items, default page, login URL, theme, editable content
-	 *
 	 * @return void
 	 */
 	private function saveAction(): void
@@ -981,8 +1039,10 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_POST['fieldname']) && isset($_POST['content']) && isset($_POST['target']) && isset($_POST['token']) && hash_equals($_POST['token'], $this->getToken())) {
-			list($fieldname, $content, $target, $menu, $visibility) = $this->hook('save', $_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['menu'], $_POST['visibility']);
+		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
+			&& $this->hashVerify($_POST['token'])) {
+			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
+				$_POST['content'], $_POST['target'], $_POST['menu'], $_POST['visibility']);
 			if ($target === 'menuItem') {
 				$this->createMenuItem($content, $menu, $visibility);
 			}
@@ -992,20 +1052,14 @@ EOT;
 			if ($target === 'menuItemOrder') {
 				$this->orderMenuItem($content, $menu);
 			}
-			if ($fieldname === 'defaultPage') {
-				if (!isset($this->get('pages')->$content)) {
-					return;
-				}
+			if ($fieldname === 'defaultPage' && !isset($this->get('pages')->$content)) {
+				return;
 			}
-			if ($fieldname === 'login') {
-				if (empty($content) || isset($this->get('pages')->$content)) {
-					return;
-				}
+			if ($fieldname === 'login' && (empty($content) || isset($this->get('pages')->$content))) {
+				return;
 			}
-			if ($fieldname === 'theme') {
-				if (!is_dir($this->rootDir . '/themes/' . $content)) {
-					return;
-				}
+			if ($fieldname === 'theme' && !is_dir($this->rootDir . '/themes/' . $content)) {
+				return;
 			}
 			if ($target === 'config') {
 				$this->set('config', $fieldname, $content);
@@ -1019,10 +1073,9 @@ EOT;
 			}
 		}
 	}
-	
+
 	/**
 	 * Set something to database
-	 *
 	 * @return void
 	 */
 	public function set(): void
@@ -1048,7 +1101,6 @@ EOT;
 
 	/**
 	 * Display the admin settings panel
-	 *
 	 * @return string
 	 */
 	public function settings(): string
@@ -1081,49 +1133,53 @@ EOT;
 						</ul>
 						<div class="tab-content col-md-8 col-md-offset-2 offset-md-2">
 							<div role="tabpanel" class="tab-pane active" id="currentPage">';
-								if ($this->currentPageExists) {
-									$output .= '
+		if ($this->currentPageExists) {
+			$output .= '
 									<p class="subTitle">Page title</p>
 									<div class="change">
-										<div data-target="pages" id="title" class="editText">' . ($this->get('pages', $this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div>
+										<div data-target="pages" id="title" class="editText">' . ($this->get('pages',
+					$this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div>
 									</div>
 									<p class="subTitle">Page keywords</p>
 									<div class="change">
-										<div data-target="pages" id="keywords" class="editText">' . ($this->get('pages', $this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div>
+										<div data-target="pages" id="keywords" class="editText">' . ($this->get('pages',
+					$this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div>
 									</div>
 									<p class="subTitle">Page description</p>
 									<div class="change">
-										<div data-target="pages" id="description" class="editText">' . ($this->get('pages', $this->currentPage)->description != '' ? $this->get('pages', $this->currentPage)->description : '') . '</div>
+										<div data-target="pages" id="description" class="editText">' . ($this->get('pages',
+					$this->currentPage)->description != '' ? $this->get('pages',
+					$this->currentPage)->description : '') . '</div>
 									</div>
 									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')">Delete page (' . $this->currentPage . ')</a>';
-								} else {
-									$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
-								}
-								$output .= '
+		} else {
+			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
+		}
+		$output .= '
 							</div>
 							<div role="tabpanel" class="tab-pane" id="general">';
-								$items = $this->get('config', 'menuItems');
-								reset($items);
-								$first = key($items);
-								end($items);
-								$end = key($items);
-								$output .= '
+		$items = $this->get('config', 'menuItems');
+		reset($items);
+		$first = key($items);
+		end($items);
+		$end = key($items);
+		$output .= '
 							 <p class="subTitle">Menu</p>
 							 <div>
 								<div id="menuSettings" class="container-fluid">';
-									foreach ($items as $key => $value) {
-										$output .= '
+		foreach ($items as $key => $value) {
+			$output .= '
 										<div class="row marginTop5">
 											<div class="col-xs-1 col-sm-1 col-1 text-right">
-											 <i class="btn menu-toggle fas' . ($value->visibility == "show" ? ' fa-eye menu-item-hide' : ' fa-eye-slash menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility == "show" ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
+											 <i class="btn menu-toggle fas' . ($value->visibility === 'show' ? ' fa-eye menu-item-hide' : ' fa-eye-slash menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
 											</div>
 											<div class="col-xs-4 col-4 col-sm-8">
-											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . ($value->visibility) . '" id="menuItems" class="editText">' . $value->name . '</div>
+											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems" class="editText">' . $value->name . '</div>
 											</div>
 											<div class="col-xs-2 col-2 col-sm-1 text-left">';
-												$output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
-												$output .= ($key === $end) ? '' : ' <a class="fas fa-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
-												$output .= '
+			$output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
+			$output .= ($key === $end) ? '' : ' <a class="fas fa-arrow-down toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
+			$output .= '
 											</div>
 											<div class="col-xs-2 col-2 col-sm-1 text-left">
 											 <a class="fas fa-link" href="' . self::url($value->slug) . '" title="Visit page">visit</a>
@@ -1132,38 +1188,42 @@ EOT;
 											 <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a>
 											</div>
 										</div>';
-									}
-									$output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
+		}
+		$output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
 								</div>
 							 </div>
 							 <p class="subTitle">Theme</p>
 							 <div class="form-group">
 								<div class="change">
 									<select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-										foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
-											$output .= '<option value="' . basename($dir) . '"' . (basename($dir) == $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme</option>';
-										}
-										$output .= '
+		foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
+			$output .= '<option value="' . basename($dir) . '"' . (basename($dir) === $this->get('config',
+					'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme</option>';
+		}
+		$output .= '
 									</select>
 								</div>
 							 </div>
 							 <p class="subTitle">Main website title</p>
 							 <div class="change">
-								<div data-target="config" id="siteTitle" class="editText">' . ($this->get('config', 'siteTitle') != '' ? $this->get('config', 'siteTitle') : '') . '</div>
+								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
+				'siteTitle') . '</div>
 							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
 								<select class="form-control" name="defaultPage" onchange="fieldSave(\'defaultPage\',this.value,\'config\');">';
-									$items = $this->get('config', 'menuItems');
-									foreach ($items as $key => $value) {
-									   $output .= '<option value="' . $value->slug . '"' . ($value->slug == $this->get('config', 'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
-									}
-									$output .= '
+		$items = $this->get('config', 'menuItems');
+		foreach ($items as $key => $value) {
+			$output .= '<option value="' . $value->slug . '"' . ($value->slug === $this->get('config',
+					'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
+		}
+		$output .= '
 								</select>
 							</div>
 							 <p class="subTitle">Footer</p>
 							 <div class="change">
-								<div data-target="blocks" id="footer" class="editText">' . ($this->get('blocks', 'footer')->content != '' ? $this->get('blocks', 'footer')->content : '') . '</div>
+								<div data-target="blocks" id="footer" class="editText">' . $this->get('blocks',
+				'footer')->content . '</div>
 							 </div>
 							</div>
 							<div role="tabpanel" class="tab-pane" id="files">
@@ -1178,15 +1238,15 @@ EOT;
 							 </div>
 							 <p class="subTitle marginTop20">Delete files</p>
 							 <div class="change">';
-								foreach ($fileList as $file) {
-									$output .= '
+		foreach ($fileList as $file) {
+			$output .= '
 									<a href="' . self::url('?deleteFile=' . $file . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
 									<p></p>';
-								}
-								$output .= '
+		}
+		$output .= '
 							 </div>
 							</div>
 							<div role="tabpanel" class="tab-pane" id="themesAndPlugins">
@@ -1205,25 +1265,27 @@ EOT;
 							 </div>
 							 <p class="subTitle">Delete themes</p>
 							 <div class="change">';
-								foreach ($themeList as $theme) {
-									$output .= '<a href="' . self::url('?deleteTheme=' . $theme . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
-								}
-								$output .= '
+		foreach ($themeList as $theme) {
+			$output .= '<a href="' . self::url('?deleteTheme=' . $theme . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
+		}
+		$output .= '
 							 </div>
 							 <p class="subTitle">Delete plugins</p>
 							 <div class="change">';
-								foreach ($pluginList as $plugin) {
-									$output .= '<a href="' . self::url('?deletePlugin=' . $plugin . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '
+		foreach ($pluginList as $plugin) {
+			$output .= '<a href="' . self::url('?deletePlugin=' . $plugin . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '
 									<p></p>';
-								}
-								$output .= '
+		}
+		$output .= '
 							 </div>
 							</div>
 							<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
 							 <div class="change">
-								<div data-target="config" id="login" class="editText">' . $this->get('config', 'login') . '</div>
-								<p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont"><b>' . self::url($this->get('config', 'login')) . '</b></span>
+								<div data-target="config" id="login" class="editText">' . $this->get('config',
+				'login') . '</div>
+								<p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont"><b>' . self::url($this->get('config',
+				'login')) . '</b></span>
 							 </div>
 							 <p class="subTitle">Password</p>
 							 <div class="change">
@@ -1280,22 +1342,21 @@ EOT;
 
 	/**
 	 * Slugify page
-	 * 
-	 * @param string $text for slugyfing
-	 * @return void
+	 *
+	 * @param string $text for slugifying
+	 * @return string
 	 */
 	public function slugify(string $text): string
 	{
 		$text = preg_replace('~[^\\pL\d]+~u', '-', $text);
 		$text = trim(htmlspecialchars(mb_strtolower($text), ENT_QUOTES), '/');
 		$text = trim($text, '-');
-		return empty($text) ? "-" : $text;
+		return empty($text) ? '-' : $text;
 	}
 
 	/**
 	 * Delete something from the database
 	 * Has variadic arguments
-	 * 
 	 * @return void
 	 */
 	public function unset(): void
@@ -1322,7 +1383,6 @@ EOT;
 	/**
 	 * Update WonderCMS function
 	 * Overwrites index.php with latest from GitHub
-	 * 
 	 * @return void
 	 */
 	private function updateAction(): void
@@ -1330,7 +1390,7 @@ EOT;
 		if (!$this->loggedIn || !isset($_POST['update'])) {
 			return;
 		}
-		if (hash_equals($_POST['token'], $this->getToken())) {
+		if ($this->hashVerify($_POST['token'])) {
 			$contents = $this->getFileFromRepo('index.php');
 			if ($contents) {
 				file_put_contents(__FILE__, $contents);
@@ -1343,7 +1403,6 @@ EOT;
 	/**
 	 * Update dbVersion parameter in database.js
 	 * Overwrites dbVersion with latest WonderCMS version
-	 * 
 	 * @return void
 	 */
 	private function updateDBVersion(): void
@@ -1356,7 +1415,7 @@ EOT;
 	/**
 	 * Upload file to files folder
 	 * List of allowed extensions
-	 * 
+	 *
 	 * @return void
 	 */
 	private function uploadFileAction(): void
@@ -1397,20 +1456,20 @@ EOT;
 			'wmv' => 'video/x-ms-wmv',
 			'zip' => 'application/zip',
 		];
-		if (isset($_POST['token']) && hash_equals($_POST['token'], $this->getToken()) && isset($_FILES['uploadFile'])) {
+		if (isset($_POST['token'], $_FILES['uploadFile']) && $this->hashVerify($_POST['token'])) {
 			if (!isset($_FILES['uploadFile']['error']) || is_array($_FILES['uploadFile']['error'])) {
 				$this->alert('danger', 'Invalid parameters.');
 				$this->redirect();
 			}
 			switch ($_FILES['uploadFile']['error']) {
-				case \UPLOAD_ERR_OK:
+				case UPLOAD_ERR_OK:
 					break;
-				case \UPLOAD_ERR_NO_FILE:
+				case UPLOAD_ERR_NO_FILE:
 					$this->alert('danger', 'No file selected.');
 					$this->redirect();
 					break;
-				case \UPLOAD_ERR_INI_SIZE:
-				case \UPLOAD_ERR_FORM_SIZE:
+				case UPLOAD_ERR_INI_SIZE:
+				case UPLOAD_ERR_FORM_SIZE:
 					$this->alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
 					$this->redirect();
 					break;
@@ -1420,7 +1479,7 @@ EOT;
 			}
 			$mimeType = '';
 			if (class_exists('finfo')) {
-				$finfo = new \finfo(\FILEINFO_MIME_TYPE);
+				$finfo = new finfo(FILEINFO_MIME_TYPE);
 				$mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
 			} elseif (function_exists('mime_content_type')) {
 				$mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
@@ -1431,11 +1490,12 @@ EOT;
 					$mimeType = $allowedExtensions[$ext];
 				}
 			}
-			if (array_search($mimeType, $allowedExtensions, true) === false) {
+			if (!in_array($mimeType, $allowedExtensions, true)) {
 				$this->alert('danger', 'File format is not allowed.');
 				$this->redirect();
 			}
-			if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
+			if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'],
+				$this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
 				$this->alert('danger', 'Failed to move uploaded file.');
 			}
 			$this->alert('success', 'File uploaded.');
@@ -1451,28 +1511,35 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-		return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'] == 'on')) || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS'] == 'on')) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']) . ((dirname($_SERVER['SCRIPT_NAME']) == '/') ? '' : dirname($_SERVER['SCRIPT_NAME'])) . '/' . $location;
+		return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ? 's' : '')
+			. '://' . $_SERVER['SERVER_NAME']
+			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
+			. '/' . $location;
 	}
 
 	/**
 	 * Create a ZIP backup of all content
-	 * 
+	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	private function zipBackup(): void
 	{
-		$zipName = date('Y-m-d') . '-backup-' . \bin2hex(\random_bytes(8)) . '.zip';
+		$zipName = date('Y-m-d') . '-backup-' . bin2hex(random_bytes(8)) . '.zip';
 		$zipPath = $this->rootDir . '/data/files/' . $zipName;
-		$zip = new \ZipArchive();
-		if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+		$zip = new ZipArchive();
+		if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
 			$this->alert('danger', 'Cannot create ZIP archive.');
 		}
-		$iterator = new \RecursiveDirectoryIterator($this->rootDir);
-		$iterator->setFlags(\RecursiveDirectoryIterator::SKIP_DOTS);
-		$files = new \RecursiveIteratorIterator($iterator, \RecursiveIteratorIterator::SELF_FIRST);
+		$iterator = new RecursiveDirectoryIterator($this->rootDir);
+		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
+		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
 		foreach ($files as $file) {
-			$file = \realpath($file);
-			$source = \realpath($source);
+			$file = realpath($file);
+			$source = realpath($this->rootDir);
 			if (is_dir($file)) {
 				$zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
 			} elseif (is_file($file)) {
