@@ -21,12 +21,6 @@ class Wcms
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters for password */
 	public const MIN_PASSWORD_LENGTH = 8;
 
-	/** @var string WonderCMS repository URL */
-	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
-
-	/** @var string VERSION current version of WonderCMS */
-	public const VERSION = '3.0.0';
-
 	/** @var string $currentPage the current page */
 	public $currentPage = '';
 
@@ -63,6 +57,7 @@ class Wcms
 
 	/**
 	 * Setting default paths
+	 * 
 	 * @param string $dataFolder
 	 * @param string $filesFolder
 	 * @param string $dbName
@@ -601,7 +596,7 @@ EOT;
 	{
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_URL, self::WCMS_REPO . $file);
+		curl_setopt($ch, CURLOPT_URL, "https://raw.githubusercontent.com/robiso/wondercms/master/" . $file);
 		$content = curl_exec($ch);
 		if (false === $content) {
 			$this->alert('danger', 'Cannot get content from repository.');
@@ -713,7 +708,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.2/wcms-admin.min.js" integrity="sha384-8UGfrafhPEcVc2EA31dY+HCuGEg4oQQWC4zA1BH4XdyBKX/BFtty01yTCUklqokk" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.3/wcms-admin.min.js" integrity="sha384-Wdh5sTFh9z57ZEhrsjmaRncmXCSENBp5GpHeUw48Ch4qUO+CnhvU3mjcdAGlvEwq" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>let token = "' . $this->getToken() . '";</script>';
 			return $this->hook('js', $scripts)[0];
@@ -799,9 +794,15 @@ EOT;
 			'title' => 'Login',
 			'description' => '',
 			'keywords' => '',
-			'content' => '<form action="'
-				. self::url($this->get('config', 'login'))
-				. '" method="post"><div class="input-group"><input type="password" class="form-control" id="password" name="password"><span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Login</button></span></div></form>'
+			'content' => '
+			    <form action="' . self::url($this->get('config', 'login')). '" method="post">
+    				<div class="input-group">
+    			        <input type="password" class="form-control" id="password" name="password">
+    			        <span class="input-group-btn input-group-append">
+    			            <button type="submit" class="btn btn-info">Login</button>
+    			        </span>
+    			    </div>
+				</form>'
 		];
 	}
 
@@ -885,17 +886,17 @@ EOT;
 		if ($this->get('config', 'login') === 'loginURL') {
 			$this->alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
 		}
-		if ($this->getOfficialVersion() > self::VERSION) {
+		if ($this->getOfficialVersion() > VERSION) {
 			$this->alert(
 				'info',
-				'<h4><b>New WonderCMS update available</b></h4>
-						- Backup your website and <a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.
-						 <form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5">
-							<button type="submit" class="btn btn-info" name="backup">Download backup</button>
-							<div class="clear"></div>
-							<button class="btn btn-info marginTop5" name="update">Update WonderCMS ' . self::VERSION . ' to ' . $this->getOfficialVersion() . '</button>
-							<input type="hidden" name="token" value="' . $this->getToken() . '">
-						</form>',
+				'<h4><b>New WonderCMS update available</b></h4> - Backup your website and
+				<a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.
+				 <form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5">
+					<button type="submit" class="btn btn-info" name="backup">Download backup</button>
+					<div class="clear"></div>
+					<button class="btn btn-info marginTop5" name="update">Update WonderCMS ' . VERSION . ' to ' . $this->getOfficialVersion() . '</button>
+					<input type="hidden" name="token" value="' . $this->getToken() . '">
+				</form>',
 				true
 			);
 		}
@@ -1112,9 +1113,7 @@ EOT;
 		$themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
 		$pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
 		$output = '
-		<div id="save">
-			<h2>Saving...</h2>
-		</div>
+		<div id="save"><h2>Saving...</h2></div>
 		<div id="adminPanel" class="container-fluid">
 			<div class="text-right padding20">
 				<a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . self::url('logout&token=' . $this->getToken()) . '">Logout</a>
@@ -1222,8 +1221,9 @@ EOT;
 							</div>
 							 <p class="subTitle">Footer</p>
 							 <div class="change">
-								<div data-target="blocks" id="footer" class="editText">' . $this->get('blocks',
-				'footer')->content . '</div>
+								<div data-target="blocks" id="footer" class="editText">'
+								. $this->get('blocks','footer')->content . '
+								</div>
 							 </div>
 							</div>
 							<div role="tabpanel" class="tab-pane" id="files">
@@ -1322,15 +1322,13 @@ EOT;
 					</div>
 					<div class="modal-footer clear">
 						<p class="small">
-							<a href="https://wondercms.com" target="_blank">WonderCMS</a> ' . self::VERSION . ' &nbsp; 
-							<b>
-							 <a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; 
+							<a href="https://wondercms.com" target="_blank">WonderCMS</a> ' . VERSION . ' &nbsp; 
+							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; 
 							 <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; 
 							 <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; 
 							 <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; 
 							 <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; 
-							 <a href="https://wondercms.com/donate" target="_blank">Donate</a>
-							</b>
+							 <a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
 						</p>
 					</div>
 				 </div>
@@ -1407,15 +1405,14 @@ EOT;
 	 */
 	private function updateDBVersion(): void
 	{
-		if ($this->get('config', 'dbVersion') < self::VERSION) {
-			$this->set('config', 'dbVersion', self::VERSION);
+		if ($this->get('config', 'dbVersion') < VERSION) {
+			$this->set('config', 'dbVersion', VERSION);
 		}
 	}
 
 	/**
 	 * Upload file to files folder
 	 * List of allowed extensions
-	 *
 	 * @return void
 	 */
 	private function uploadFileAction(): void
