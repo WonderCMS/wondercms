@@ -21,6 +21,9 @@ class Wcms
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters for password */
 	public const MIN_PASSWORD_LENGTH = 8;
 
+	/** @var string WonderCMS repository URL */
+	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
+
 	/** @var string $currentPage the current page */
 	public $currentPage = '';
 
@@ -596,7 +599,7 @@ EOT;
 	{
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_URL, "https://raw.githubusercontent.com/robiso/wondercms/master/" . $file);
+		curl_setopt($ch, CURLOPT_URL, self::WCMS_REPO . $file);
 		$content = curl_exec($ch);
 		if (false === $content) {
 			$this->alert('danger', 'Cannot get content from repository.');
@@ -737,7 +740,7 @@ EOT;
 	}
 
 	/**
-	 * Loads theme files and the functions.php file, if they exists
+	 * Loads theme files and functions.php file, if they exists
 	 * @return void
 	 */
 	public function loadThemeAndFunctions(): void
@@ -795,13 +798,13 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-			    <form action="' . self::url($this->get('config', 'login')). '" method="post">
-    				<div class="input-group">
-    			        <input type="password" class="form-control" id="password" name="password">
-    			        <span class="input-group-btn input-group-append">
-    			            <button type="submit" class="btn btn-info">Login</button>
-    			        </span>
-    			    </div>
+				<form action="' . self::url($this->get('config', 'login')). '" method="post">
+					<div class="input-group">
+						<input type="password" class="form-control" id="password" name="password">
+						<span class="input-group-btn input-group-append">
+							<button type="submit" class="btn btn-info">Login</button>
+						</span>
+					</div>
 				</form>'
 		];
 	}
