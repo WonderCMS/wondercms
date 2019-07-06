@@ -533,7 +533,7 @@ EOT;
 	 */
 	public function editable(string $id, string $content, string $dataTarget = ''): string
 	{
-		return '<div' . ($dataTarget !== '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" contenteditable="true">' . $content . '</div>';
+		return '<div' . ($dataTarget !== '' ? ' data-target="' . $dataTarget . '"' : '') . ' id="' . $id . '" class="editText editable">' . $content . '</div>';
 	}
 
 	/**
@@ -711,7 +711,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.4/wcms-admin.min.js" integrity="sha384-/ZB36rUwxOIBxMYcWkMyvIDV5I/2MM0LI8ukNystDoio1VNIuJAJZiM8mjk+rrS5" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.3/wcms-admin.min.js" integrity="sha384-Wdh5sTFh9z57ZEhrsjmaRncmXCSENBp5GpHeUw48Ch4qUO+CnhvU3mjcdAGlvEwq" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>let token = "' . $this->getToken() . '";</script>';
 			return $this->hook('js', $scripts)[0];
@@ -1139,17 +1139,17 @@ EOT;
 			$output .= '
 									<p class="subTitle">Page title</p>
 									<div class="change">
-										<div data-target="pages" id="title" class="editText" contenteditable="true">' . ($this->get('pages',
+										<div data-target="pages" id="title" class="editText">' . ($this->get('pages',
 					$this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div>
 									</div>
 									<p class="subTitle">Page keywords</p>
 									<div class="change">
-										<div data-target="pages" id="keywords" class="editText" contenteditable="true">' . ($this->get('pages',
+										<div data-target="pages" id="keywords" class="editText">' . ($this->get('pages',
 					$this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div>
 									</div>
 									<p class="subTitle">Page description</p>
 									<div class="change">
-										<div data-target="pages" id="description" class="editText" contenteditable="true">' . ($this->get('pages',
+										<div data-target="pages" id="description" class="editText">' . ($this->get('pages',
 					$this->currentPage)->description != '' ? $this->get('pages',
 					$this->currentPage)->description : '') . '</div>
 									</div>
@@ -1176,7 +1176,7 @@ EOT;
 											 <i class="btn menu-toggle fas' . ($value->visibility === 'show' ? ' fa-eye menu-item-hide' : ' fa-eye-slash menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
 											</div>
 											<div class="col-xs-4 col-4 col-sm-8">
-											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems" class="editText" contenteditable="true">' . $value->name . '</div>
+											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems" class="editText">' . $value->name . '</div>
 											</div>
 											<div class="col-xs-2 col-2 col-sm-1 text-left">';
 			$output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
@@ -1208,7 +1208,7 @@ EOT;
 							 </div>
 							 <p class="subTitle">Main website title</p>
 							 <div class="change">
-								<div data-target="config" id="siteTitle" class="editText" contenteditable="true">' . $this->get('config',
+								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
 				'siteTitle') . '</div>
 							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
@@ -1224,7 +1224,7 @@ EOT;
 							</div>
 							 <p class="subTitle">Footer</p>
 							 <div class="change">
-								<div data-target="blocks" id="footer" class="editText" contenteditable="true">'
+								<div data-target="blocks" id="footer" class="editText">'
 								. $this->get('blocks','footer')->content . '
 								</div>
 							 </div>
@@ -1285,7 +1285,7 @@ EOT;
 							<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
 							 <div class="change">
-								<div data-target="config" id="login" class="editText" contenteditable="true">' . $this->get('config',
+								<div data-target="config" id="login" class="editText">' . $this->get('config',
 				'login') . '</div>
 								<p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont"><b>' . self::url($this->get('config',
 				'login')) . '</b></span>
