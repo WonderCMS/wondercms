@@ -394,16 +394,13 @@ class Wcms
 			$this->set($conf, $field, $menu, 'name', $content);
 			$this->set($conf, $field, $menu, 'slug', $slug);
 			$this->set($conf, $field, $menu, 'visibility', $visibility);
+			$oldPageContent = $this->get('pages', $oldSlug);
+			$this->set('pages', $slug, $oldPageContent);
+			$this->set('pages', $slug, 'title', $content);
+			$this->unset('pages', $oldSlug);
 
-			if ($slug !== $oldSlug) {
-				$oldPageContent = $this->get('pages', $oldSlug);
-				$this->unset('pages', $oldSlug);
-				$this->set('pages', $slug, $oldPageContent);
-				$this->set('pages', $slug, 'title', $content);
-
-				if ($this->get('config', 'defaultPage') === $oldSlug) {
-					$this->set('config', 'defaultPage', $slug);
-				}
+			if ($this->get('config', 'defaultPage') === $oldSlug) {
+				$this->set('config', 'defaultPage', $slug);
 			}
 		}
 	}
