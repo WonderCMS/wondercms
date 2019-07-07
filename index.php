@@ -60,7 +60,7 @@ class Wcms
 
 	/**
 	 * Setting default paths
-	 * 
+	 *
 	 * @param string $dataFolder
 	 * @param string $filesFolder
 	 * @param string $dbName
@@ -82,23 +82,26 @@ class Wcms
 	 */
 	public function init(): void
 	{
-		$this->installThemePluginAction();
 		$this->loadPlugins();
 		$this->loginStatus();
 		$this->pageStatus();
-		$this->updateDBVersion();
-		$this->changePasswordAction();
-		$this->deleteFileThemePluginAction();
-		$this->backupAction();
-		$this->betterSecurityAction();
-		$this->loginAction();
-		$this->deletePageAction();
 		$this->logoutAction();
-		$this->saveAction();
-		$this->updateAction();
-		$this->uploadFileAction();
-		$this->notifyAction();
+		$this->loginAction();
 		$this->notFoundResponse();
+
+		if ($this->loggedIn) {
+			$this->installThemePluginAction();
+			$this->updateDBVersion();
+			$this->changePasswordAction();
+			$this->deleteFileThemePluginAction();
+			$this->backupAction();
+			$this->betterSecurityAction();
+			$this->deletePageAction();
+			$this->saveAction();
+			$this->updateAction();
+			$this->uploadFileAction();
+			$this->notifyAction();
+		}
 	}
 
 	/**
@@ -391,9 +394,13 @@ class Wcms
 			$this->set($conf, $field, $menu, 'name', $content);
 			$this->set($conf, $field, $menu, 'slug', $slug);
 			$this->set($conf, $field, $menu, 'visibility', $visibility);
-			if ($slug !== $oldSlug) {
-				$this->createPage($slug);
-				$this->deletePageAction($oldSlug, false);
+			$oldPageContent = $this->get('pages', $oldSlug);
+			$this->set('pages', $slug, $oldPageContent);
+			$this->set('pages', $slug, 'title', $content);
+			$this->unset('pages', $oldSlug);
+
+			if ($this->get('config', 'defaultPage') === $oldSlug) {
+				$this->set('config', 'defaultPage', $slug);
 			}
 		}
 	}
@@ -493,32 +500,34 @@ EOT;
 
 	/**
 	 * Delete page
-	 *
-	 * @param bool $needle
-	 * @param bool $menu
 	 * @return void
 	 */
-	private function deletePageAction(bool $needle = false, bool $menu = true): void
+	private function deletePageAction(): void
 	{
-		if (!$needle
-			&& $this->loggedIn
-			&& isset($_GET['delete'])
-			&& $this->hashVerify($_REQUEST['token'])) {
-			$needle = $_GET['delete'];
+		if (!$this->loggedIn
+			|| !isset($_GET['delete'])
+			|| !$this->hashVerify($_REQUEST['token'])) {
+			return;
 		}
-		if (isset($this->get('pages')->{$needle})) {
-			unset($this->db->pages->{$needle});
+		$slug = $_GET['delete'];
+
+		if (isset($this->get('pages')->{$slug})) {
+			$this->unset('pages', $slug);
 		}
-		if ($menu) {
-			$menuItems = json_decode(json_encode($this->get('config', 'menuItems')), true);
-			if (false === ($index = array_search($needle, array_column($menuItems, 'slug')))) {
-				return;
-			}
+
+		$menuItems = json_decode(json_encode($this->get('config', 'menuItems')), true);
+		if (false !== ($index = array_search($slug, array_column($menuItems, 'slug')))) {
 			unset($menuItems[$index]);
 			$newMenu = array_values($menuItems);
-			$this->db->config->menuItems = json_decode(json_encode($newMenu));
+			$this->set('config', 'menuItems', json_decode(json_encode($newMenu)));
+
+			if ($this->get('config', 'defaultPage') === $slug) {
+				$allMenuItems = $this->get('config', 'menuItems') ?? [];
+				$firstMenuItem = reset($allMenuItems);
+				$this->set('config', 'defaultPage', $firstMenuItem->slug ?? $slug);
+			}
 		}
-		$this->save();
+
 		$this->alert('success', 'Page deleted.');
 		$this->redirect();
 	}
@@ -656,7 +665,7 @@ EOT;
 	 */
 	private function installThemePluginAction(): void
 	{
-		if (!$this->loggedIn && !isset($_POST['installAddon'])) {
+		if (!isset($_POST['installAddon'], $_POST['token']) || !$this->loggedIn) {
 			return;
 		}
 
@@ -798,7 +807,7 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-				<form action="' . self::url($this->get('config', 'login')). '" method="post">
+				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="input-group">
 						<input type="password" class="form-control" id="password" name="password">
 						<span class="input-group-btn input-group-append">
@@ -1225,7 +1234,7 @@ EOT;
 							 <p class="subTitle">Footer</p>
 							 <div class="change">
 								<div data-target="blocks" id="footer" class="editText">'
-								. $this->get('blocks','footer')->content . '
+			. $this->get('blocks', 'footer')->content . '
 								</div>
 							 </div>
 							</div>
