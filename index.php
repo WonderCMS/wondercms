@@ -374,15 +374,17 @@ class Wcms
 		$content = empty($content) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $content);
 		$slug = $this->slugify($content);
 		$menuCount = count(get_object_vars($this->get($conf, $field)));
-		if (!$exist) {
-			$db = $this->getDb();
-			foreach ($db->config->{$field} as $value) {
-				if ($value->slug === $slug) {
-					$slug .= '-' . $menuCount;
-				}
+
+		$db = $this->getDb();
+		foreach ($db->config->{$field} as $value) {
+			if ($value->slug === $slug) {
+				$slug .= '-' . $menuCount;
+				break;
 			}
-			$db->config->{$field}->{$menuCount} = new \stdClass;
-			$this->save();
+		}
+
+		if (!$exist) {
+			$this->set($conf, $field, $menuCount, new \StdClass);
 			$this->set($conf, $field, $menuCount, 'name', str_replace('-', ' ', $content));
 			$this->set($conf, $field, $menuCount, 'slug', $slug);
 			$this->set($conf, $field, $menuCount, 'visibility', $visibility);
