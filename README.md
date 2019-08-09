@@ -1,10 +1,12 @@
 # WonderCMS <sup> • 5 <sup>files</sup> • 14<sup>KB zip</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+[![Project ](https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 ![Maintained](https://img.shields.io/maintenance/yes/2019.svg?longCache=true)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true)](https://github.com/robiso/wondercms/blob/master/license)
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
-[![donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
+[![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
+
 
 - WonderCMS is a flat file CMS (no database). It's fast, responsive, small, built with PHP and maintained since 2008.
   - **Key features:** [FOSS](https://en.wikipedia.org/wiki/Free_and_open-source_software), no configuration required, 1 click updates/backups, theme/plugin installer, easy to theme.
