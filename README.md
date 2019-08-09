@@ -7,11 +7,10 @@
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
 [![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
-### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
-
-
 - WonderCMS is a flat file CMS (no database). It's fast, responsive, small, built with PHP and maintained since 2008.
-- **Key features:** [FOSS](https://en.wikipedia.org/wiki/Free_and_open-source_software), no configuration required, 1 click updates/backups, theme/plugin installer, easy to theme.
+ - **Key features:** [FOSS](https://en.wikipedia.org/wiki/Free_and_open-source_software), no configuration required, 1 click updates/backups, theme/plugin installer, easy to theme.
+
+### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
 ## Extra small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
