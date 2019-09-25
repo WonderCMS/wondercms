@@ -110,6 +110,19 @@ class Wcms
 	 */
 	public function render(): void
 	{
+		// Alert admin that page is hidden
+		if ($this->loggedIn) {
+			$loadingPage = null;
+			foreach ($this->get('config', 'menuItems') as $item) {
+				if ($this->currentPage === $item->slug) {
+					$loadingPage = $item;
+				}
+			}
+			if ($loadingPage && $loadingPage->visibility === 'hide') {
+				$this->alert('info', 'This page is currently hidden from the menu. You can change the visibility in Settings -> General.');
+			}
+		}
+
 		$this->loadThemeAndFunctions();
 	}
 
@@ -365,7 +378,7 @@ class Wcms
 	 * @param string $visibility show or hide
 	 * @return void
 	 */
-	public function createMenuItem(string $content, string $menu, string $visibility = 'show'): void
+	public function createMenuItem(string $content, string $menu, string $visibility = 'hide'): void
 	{
 		$conf = 'config';
 		$field = 'menuItems';
@@ -395,7 +408,7 @@ class Wcms
 			$this->set($conf, $field, $menu, 'name', $content);
 			$this->set($conf, $field, $menu, 'slug', $slug);
 			$this->set($conf, $field, $menu, 'visibility', $visibility);
-			
+
 			$oldPageContent = $this->get('pages', $oldSlug);
 			$this->unset('pages', $oldSlug);
 			$this->set('pages', $slug, $oldPageContent);
@@ -692,12 +705,13 @@ EOT;
 				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 				curl_setopt($ch, CURLOPT_FILE, $zipResource);
 				curl_exec($ch);
+				$curlError = curl_error($ch);
 				curl_close($ch);
 				$zip = new \ZipArchive;
 				$extractPath = $this->rootDir . '/' . $installLocation . '/';
-				if ($zip->open($zipFile) !== true || (stripos($addonURL, '.zip') === false)) {
+				if ($curlError || $zip->open($zipFile) !== true || (stripos($addonURL, '.zip') === false)) {
 					$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-					$this->alert('danger', 'Error opening ZIP file.');
+					$this->alert('danger', 'Error opening ZIP file.' . ($curlError ? ' Error description: ' . $curlError : ''));
 					$this->redirect();
 				}
 				$zip->extractTo($extractPath);
@@ -722,7 +736,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.3/wcms-admin.min.js" integrity="sha384-Wdh5sTFh9z57ZEhrsjmaRncmXCSENBp5GpHeUw48Ch4qUO+CnhvU3mjcdAGlvEwq" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.5/wcms-admin.min.js" integrity="sha384-WEXtTmZlq9T9LT8MEN7Sd526PQJBw9fl8fbTwoGr8Dbot3j+SW2EM3K4g6PigbzN" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1056,12 +1070,19 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
+		if (isset($_SESSION['redirect_to'])) {
+			$newUrl = $_SESSION['redirect_to'];
+			unset($_SESSION['redirect_to']);
+			$this->alert('success', "Page <b>$newUrl</b> created.");
+			$this->redirect($newUrl);
+		}
 		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
 			&& $this->hashVerify($_POST['token'])) {
 			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
-				$_POST['content'], $_POST['target'], $_POST['menu'], $_POST['visibility']);
+				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItem') {
 				$this->createMenuItem($content, $menu, $visibility);
+				$_SESSION['redirect_to'] = $content;
 			}
 			if ($target === 'menuItemVsbl') {
 				$this->set('config', $fieldname, $menu, 'visibility', $visibility);
