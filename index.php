@@ -132,11 +132,10 @@ class Wcms
 	 * @param string $hook
 	 * @param string $functionName
 	 */
-	public function addListener(string $hook, string $functionName): void
+	public function addListener(string $hook, callable $functionName): void
 	{
 		$this->listeners[$hook][] = $functionName;
 	}
-
 	/**
 	 * Add alert message for the user
 	 *
@@ -145,7 +144,7 @@ class Wcms
 	 * @param bool $sticky can it be closed?
 	 * @return void
 	 */
-	private function alert(string $class, string $message, bool $sticky = false): void
+	public function alert(string $class, string $message, bool $sticky = false): void
 	{
 		if (isset($_SESSION['alert'][$class])) {
 			foreach ($_SESSION['alert'][$class] as $v) {
@@ -199,7 +198,7 @@ class Wcms
 	 * @return void
 	 * @throws Exception
 	 */
-	private function backupAction(): void
+	public function backupAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
@@ -220,7 +219,7 @@ class Wcms
 	 * Replace the .htaccess with one adding security settings
 	 * @return void
 	 */
-	private function betterSecurityAction(): void
+	public function betterSecurityAction(): void
 	{
 		if (isset($_POST['betterSecurity'], $_POST['token'])
 			&& $this->loggedIn
@@ -287,7 +286,7 @@ class Wcms
 	 * @param string $folder the relative path of the folder to check/create
 	 * @return void
 	 */
-	private function checkFolder(string $folder): void
+	public function checkFolder(string $folder): void
 	{
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
 			$this->alert('danger', 'Could not create the data folder.');
@@ -301,7 +300,7 @@ class Wcms
 	 * Initialize the JSON database if doesn't exist
 	 * @return void
 	 */
-	private function createDb(): void
+	public function createDb(): void
 	{
 		$password = $this->generatePassword();
 		$this->db = (object)[
@@ -379,7 +378,7 @@ class Wcms
 	 * @param string $visibility show or hide
 	 * @return void
 	 */
-	private function createMenuItem(string $content, string $menu, string $visibility = 'hide'): void
+	public function createMenuItem(string $content, string $menu, string $visibility = 'hide'): void
 	{
 		$conf = 'config';
 		$field = 'menuItems';
@@ -427,7 +426,7 @@ class Wcms
 	 * @param string $slug the name of the page in URL
 	 * @return void
 	 */
-	private function createPage($slug = ''): void
+	public function createPage($slug = ''): void
 	{
 		$this->db->pages->{$slug ?: $this->currentPage} = new \stdClass;
 		$this->save();
@@ -480,7 +479,7 @@ EOT;
 	 * Delete theme
 	 * @return void
 	 */
-	private function deleteFileThemePluginAction(): void
+	public function deleteFileThemePluginAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
@@ -518,7 +517,7 @@ EOT;
 	 * Delete page
 	 * @return void
 	 */
-	private function deletePageAction(): void
+	public function deletePageAction(): void
 	{
 		if (!$this->loggedIn
 			|| !isset($_GET['delete'])
@@ -578,7 +577,7 @@ EOT;
 	 * Generate random password
 	 * @return string
 	 */
-	private function generatePassword(): string
+	public function generatePassword(): string
 	{
 		$characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz';
 		return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
@@ -638,7 +637,7 @@ EOT;
 	 * Get the latest version from master branch on GitHub
 	 * @return string
 	 */
-	private function getOfficialVersion(): string
+	public function getOfficialVersion(): string
 	{
 		return trim($this->getFileFromRepo('version'));
 	}
@@ -649,7 +648,7 @@ EOT;
 	 * @param string $token
 	 * @return bool
 	 */
-	private function hashVerify(string $token): bool
+	public function hashVerify(string $token): bool
 	{
 		return hash_equals($token, $this->getToken());
 	}
@@ -658,7 +657,7 @@ EOT;
 	 * Returns hooks from plugins
 	 * @return array
 	 */
-	private function hook(): array
+	public function hook(): array
 	{
 		$numArgs = func_num_args();
 		$args = func_get_args();
@@ -679,7 +678,7 @@ EOT;
 	 * Theme/plugin installer and updater
 	 * @return void
 	 */
-	private function installThemePluginAction(): void
+	public function installThemePluginAction(): void
 	{
 		if (!isset($_POST['installAddon'], $_POST['token']) || !$this->loggedIn) {
 			return;
@@ -733,13 +732,15 @@ EOT;
 	public function js(): string
 	{
 		if ($this->loggedIn) {
-			$scripts = <<<'EOT'
+			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.5/wcms-admin.min.js" integrity="sha384-WEXtTmZlq9T9LT8MEN7Sd526PQJBw9fl8fbTwoGr8Dbot3j+SW2EM3K4g6PigbzN" crossorigin="anonymous"></script>
 EOT;
-			$scripts .= '<script>let token = "' . $this->getToken() . '";</script>';
+			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
+			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
+
 			return $this->hook('js', $scripts)[0];
 		}
 		return $this->hook('js', '')[0];
@@ -749,7 +750,7 @@ EOT;
 	 * Load plugins (if they exist)
 	 * @return void
 	 */
-	private function loadPlugins(): void
+	public function loadPlugins(): void
 	{
 		$plugins = $this->rootDir . '/plugins';
 		if (!is_dir($plugins) && !mkdir($plugins) && !is_dir($plugins)) {
@@ -901,7 +902,7 @@ EOT;
 	 * Alerts for non-existent page, changing default settings, new version/update
 	 * @return void
 	 */
-	private function notifyAction(): void
+	public function notifyAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
@@ -938,7 +939,7 @@ EOT;
 	 * @param int $menu
 	 * @return void
 	 */
-	private function orderMenuItem(int $content, int $menu): void
+	public function orderMenuItem(int $content, int $menu): void
 	{
 		// check if content is 1 or -1 as only those values are acceptable
 		if (!in_array($content, [1, -1])) {
@@ -992,7 +993,7 @@ EOT;
 	 * Page status (exists or doesn't exist)
 	 * @return void
 	 */
-	private function pageStatus(): void
+	public function pageStatus(): void
 	{
 		$this->currentPage = empty($this->parseUrl()) ? $this->get('config', 'defaultPage') : $this->parseUrl();
 		if (isset($this->get('pages')->{$this->currentPage})) {
@@ -1021,7 +1022,7 @@ EOT;
 	 * @param string $file
 	 * @return void
 	 */
-	private function recursiveDelete(string $file): void
+	public function recursiveDelete(string $file): void
 	{
 		if (is_dir($file)) {
 			$files = new DirectoryIterator($file);
@@ -1064,7 +1065,7 @@ EOT;
 	 * Saving menu items, default page, login URL, theme, editable content
 	 * @return void
 	 */
-	private function saveAction(): void
+	public function saveAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
@@ -1419,7 +1420,7 @@ EOT;
 	 * Overwrites index.php with latest from GitHub
 	 * @return void
 	 */
-	private function updateAction(): void
+	public function updateAction(): void
 	{
 		if (!$this->loggedIn || !isset($_POST['update'])) {
 			return;
@@ -1439,7 +1440,7 @@ EOT;
 	 * Overwrites dbVersion with latest WonderCMS version
 	 * @return void
 	 */
-	private function updateDBVersion(): void
+	public function updateDBVersion(): void
 	{
 		if ($this->get('config', 'dbVersion') < VERSION) {
 			$this->set('config', 'dbVersion', VERSION);
@@ -1451,7 +1452,7 @@ EOT;
 	 * List of allowed extensions
 	 * @return void
 	 */
-	private function uploadFileAction(): void
+	public function uploadFileAction(): void
 	{
 		if (!$this->loggedIn && !isset($_FILES['uploadFile']) && !isset($_POST['token'])) {
 			return;
@@ -1559,7 +1560,7 @@ EOT;
 	 * @return void
 	 * @throws Exception
 	 */
-	private function zipBackup(): void
+	public function zipBackup(): void
 	{
 		$zipName = date('Y-m-d') . '-backup-' . bin2hex(random_bytes(8)) . '.zip';
 		$zipPath = $this->rootDir . '/data/files/' . $zipName;
