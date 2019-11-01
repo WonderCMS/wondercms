@@ -18,11 +18,18 @@ if (defined('PHPUNIT_TESTING') === false) {
 
 class Wcms
 {
+	private const THEMES_DIR = 'themes';
+	private const PLUGINS_DIR = 'plugins';
+	private const VALID_DIRS = [self::THEMES_DIR, self::PLUGINS_DIR];
+
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters for password */
 	public const MIN_PASSWORD_LENGTH = 8;
 
 	/** @var string WonderCMS repository URL */
 	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
+
+	/** @var string WonderCMS CDN repository URL */
+	public const WCMS_CDN_REPO = 'https://raw.githubusercontent.com/robiso/wondercms-cdn-files/master/';
 
 	/** @var string $currentPage the current page */
 	public $currentPage = '';
@@ -50,11 +57,20 @@ class Wcms
 
 	/**
 	 * Constructor
+	 *
+	 * @param string $dataFolder
+	 * @param string $filesFolder
+	 * @param string $dbName
+	 * @param string $rootDir
 	 */
-	public function __construct()
-	{
-		$this->rootDir = __DIR__;
-		$this->setPaths();
+	public function __construct(
+		string $dataFolder = 'data',
+		string $filesFolder = 'files',
+		string $dbName = 'database.js',
+		string $rootDir = __DIR__
+	) {
+		$this->rootDir = $rootDir;
+		$this->setPaths($dataFolder, $filesFolder, $dbName);
 		$this->db = $this->getDb();
 	}
 
@@ -90,7 +106,7 @@ class Wcms
 		$this->notFoundResponse();
 
 		if ($this->loggedIn) {
-			$this->installThemePluginAction();
+			$this->installUpdateThemePluginAction();
 			$this->updateDBVersion();
 			$this->changePasswordAction();
 			$this->deleteFileThemePluginAction();
@@ -119,7 +135,8 @@ class Wcms
 				}
 			}
 			if ($loadingPage && $loadingPage->visibility === 'hide') {
-				$this->alert('info', 'This page is currently hidden from the menu. You can change the visibility in Settings -> General.');
+				$this->alert('info',
+					'This page is currently hidden from the menu. You can change the visibility in Settings -> General.');
 			}
 		}
 
@@ -136,6 +153,7 @@ class Wcms
 	{
 		$this->listeners[$hook][] = $functionName;
 	}
+
 	/**
 	 * Add alert message for the user
 	 *
@@ -200,19 +218,14 @@ class Wcms
 	 */
 	public function backupAction(): void
 	{
-		if (!$this->loggedIn) {
+		if (!isset($_POST['backup']) || !$this->verifyFormActions()) {
 			return;
 		}
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
 		if (!empty($backupList)) {
 			$this->alert('danger', 'Delete backup files. (<i>Settings -> Files</i>)');
 		}
-		if (!isset($_POST['backup'])) {
-			return;
-		}
-		if ($this->hashVerify($_POST['token'])) {
-			$this->zipBackup();
-		}
+		$this->zipBackup();
 	}
 
 	/**
@@ -221,9 +234,7 @@ class Wcms
 	 */
 	public function betterSecurityAction(): void
 	{
-		if (isset($_POST['betterSecurity'], $_POST['token'])
-			&& $this->loggedIn
-			&& $this->hashVerify($_POST['token'])) {
+		if (isset($_POST['betterSecurity']) && $this->verifyFormActions()) {
 			if ($_POST['betterSecurity'] === 'on') {
 				if ($contents = $this->getFileFromRepo('.htaccess-ultimate')) {
 					file_put_contents('.htaccess', trim($contents));
@@ -311,6 +322,15 @@ class Wcms
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'password' => password_hash($password, PASSWORD_DEFAULT),
+				'defaultRepos' => [
+					'themes' => [],
+					'plugins' => [],
+					'lastSync' => null,
+				],
+				'customRepos' => [
+					'themes' => [],
+					'plugins' => []
+				],
 				'menuItems' => [
 					'0' => [
 						'name' => 'Home',
@@ -485,8 +505,7 @@ EOT;
 			return;
 		}
 		if ((isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']))
-			&& isset($_REQUEST['token'])
-			&& $this->hashVerify($_REQUEST['token'])) {
+			&& $this->verifyFormActions(true)) {
 			$deleteList = [
 				[$this->filesPath, 'deleteFile'],
 				[$this->rootDir . '/themes', 'deleteTheme'],
@@ -519,9 +538,7 @@ EOT;
 	 */
 	public function deletePageAction(): void
 	{
-		if (!$this->loggedIn
-			|| !isset($_GET['delete'])
-			|| !$this->hashVerify($_REQUEST['token'])) {
+		if (!isset($_GET['delete']) || !$this->verifyFormActions(true)) {
 			return;
 		}
 		$slug = $_GET['delete'];
@@ -617,13 +634,15 @@ EOT;
 	 * Get content of a file from master branch on GitHub
 	 *
 	 * @param string $file the file we want
+	 * @param string $repo
 	 * @return string
 	 */
-	public function getFileFromRepo(string $file): string
+	public function getFileFromRepo(string $file, string $repo = self::WCMS_REPO): string
 	{
+		$repo = str_replace('https://github.com/', 'https://raw.githubusercontent.com/', $repo);
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_URL, self::WCMS_REPO . $file);
+		curl_setopt($ch, CURLOPT_URL, $repo . $file);
 		$content = curl_exec($ch);
 		if (false === $content) {
 			$this->alert('danger', 'Cannot get content from repository.');
@@ -635,11 +654,13 @@ EOT;
 
 	/**
 	 * Get the latest version from master branch on GitHub
-	 * @return string
+	 * @param string $repo
+	 * @return null|string
 	 */
-	public function getOfficialVersion(): string
+	public function getOfficialVersion(string $repo = self::WCMS_REPO): ?string
 	{
-		return trim($this->getFileFromRepo('version'));
+		$version = trim($this->getFileFromRepo('version', $repo));
+		return $version === '404: Not Found' ? null : $version;
 	}
 
 	/**
@@ -675,54 +696,143 @@ EOT;
 	}
 
 	/**
-	 * Theme/plugin installer and updater
-	 * @return void
+	 * Return array with all themes and their data
+	 * @param string $type
+	 * @return array
 	 */
-	public function installThemePluginAction(): void
+	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
 	{
-		if (!isset($_POST['installAddon'], $_POST['token']) || !$this->loggedIn) {
+		$returnArray = [];
+		if ($this->loggedIn) {
+			$branch = 'master';
+			$repos = $this->getThemesPluginsRepos($type);
+
+			foreach ($repos as $repo) {
+				$extractPath = $this->rootDir . "/$type/";
+				$repoParts = explode('/', $repo);
+				$name = array_pop($repoParts);
+				$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
+				$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
+				$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
+				$exists = is_dir($extractPath . $name);
+				$newVersion = $this->getOfficialVersion($repoFilesUrl);
+				$currentVersion = $exists ? $this->getThemePluginVersion($type, $name) : null;
+				if (empty($repo) || empty($name) || $newVersion === '404: Not Found') {
+					continue;
+				}
+
+				$returnArray[] = [
+					'name' => ucfirst(str_replace('-', ' ', $name)),
+					'dirName' => $name,
+					'repo' => $repo,
+					'zip' => $repoZipUrl,
+					'install' => !is_dir($extractPath . $name),
+					'update' => $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion,
+					'currentVersion' => $currentVersion,
+					'newVersion' => $newVersion,
+					'readmeUrl' => $repoReadmeUrl,
+				];
+			}
+		}
+
+		return $returnArray;
+	}
+
+	/**
+	 * Get all repos from cdn
+	 * @param string $type
+	 * @return array
+	 */
+	public function getThemesPluginsRepos(string $type = self::THEMES_DIR): array
+	{
+		$db = $this->getDb();
+		$array = (array)$db->config->defaultRepos->{$type};
+		$lastSync = $db->config->defaultRepos->lastSync;
+
+		if (empty($array) || strtotime($lastSync) < strtotime('-1 days')) {
+			$plugins = trim($this->getFileFromRepo('plugins-list.json', self::WCMS_CDN_REPO));
+			$themes = trim($this->getFileFromRepo('themes-list.json', self::WCMS_CDN_REPO));
+			if ($plugins !== '404: Not Found') {
+				$this->set('config', 'defaultRepos', 'plugins', explode("\n", $plugins));
+			}
+
+			if ($themes !== '404: Not Found') {
+				$this->set('config', 'defaultRepos', 'themes', explode("\n", $themes));
+			}
+
+			$this->set('config', 'defaultRepos', 'lastSync', date('Y/m/d'));
+		}
+
+		return $array;
+	}
+
+	/**
+	 * Read plugin version
+	 * @param string $type
+	 * @param string $name
+	 * @return string|null
+	 */
+	public function getThemePluginVersion(string $type, string $name): ?string
+	{
+		$version = null;
+		$path = sprintf('%s/%s/%s', $this->rootDir, $type, $name);
+		$versionPath = $path . '/version';
+
+		if (is_dir($path) && is_file($versionPath)) {
+			$version = file_get_contents($versionPath);
+		}
+
+		return trim($version);
+	}
+
+	/**
+	 * Install and update theme
+	 */
+	public function installUpdateThemePluginAction(): void
+	{
+		if (!isset($_REQUEST['installThemePlugin'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
 			return;
 		}
 
-		if ($this->hashVerify($_POST['token'])) {
-			if (isset($_POST['installLocation'])) {
-				$installLocation = strtolower(trim($_POST['installLocation']));
-				$addonURL = $_POST['addonURL'];
-				$validPaths = ['themes', 'plugins'];
-			} else {
-				$this->alert('danger', 'Choose between theme or plugin.');
-				$this->redirect();
-			}
-			if (empty($addonURL)) {
-				$this->alert('danger', 'Invalid theme/plugin URL.');
-				$this->redirect();
-			}
-			if (in_array($installLocation, $validPaths)) {
-				$zipFile = $this->filesPath . '/ZIPFromURL.zip';
-				$zipResource = fopen($zipFile, 'w');
-				$ch = curl_init();
-				curl_setopt($ch, CURLOPT_URL, $addonURL);
-				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-				curl_setopt($ch, CURLOPT_FILE, $zipResource);
-				curl_exec($ch);
-				$curlError = curl_error($ch);
-				curl_close($ch);
-				$zip = new \ZipArchive;
-				$extractPath = $this->rootDir . '/' . $installLocation . '/';
-				if ($curlError || $zip->open($zipFile) !== true || (stripos($addonURL, '.zip') === false)) {
-					$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-					$this->alert('danger', 'Error opening ZIP file.' . ($curlError ? ' Error description: ' . $curlError : ''));
-					$this->redirect();
-				}
-				$zip->extractTo($extractPath);
-				$zip->close();
+		$url = $_REQUEST['installThemePlugin'];
+		$type = $_REQUEST['type'];
+		$path = sprintf('%s/%s/', $this->rootDir, $type);
+		$folderName = array_pop(explode('/', str_replace('/archive/master.zip', '', $url)));
+
+		if (in_array($type, self::VALID_DIRS, true)) {
+			$zipFile = $this->filesPath . '/ZIPFromURL.zip';
+			$zipResource = fopen($zipFile, 'w');
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $url);
+			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+			curl_setopt($ch, CURLOPT_FILE, $zipResource);
+			curl_exec($ch);
+			$curlError = curl_error($ch);
+			curl_close($ch);
+			$zip = new \ZipArchive;
+			if ($curlError || $zip->open($zipFile) !== true || (stripos($url, '.zip') === false)) {
 				$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-				$this->alert('success', 'Installed successfully.');
+				$this->alert('danger',
+					'Error opening ZIP file.' . ($curlError ? ' Error description: ' . $curlError : ''));
 				$this->redirect();
 			}
-			$this->alert('danger', 'Enter URL to ZIP file.');
+			$zip->extractTo($path);
+			$zip->close();
+			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
+			rename($path . $folderName . '-master', $path . $folderName);
+			$this->alert('success', 'Installed successfully.');
 			$this->redirect();
 		}
+	}
+
+	/**
+	 * Verify if user is logged in and has verified token for POST calls
+	 * @param bool $isRequest
+	 * @return bool
+	 */
+	public function verifyFormActions(bool $isRequest = false): bool
+	{
+		return ($isRequest ? isset($_REQUEST['token']) : isset($_POST['token'])) && $this->loggedIn && $this->hashVerify($isRequest ? $_REQUEST['token'] : $_POST['token']);
 	}
 
 	/**
@@ -1164,7 +1274,8 @@ EOT;
 							<li role="presentation" class="nav-item active"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab" class="nav-link">Current page</a></li>
 							<li role="presentation" class="nav-item"><a href="#general" aria-controls="general" role="tab" data-toggle="tab" class="nav-link">General</a></li>
 							<li role="presentation" class="nav-item"><a href="#files" aria-controls="files" role="tab" data-toggle="tab" class="nav-link">Files</a></li>
-							<li role="presentation" class="nav-item"><a href="#themesAndPlugins" aria-controls="themesAndPlugins" role="tab" data-toggle="tab" class="nav-link">Themes & plugins</a></li>
+							<li role="presentation" class="nav-item"><a href="#themes" aria-controls="themes" role="tab" data-toggle="tab" class="nav-link">Themes</a></li>
+							<li role="presentation" class="nav-item"><a href="#plugins" aria-controls="plugins" role="tab" data-toggle="tab" class="nav-link">Plugins</a></li>
 							<li role="presentation" class="nav-item"><a href="#security" aria-controls="security" role="tab" data-toggle="tab" class="nav-link">Security</a></li>
 						</ul>
 						<div class="tab-content col-md-8 col-md-offset-2 offset-md-2">
@@ -1286,32 +1397,22 @@ EOT;
 		$output .= '
 							 </div>
 							</div>
-							<div role="tabpanel" class="tab-pane" id="themesAndPlugins">
-							 <p class="subTitle">Install or update</p>
-							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post">
-									<div class="form-group">
-										<label class="radio-inline form-check-inline"><input type="radio" name="installLocation" value="themes" class="form-check-input">Theme</label>
-										<label class="radio-inline form-check-inline"><input type="radio" name="installLocation" value="plugins" class="form-check-input">Plugin</label>
-										<div class="input-group marginTop5"><input type="text" name="addonURL" class="form-control normalFont" placeholder="Paste link/URL to ZIP file">
-											<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Install/Update</button></span>
-										</div>
-									</div>
-									<input type="hidden" value="true" name="installAddon"><input type="hidden" name="token" value="' . $this->getToken() . '">
-								</form>
-							 </div>
-							 <p class="subTitle">Delete themes</p>
-							 <div class="change">';
-		foreach ($themeList as $theme) {
-			$output .= '<a href="' . self::url('?deleteTheme=' . $theme . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $theme . '?\')" title="Delete theme">&times;</a> ' . $theme . '<p></p>';
-		}
-		$output .= '
-							 </div>
-							 <p class="subTitle">Delete plugins</p>
-							 <div class="change">';
-		foreach ($pluginList as $plugin) {
-			$output .= '<a href="' . self::url('?deletePlugin=' . $plugin . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $plugin . '?\')" title="Delete plugin">&times;</a> ' . $plugin . '
-									<p></p>';
+							<div role="tabpanel" class="tab-pane" id="plugins">
+							 <p class="subTitle">List of all Plugins</p>
+							 <div class="change row">';
+		foreach ($this->listAllThemesPlugins('plugins') as $theme) {
+			$name = $theme['name'];
+			$infoUrl = $theme['readmeUrl'];
+
+			$installButton = $theme['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $theme['zip'] . '&type=' . self::PLUGINS_DIR . '&token=' . $this->getToken()) . '">Install</a>' : '';
+			$updateButton = !$theme['install'] && $theme['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $theme['zip'] . '&type=' . self::PLUGINS_DIR . '&token=' . $this->getToken()) . '">Update</a>' : '';
+			$removeButton = !$theme['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deletePlugin=' . $theme['dirName'] . '&type=' . self::PLUGINS_DIR . '&token=' . $this->getToken()) . '">Remove</a>' : '';
+
+			$output .= "<div class='col-md-3'>
+							<h3>$name</h3>
+							<div>$installButton $updateButton $removeButton</div>
+							<p><a href='$infoUrl' target='_blank'>More information</a></p>
+						</div>";
 		}
 		$output .= '
 							 </div>
@@ -1422,17 +1523,15 @@ EOT;
 	 */
 	public function updateAction(): void
 	{
-		if (!$this->loggedIn || !isset($_POST['update'])) {
+		if (!isset($_POST['update']) || !$this->verifyFormActions()) {
 			return;
 		}
-		if ($this->hashVerify($_POST['token'])) {
-			$contents = $this->getFileFromRepo('index.php');
-			if ($contents) {
-				file_put_contents(__FILE__, $contents);
-			}
-			$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
-			$this->redirect();
+		$contents = $this->getFileFromRepo('index.php');
+		if ($contents) {
+			file_put_contents(__FILE__, $contents);
 		}
+		$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
+		$this->redirect();
 	}
 
 	/**
@@ -1454,7 +1553,7 @@ EOT;
 	 */
 	public function uploadFileAction(): void
 	{
-		if (!$this->loggedIn && !isset($_FILES['uploadFile']) && !isset($_POST['token'])) {
+		if (!isset($_FILES['uploadFile']) || !$this->verifyFormActions()) {
 			return;
 		}
 		$allowedExtensions = [
@@ -1490,51 +1589,49 @@ EOT;
 			'wmv' => 'video/x-ms-wmv',
 			'zip' => 'application/zip',
 		];
-		if (isset($_POST['token'], $_FILES['uploadFile']) && $this->hashVerify($_POST['token'])) {
-			if (!isset($_FILES['uploadFile']['error']) || is_array($_FILES['uploadFile']['error'])) {
-				$this->alert('danger', 'Invalid parameters.');
-				$this->redirect();
-			}
-			switch ($_FILES['uploadFile']['error']) {
-				case UPLOAD_ERR_OK:
-					break;
-				case UPLOAD_ERR_NO_FILE:
-					$this->alert('danger', 'No file selected.');
-					$this->redirect();
-					break;
-				case UPLOAD_ERR_INI_SIZE:
-				case UPLOAD_ERR_FORM_SIZE:
-					$this->alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
-					$this->redirect();
-					break;
-				default:
-					$this->alert('danger', 'Unknown error.');
-					$this->redirect();
-			}
-			$mimeType = '';
-			if (class_exists('finfo')) {
-				$finfo = new finfo(FILEINFO_MIME_TYPE);
-				$mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
-			} elseif (function_exists('mime_content_type')) {
-				$mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
-			} else {
-				$nameExploded = explode('.', $_FILES['uploadFile']['name']);
-				$ext = strtolower(array_pop($nameExploded));
-				if (array_key_exists($ext, $allowedExtensions)) {
-					$mimeType = $allowedExtensions[$ext];
-				}
-			}
-			if (!in_array($mimeType, $allowedExtensions, true)) {
-				$this->alert('danger', 'File format is not allowed.');
-				$this->redirect();
-			}
-			if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'],
-				$this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
-				$this->alert('danger', 'Failed to move uploaded file.');
-			}
-			$this->alert('success', 'File uploaded.');
+		if (!isset($_FILES['uploadFile']['error']) || is_array($_FILES['uploadFile']['error'])) {
+			$this->alert('danger', 'Invalid parameters.');
 			$this->redirect();
 		}
+		switch ($_FILES['uploadFile']['error']) {
+			case UPLOAD_ERR_OK:
+				break;
+			case UPLOAD_ERR_NO_FILE:
+				$this->alert('danger', 'No file selected.');
+				$this->redirect();
+				break;
+			case UPLOAD_ERR_INI_SIZE:
+			case UPLOAD_ERR_FORM_SIZE:
+				$this->alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
+				$this->redirect();
+				break;
+			default:
+				$this->alert('danger', 'Unknown error.');
+				$this->redirect();
+		}
+		$mimeType = '';
+		if (class_exists('finfo')) {
+			$finfo = new finfo(FILEINFO_MIME_TYPE);
+			$mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
+		} elseif (function_exists('mime_content_type')) {
+			$mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
+		} else {
+			$nameExploded = explode('.', $_FILES['uploadFile']['name']);
+			$ext = strtolower(array_pop($nameExploded));
+			if (array_key_exists($ext, $allowedExtensions)) {
+				$mimeType = $allowedExtensions[$ext];
+			}
+		}
+		if (!in_array($mimeType, $allowedExtensions, true)) {
+			$this->alert('danger', 'File format is not allowed.');
+			$this->redirect();
+		}
+		if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'],
+			$this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
+			$this->alert('danger', 'Failed to move uploaded file.');
+		}
+		$this->alert('success', 'File uploaded.');
+		$this->redirect();
 	}
 
 	/**
