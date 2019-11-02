@@ -314,6 +314,8 @@ class Wcms
 	 */
 	public function createDb(): void
 	{
+		// Check php requirements
+		$this->checkMinimumRequirements();
 		$password = $this->generatePassword();
 		$this->db = (object)[
 			'config' => [
@@ -506,7 +508,8 @@ EOT;
 			return;
 		}
 		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
-			$filename = str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST['deleteThemePlugin']));
+			$filename = str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null,
+				trim($_REQUEST['deleteThemePlugin']));
 			$type = $_REQUEST['type'];
 			if ($filename === $this->get('config', 'theme')) {
 				$this->alert('danger', 'Cannot delete currently active theme.');
@@ -740,7 +743,8 @@ EOT;
 					'update' => $update,
 					'currentVersion' => $currentVersion,
 					'newVersion' => $newVersion,
-					'image' => $image !== null ? str_replace('https://github.com/', 'https://raw.githubusercontent.com/', $repoFilesUrl) . 'preview.jpg' : null,
+					'image' => $image !== null ? str_replace('https://github.com/',
+							'https://raw.githubusercontent.com/', $repoFilesUrl) . 'preview.jpg' : null,
 					'readme' => $this->getCheckFileFromRepo('summary', $repoFilesUrl),
 					'readmeUrl' => $repoReadmeUrl,
 				];
@@ -814,7 +818,7 @@ EOT;
 
 		$customRepositories[] = $url;
 		$this->set('config', 'customRepos', $type, $customRepositories);
-		$this->alert('success', 'Repository successfully added to Settings -> ' . ucfirst($type) .'.');
+		$this->alert('success', 'Repository successfully added to Settings -> ' . ucfirst($type) . '.');
 		$this->redirect();
 	}
 
@@ -1758,5 +1762,27 @@ EOT;
 		}
 		$zip->close();
 		$this->redirect('data/files/' . $zipName);
+	}
+
+	/**
+	 * Check WCMS php compatibility
+	 */
+	private function checkMinimumRequirements(): void
+	{
+		if (PHP_VERSION_ID <= 70200) {
+			die('<p>To run WonderCMS, PHP version 7.2 or greater is required.</p>');
+		}
+		$extensions = ['curl', 'zip', 'mbstring'];
+		$missingExtensions = [];
+		foreach ($extensions as $ext) {
+			if (!extension_loaded($ext)) {
+				$missingExtensions[] = $ext;
+			}
+		}
+		if (!empty($missingExtensions)) {
+			die('<p>The following extensions are required: '
+				. implode(', ', $missingExtensions)
+				. '. Please contact your host or configure your server to enable them.</p>');
+		}
 	}
 }
