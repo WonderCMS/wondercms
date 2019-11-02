@@ -106,6 +106,7 @@ class Wcms
 		$this->notFoundResponse();
 
 		if ($this->loggedIn) {
+			$this->addCustomThemePluginRepository();
 			$this->installUpdateThemePluginAction();
 			$this->updateDBVersion();
 			$this->changePasswordAction();
@@ -472,7 +473,7 @@ class Wcms
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-files/wcms-admin.min.css" integrity="sha384-YmJRsgYqoll4KFTAbspI00K2gBpzVlEG9SFgK43fioyklBEdaCRuy+lXTWxSqam7" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.7/wcms-admin.min.css" integrity="sha384-OekC70weX+wE13k2zor8rSNge3XI1CeJdAlORfAhh9Gr19bFv3oBCdinEcO/9dqU" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -504,30 +505,19 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
-		if ((isset($_REQUEST['deleteFile']) || isset($_REQUEST['deleteTheme']) || isset($_REQUEST['deletePlugin']))
-			&& $this->verifyFormActions(true)) {
-			$deleteList = [
-				[$this->filesPath, 'deleteFile'],
-				[$this->rootDir . '/themes', 'deleteTheme'],
-				[$this->rootDir . '/plugins', 'deletePlugin'],
-			];
-			foreach ($deleteList as [$folder, $request]) {
-				$filename = isset($_REQUEST[$request])
-					? str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST[$request]))
-					: false;
-				if (!$filename || empty($filename)) {
-					continue;
-				}
-				if ($filename === $this->get('config', 'theme')) {
-					$this->alert('danger', 'Cannot delete currently active theme.');
-					$this->redirect();
-					continue;
-				}
-				if (file_exists("{$folder}/{$filename}")) {
-					$this->recursiveDelete("{$folder}/{$filename}");
-					$this->alert('success', "Deleted {$filename}.");
-					$this->redirect();
-				}
+		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+			$filename = str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null, trim($_REQUEST['deleteThemePlugin']));
+			$type = $_REQUEST['type'];
+			if ($filename === $this->get('config', 'theme')) {
+				$this->alert('danger', 'Cannot delete currently active theme.');
+				$this->redirect();
+			}
+			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
+
+			if (file_exists("{$folder}/{$filename}")) {
+				$this->recursiveDelete("{$folder}/{$filename}");
+				$this->alert('success', "Deleted {$filename}.");
+				$this->redirect();
 			}
 		}
 	}
@@ -717,8 +707,16 @@ EOT;
 				$exists = is_dir($extractPath . $name);
 				$newVersion = $this->getOfficialVersion($repoFilesUrl);
 				$currentVersion = $exists ? $this->getThemePluginVersion($type, $name) : null;
-				if (empty($repo) || empty($name) || $newVersion === '404: Not Found') {
+				if (empty($repo) || empty($name) || $newVersion === null) {
 					continue;
+				}
+
+				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
+				// Show waiting update notification for Themes/Plugins
+				if ($update) {
+					$this->alert('info',
+						'New theme/plugin update available. You can update it inside <a data-toggle="modal" href="#settingsModal">settings</a> panel.',
+						true);
 				}
 
 				$returnArray[] = [
@@ -727,7 +725,7 @@ EOT;
 					'repo' => $repo,
 					'zip' => $repoZipUrl,
 					'install' => !is_dir($extractPath . $name),
-					'update' => $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion,
+					'update' => $update,
 					'currentVersion' => $currentVersion,
 					'newVersion' => $newVersion,
 					'readmeUrl' => $repoReadmeUrl,
@@ -747,23 +745,63 @@ EOT;
 	{
 		$db = $this->getDb();
 		$array = (array)$db->config->defaultRepos->{$type};
+		$arrayCustom = (array)$db->config->customRepos->{$type};
 		$lastSync = $db->config->defaultRepos->lastSync;
 
 		if (empty($array) || strtotime($lastSync) < strtotime('-1 days')) {
 			$plugins = trim($this->getFileFromRepo('plugins-list.json', self::WCMS_CDN_REPO));
 			$themes = trim($this->getFileFromRepo('themes-list.json', self::WCMS_CDN_REPO));
 			if ($plugins !== '404: Not Found') {
-				$this->set('config', 'defaultRepos', 'plugins', explode("\n", $plugins));
+				$plugins = explode("\n", $plugins);
+				$this->set('config', 'defaultRepos', 'plugins', $plugins);
+				$array = $type === 'plugins' ? $plugins : $array;
 			}
 
 			if ($themes !== '404: Not Found') {
-				$this->set('config', 'defaultRepos', 'themes', explode("\n", $themes));
+				$themes = explode("\n", $themes);
+				$this->set('config', 'defaultRepos', 'themes', $themes);
+				$array = $type === 'themes' ? $themes : $array;
 			}
 
 			$this->set('config', 'defaultRepos', 'lastSync', date('Y/m/d'));
 		}
 
-		return $array;
+		return array_merge($array, $arrayCustom);
+	}
+
+	/**
+	 * Add custom repository links for themes and plugins
+	 */
+	public function addCustomThemePluginRepository(): void
+	{
+		if (!isset($_POST['pluginThemeUrl'], $_POST['pluginThemeType']) || !$this->verifyFormActions()) {
+			return;
+		}
+		$type = $_POST['pluginThemeType'];
+		$url = rtrim(trim($_POST['pluginThemeUrl']), '/');
+		$defaultRepositories = (array)$this->get('config', 'defaultRepos', $type);
+		$customRepositories = (array)$this->get('config', 'customRepos', $type);
+		$errorMessage = null;
+		switch (true) {
+			case strpos($url, 'https://github.com/') === false && strpos($url, 'https://gitlab.com/') === false:
+				$errorMessage = 'Invalid repository URL. Only GitHub and GitLab are supported.';
+				break;
+			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
+				$errorMessage = 'Repository already exists.';
+				break;
+			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null:
+				$errorMessage = 'Repository not added - missing version file.';
+				break;
+		}
+		if ($errorMessage !== null) {
+			$this->alert('danger', $errorMessage);
+			$this->redirect();
+		}
+
+		$customRepositories[] = $url;
+		$this->set('config', 'customRepos', $type, $customRepositories);
+		$this->alert('success', 'Repository successfully added to Settings -> ' . ucfirst($type) .'.');
+		$this->redirect();
 	}
 
 	/**
@@ -779,10 +817,10 @@ EOT;
 		$versionPath = $path . '/version';
 
 		if (is_dir($path) && is_file($versionPath)) {
-			$version = file_get_contents($versionPath);
+			$version = trim(file_get_contents($versionPath));
 		}
 
-		return trim($version);
+		return $version;
 	}
 
 	/**
@@ -819,8 +857,9 @@ EOT;
 			$zip->extractTo($path);
 			$zip->close();
 			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
+			$this->recursiveDelete($path . $folderName);
 			rename($path . $folderName . '-master', $path . $folderName);
-			$this->alert('success', 'Installed successfully.');
+			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
 			$this->redirect();
 		}
 	}
@@ -1257,8 +1296,6 @@ EOT;
 			return '';
 		}
 		$fileList = array_slice(scandir($this->filesPath), 2);
-		$themeList = array_slice(scandir($this->rootDir . '/themes/'), 2);
-		$pluginList = array_slice(scandir($this->rootDir . '/plugins/'), 2);
 		$output = '
 		<div id="save"><h2>Saving...</h2></div>
 		<div id="adminPanel" class="container-fluid">
@@ -1388,7 +1425,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteFile=' . $file . '&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a>
+									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -1396,28 +1433,10 @@ EOT;
 		}
 		$output .= '
 							 </div>
-							</div>
-							<div role="tabpanel" class="tab-pane" id="plugins">
-							 <p class="subTitle">List of all Plugins</p>
-							 <div class="change row">';
-		foreach ($this->listAllThemesPlugins('plugins') as $theme) {
-			$name = $theme['name'];
-			$infoUrl = $theme['readmeUrl'];
-
-			$installButton = $theme['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $theme['zip'] . '&type=' . self::PLUGINS_DIR . '&token=' . $this->getToken()) . '">Install</a>' : '';
-			$updateButton = !$theme['install'] && $theme['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $theme['zip'] . '&type=' . self::PLUGINS_DIR . '&token=' . $this->getToken()) . '">Update</a>' : '';
-			$removeButton = !$theme['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deletePlugin=' . $theme['dirName'] . '&type=' . self::PLUGINS_DIR . '&token=' . $this->getToken()) . '">Remove</a>' : '';
-
-			$output .= "<div class='col-md-3'>
-							<h3>$name</h3>
-							<div>$installButton $updateButton $removeButton</div>
-							<p><a href='$infoUrl' target='_blank'>More information</a></p>
-						</div>";
-		}
-		$output .= '
-							 </div>
-							</div>
-							<div role="tabpanel" class="tab-pane" id="security">
+							</div>';
+		$output .= $this->renderThemePluginTab();
+		$output .= $this->renderThemePluginTab('plugins');
+		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
 							 <div class="change">
 								<div data-target="config" id="login" class="editText">' . $this->get('config',
@@ -1474,6 +1493,47 @@ EOT;
 			</div>
 		</div>';
 		return $this->hook('settings', $output)[0];
+	}
+
+	/**
+	 * Render Plugins/Themes cards
+	 * @param string $type
+	 * @return string
+	 */
+	private function renderThemePluginTab(string $type = 'themes'): string
+	{
+		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
+							 <p class="subTitle">List of all ' . $type . '</p>
+							 <div class="change row custom-cards">';
+		foreach ($this->listAllThemesPlugins($type) as $addon) {
+			$name = $addon['name'];
+			$infoUrl = $addon['readmeUrl'];
+			$currentVersion = $addon['currentVersion'] ? sprintf('(%s)', $addon['currentVersion']) : '';
+
+			$installButton = $addon['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Install</a>' : '';
+			$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Update to ' . $addon['newVersion'] . '</a>' : '';
+			$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Remove</a>' : '';
+
+			$output .= "<div class='col-sm-4'>
+							<div>
+								<h4>$name <small>$currentVersion</small></h4>
+								<p><a href='$infoUrl' target='_blank'>More information</a></p>
+								<div>$installButton $updateButton $removeButton</div>
+							</div>
+						</div>";
+		}
+		$output .= '</div>	
+					<p class="subTitle">Custom repository</p>							
+					<form action="' . self::url($this->currentPage) . '" method="post">
+						<div class="form-group">
+							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
+								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Add</button></span>
+							</div>
+						</div>
+						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
+					</form>
+				</div>';
+		return $output;
 	}
 
 	/**
