@@ -649,8 +649,19 @@ EOT;
 	 */
 	public function getOfficialVersion(string $repo = self::WCMS_REPO): ?string
 	{
-		$version = trim($this->getFileFromRepo('version', $repo));
-		return $version === '404: Not Found' ? null : $version;
+		return $this->getCheckFileFromRepo('version', $repo);
+	}
+
+	/**
+	 * Get the files from master branch on GitHub
+	 * @param string $fileName
+	 * @param string $repo
+	 * @return null|string
+	 */
+	public function getCheckFileFromRepo(string $fileName, string $repo = self::WCMS_REPO): ?string
+	{
+		$version = trim($this->getFileFromRepo($fileName, $repo));
+		return $version === '404: Not Found' || $version === '400: Invalid request' ? null : $version;
 	}
 
 	/**
@@ -718,6 +729,7 @@ EOT;
 						'New theme/plugin update available. You can update it inside <a data-toggle="modal" href="#settingsModal">settings</a> panel.',
 						true);
 				}
+				$image = $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
 
 				$returnArray[] = [
 					'name' => ucfirst(str_replace('-', ' ', $name)),
@@ -728,6 +740,8 @@ EOT;
 					'update' => $update,
 					'currentVersion' => $currentVersion,
 					'newVersion' => $newVersion,
+					'image' => $image !== null ? str_replace('https://github.com/', 'https://raw.githubusercontent.com/', $repoFilesUrl) . 'preview.jpg' : null,
+					'readme' => $this->getCheckFileFromRepo('summary', $repoFilesUrl),
 					'readmeUrl' => $repoReadmeUrl,
 				];
 			}
@@ -1505,18 +1519,23 @@ EOT;
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
 							 <p class="subTitle">List of all ' . $type . '</p>
 							 <div class="change row custom-cards">';
+		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		foreach ($this->listAllThemesPlugins($type) as $addon) {
 			$name = $addon['name'];
+			$info = $addon['readme'];
 			$infoUrl = $addon['readmeUrl'];
 			$currentVersion = $addon['currentVersion'] ? sprintf('(%s)', $addon['currentVersion']) : '';
 
+			$image = $addon['image'] !== null ? '<img style="max-width: 100%;" src="' . $addon['image'] . '" alt="' . $name . '" />' : $defaultImage;
 			$installButton = $addon['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Install</a>' : '';
 			$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Update to ' . $addon['newVersion'] . '</a>' : '';
 			$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Remove</a>' : '';
 
 			$output .= "<div class='col-sm-4'>
 							<div>
+								$image
 								<h4>$name <small>$currentVersion</small></h4>
+								<p>$info</p>
 								<p><a href='$infoUrl' target='_blank'>More information</a></p>
 								<div>$installButton $updateButton $removeButton</div>
 							</div>
