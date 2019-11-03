@@ -22,25 +22,25 @@ class Wcms
 	private const PLUGINS_DIR = 'plugins';
 	private const VALID_DIRS = [self::THEMES_DIR, self::PLUGINS_DIR];
 
-	/** @var int MIN_PASSWORD_LENGTH minimum number of characters for password */
+	/** @var int MIN_PASSWORD_LENGTH minimum number of characters */
 	public const MIN_PASSWORD_LENGTH = 8;
 
-	/** @var string WonderCMS repository URL */
+	/** @var string WCMS_REPO - repo URL */
 	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
 
-	/** @var string WonderCMS CDN repository URL */
+	/** @var string WCMS_CDN_REPO - CDN repo URL */
 	public const WCMS_CDN_REPO = 'https://raw.githubusercontent.com/robiso/wondercms-cdn-files/master/';
 
-	/** @var string $currentPage the current page */
+	/** @var string $currentPage - current page */
 	public $currentPage = '';
 
-	/** @var bool $currentPageExists does the current page exist? */
+	/** @var bool $currentPageExists - check if current page exists */
 	public $currentPageExists = false;
 
-	/** @var object $db content of the database.js */
+	/** @var object $db - content of database.js */
 	protected $db;
 
-	/** @var bool $loggedIn is the user logged in? */
+	/** @var bool $loggedIn - check if admin is logged in */
 	public $loggedIn = false;
 
 	/** @var array $listeners for hooks */
@@ -137,7 +137,7 @@ class Wcms
 			}
 			if ($loadingPage && $loadingPage->visibility === 'hide') {
 				$this->alert('info',
-					'This page is currently hidden from the menu. You can change the visibility in Settings -> General.');
+					'This page  (' . $this->currentPage . ') is currently hidden from the menu. <a data-toggle="modal" href="#settingsModal" data-target-tab="#general"><b>Click here to open menu visibility settings.</b></a>');
 			}
 		}
 
@@ -156,7 +156,7 @@ class Wcms
 	}
 
 	/**
-	 * Add alert message for the user
+	 * Add alert message for admin
 	 *
 	 * @param string $class see bootstrap alerts classes
 	 * @param string $message the message to display
@@ -176,7 +176,7 @@ class Wcms
 	}
 
 	/**
-	 * Display alert message to the user
+	 * Display alert message to the admin
 	 * @return string
 	 */
 	public function alerts(): string
@@ -224,7 +224,7 @@ class Wcms
 		}
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
 		if (!empty($backupList)) {
-			$this->alert('danger', 'Delete backup files. (<i>Settings -> Files</i>)');
+			$this->alert('danger', 'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and remove unnecessary backup files.</b></a>');
 		}
 		$this->zipBackup();
 	}
@@ -467,7 +467,7 @@ class Wcms
 	}
 
 	/**
-	 * Inject CSS into page
+	 * Load CSS and enable plugins to load CSS
 	 * @return string
 	 */
 	public function css(): string
@@ -475,7 +475,7 @@ class Wcms
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.7/wcms-admin.min.css" integrity="sha384-OekC70weX+wE13k2zor8rSNge3XI1CeJdAlORfAhh9Gr19bFv3oBCdinEcO/9dqU" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.9/wcms-admin.min.css" integrity="sha384-fRM/Ur1ghnS4PUVLrsT+Jmq6flptARBaVf4PjkSL5jFpnVnPRm+ac1/U2cKy+Tcd" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -483,14 +483,14 @@ EOT;
 	}
 
 	/**
-	 * Get content of the database
+	 * Get database content
 	 * @return stdClass
 	 */
 	public function getDb(): stdClass
 	{
-		// initialize the database if it doesn't exist yet
+		// initialize database if it doesn't exist
 		if (!file_exists($this->dbPath)) {
-			// this code basically only runs one time, on first page load: install time
+			// this code only runs one time (on first page load/install)
 			$this->checkFolder(dirname($this->dbPath));
 			$this->checkFolder($this->filesPath);
 			$this->createDb();
@@ -558,7 +558,7 @@ EOT;
 	}
 
 	/**
-	 * Get an editable block
+	 * Get editable block
 	 *
 	 * @param string $id id for the block
 	 * @param string $content html content
@@ -571,7 +571,7 @@ EOT;
 	}
 
 	/**
-	 * Get the footer
+	 * Get footer
 	 * @return string
 	 */
 	public function footer(): string
@@ -603,7 +603,7 @@ EOT;
 	}
 
 	/**
-	 * Get something from the database
+	 * Get something from database
 	 */
 	public function get()
 	{
@@ -624,7 +624,7 @@ EOT;
 	}
 
 	/**
-	 * Get content of a file from master branch on GitHub
+	 * Get content of a file from master branch
 	 *
 	 * @param string $file the file we want
 	 * @param string $repo
@@ -646,7 +646,7 @@ EOT;
 	}
 
 	/**
-	 * Get the latest version from master branch on GitHub
+	 * Get the latest version from master branch
 	 * @param string $repo
 	 * @return null|string
 	 */
@@ -656,7 +656,7 @@ EOT;
 	}
 
 	/**
-	 * Get the files from master branch on GitHub
+	 * Get the files from master branch
 	 * @param string $fileName
 	 * @param string $repo
 	 * @return null|string
@@ -668,7 +668,7 @@ EOT;
 	}
 
 	/**
-	 * Checks token with hash_equals
+	 * Compare token with hash_equals
 	 *
 	 * @param string $token
 	 * @return bool
@@ -679,7 +679,7 @@ EOT;
 	}
 
 	/**
-	 * Returns hooks from plugins
+	 * Return hooks from plugins
 	 * @return array
 	 */
 	public function hook(): array
@@ -729,7 +729,7 @@ EOT;
 				// Show waiting update notification for Themes/Plugins
 				if ($update) {
 					$this->alert('info',
-						'New theme/plugin update available. You can update it inside <a data-toggle="modal" href="#settingsModal">settings</a> panel.',
+						'<b>New theme/plugin update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#themes">View theme/plugin updates switcher.</a></b>',
 						true);
 				}
 				$image = $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
@@ -755,7 +755,7 @@ EOT;
 	}
 
 	/**
-	 * Get all repos from cdn
+	 * Get all repos from CDN
 	 * @param string $type
 	 * @return array
 	 */
@@ -818,7 +818,7 @@ EOT;
 
 		$customRepositories[] = $url;
 		$this->set('config', 'customRepos', $type, $customRepositories);
-		$this->alert('success', 'Repository successfully added to Settings -> ' . ucfirst($type) . '.');
+		$this->alert('success', 'Repository successfully added to <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
 		$this->redirect();
 	}
 
@@ -883,7 +883,7 @@ EOT;
 	}
 
 	/**
-	 * Verify if user is logged in and has verified token for POST calls
+	 * Verify if admin is logged in and has verified token for POST calls
 	 * @param bool $isRequest
 	 * @return bool
 	 */
@@ -893,7 +893,7 @@ EOT;
 	}
 
 	/**
-	 * Insert JS if the user is logged in
+	 * Load JS and enable plugins to load JS
 	 * @return string
 	 */
 	public function js(): string
@@ -903,7 +903,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.5/wcms-admin.min.js" integrity="sha384-WEXtTmZlq9T9LT8MEN7Sd526PQJBw9fl8fbTwoGr8Dbot3j+SW2EM3K4g6PigbzN" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.8/wcms-admin.min.js" integrity="sha384-j0UmDBSzMvuANUWoeW+OJQi2FvtgEN+irvGnarAIDwK8MsJdbR0J+YiL6yA+DxKA" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -914,7 +914,7 @@ EOT;
 	}
 
 	/**
-	 * Load plugins (if they exist)
+	 * Load plugins (if any exist)
 	 * @return void
 	 */
 	public function loadPlugins(): void
@@ -934,7 +934,7 @@ EOT;
 	}
 
 	/**
-	 * Loads theme files and functions.php file, if they exists
+	 * Loads theme files and functions.php file (if they exists)
 	 * @return void
 	 */
 	public function loadThemeAndFunctions(): void
@@ -947,7 +947,7 @@ EOT;
 	}
 
 	/**
-	 * Hook for fetching custom menu settings
+	 * Admin login verification
 	 * @return void
 	 */
 	public function loginAction(): void
@@ -973,7 +973,7 @@ EOT;
 	}
 
 	/**
-	 * Check if the user is logged in
+	 * Check if admin is logged in
 	 * @return void
 	 */
 	public function loginStatus(): void
@@ -982,7 +982,7 @@ EOT;
 	}
 
 	/**
-	 * Admin login form view
+	 * Login form view
 	 * @return array
 	 */
 	public function loginView(): array
@@ -1048,7 +1048,7 @@ EOT;
 	}
 
 	/**
-	 * Returns 404 page to visitors
+	 * Return 404 page to visitors
 	 * Admin can create a page that doesn't exist yet
 	 */
 	public function notFoundView()
@@ -1066,7 +1066,7 @@ EOT;
 
 	/**
 	 * Admin notifications
-	 * Alerts for non-existent page, changing default settings, new version/update
+	 * Alerts for non-existent pages, changing default settings, new version/update
 	 * @return void
 	 */
 	public function notifyAction(): void
@@ -1081,7 +1081,7 @@ EOT;
 			);
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
-			$this->alert('danger', 'Change your default password and login URL. (<i>Settings -> Security</i>)', true);
+			$this->alert('danger', 'Change your default password and login URL. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Click here to open security settings.</b></a>', true);
 		}
 		if ($this->getOfficialVersion() > VERSION) {
 			$this->alert(
@@ -1102,7 +1102,7 @@ EOT;
 	/**
 	 * Reorder the pages
 	 *
-	 * @param int $content 1 for down arrow, or -1 for up arrow clicked
+	 * @param int $content 1 for down arrow or -1 for up arrow
 	 * @param int $menu
 	 * @return void
 	 */
@@ -1123,7 +1123,7 @@ EOT;
 		$this->set($conf, $field, $targetPosition, 'name', $move->name);
 		$this->set($conf, $field, $targetPosition, 'slug', $move->slug);
 		$this->set($conf, $field, $targetPosition, 'visibility', $move->visibility);
-		// now write the other menu item to the previous position
+		// write the other menu item to the previous position
 		$this->set($conf, $field, $menu, 'name', $tmp->name);
 		$this->set($conf, $field, $menu, 'slug', $tmp->slug);
 		$this->set($conf, $field, $menu, 'visibility', $tmp->visibility);
@@ -1305,7 +1305,7 @@ EOT;
 	}
 
 	/**
-	 * Display the admin settings panel
+	 * Display admin settings panel
 	 * @return string
 	 */
 	public function settings(): string
@@ -1497,10 +1497,8 @@ EOT;
 					</div>
 					<div class="modal-footer clear">
 						<p class="small">
-							<a href="https://wondercms.com" target="_blank">WonderCMS</a> ' . VERSION . ' &nbsp; 
+							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp; 
 							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; 
-							 <a href="https://wondercms.com/themes" target="_blank">Themes</a> &nbsp; 
-							 <a href="https://wondercms.com/plugins" target="_blank">Plugins</a> &nbsp; 
 							 <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; 
 							 <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; 
 							 <a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
@@ -1528,20 +1526,21 @@ EOT;
 			$name = $addon['name'];
 			$info = $addon['readme'];
 			$infoUrl = $addon['readmeUrl'];
-			$currentVersion = $addon['currentVersion'] ? sprintf('(%s)', $addon['currentVersion']) : '';
+			$currentVersion = $addon['currentVersion'] ? sprintf('v%s', $addon['currentVersion']) : '';
 
-			$image = $addon['image'] !== null ? '<img style="max-width: 100%;" src="' . $addon['image'] . '" alt="' . $name . '" />' : $defaultImage;
-			$installButton = $addon['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Install</a>' : '';
-			$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Update to ' . $addon['newVersion'] . '</a>' : '';
-			$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '">Remove</a>' : '';
+			$image = $addon['image'] !== null ? '<div style="text-align: center;"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></div>' : $defaultImage;
+			$installButton = $addon['install'] ? '<a class="btn btn-success btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install">Install</a>' : '';
+			$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update">Update to ' . $addon['newVersion'] . '</a>' : '';
+			$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-md" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $addon['dirName'] . '?\')" title="Remove">Remove</a>' : '';
 
 			$output .= "<div class='col-sm-4'>
 							<div>
 								$image
-								<h4>$name <small>$currentVersion</small></h4>
+								<h4>$name</h4>
 								<p>$info</p>
-								<p><a href='$infoUrl' target='_blank'>More information</a></p>
-								<div>$installButton $updateButton $removeButton</div>
+								<p class='text-right small'>$currentVersion<br /><a href='$infoUrl' target='_blank' class='fas fa-link'> More info</a></p>
+								<div class='text-left'>$installButton</div>
+								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
 							</div>
 						</div>";
 		}
@@ -1574,7 +1573,7 @@ EOT;
 	}
 
 	/**
-	 * Delete something from the database
+	 * Delete something from database
 	 * Has variadic arguments
 	 * @return void
 	 */
@@ -1600,8 +1599,8 @@ EOT;
 	}
 
 	/**
-	 * Update WonderCMS function
-	 * Overwrites index.php with latest from GitHub
+	 * Update WonderCMS
+	 * Overwrites index.php with latest version from GitHub
 	 * @return void
 	 */
 	public function updateAction(): void
@@ -1735,7 +1734,7 @@ EOT;
 	}
 
 	/**
-	 * Create a ZIP backup of all content
+	 * Create a ZIP backup of whole WonderCMS installation (all files)
 	 *
 	 * @return void
 	 * @throws Exception
@@ -1765,7 +1764,7 @@ EOT;
 	}
 
 	/**
-	 * Check WCMS php compatibility
+	 * Check compatibility
 	 */
 	private function checkMinimumRequirements(): void
 	{
