@@ -46,6 +46,12 @@ class Wcms
 	/** @var array $listeners for hooks */
 	public $listeners = [];
 
+	/** @var string $dataPath path to data folder */
+	protected $dataPath;
+
+	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
+	protected $themesPluginsCachePath;
+
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
 
@@ -86,8 +92,10 @@ class Wcms
 		string $filesFolder = 'files',
 		string $dbName = 'database.js'
 	): void {
-		$this->dbPath = sprintf('%s/%s/%s', $this->rootDir, $dataFolder, $dbName);
-		$this->filesPath = sprintf('%s/%s/%s', $this->rootDir, $dataFolder, $filesFolder);
+		$this->dataPath = sprintf('%s/%s', $this->rootDir, $dataFolder);
+		$this->dbPath = sprintf('%s/%s', $this->dataPath, $dbName);
+		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
+		$this->themesPluginsCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
 	}
 
 	/**
@@ -106,6 +114,7 @@ class Wcms
 		$this->notFoundResponse();
 
 		if ($this->loggedIn) {
+			$this->manuallyRefreshCacheData();
 			$this->addCustomThemePluginRepository();
 			$this->installUpdateThemePluginAction();
 			$this->updateDBVersion();
@@ -148,7 +157,7 @@ class Wcms
 	 * Function used by plugins to add a hook
 	 *
 	 * @param string $hook
-	 * @param string $functionName
+	 * @param callable $functionName
 	 */
 	public function addListener(string $hook, callable $functionName): void
 	{
@@ -219,14 +228,18 @@ class Wcms
 	 */
 	public function backupAction(): void
 	{
-		if (!isset($_POST['backup']) || !$this->verifyFormActions()) {
+		if (!$this->loggedIn) {
 			return;
 		}
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
 		if (!empty($backupList)) {
-			$this->alert('danger', 'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and remove unnecessary backup files.</b></a>');
+			$this->alert('danger',
+				'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and remove unnecessary backup files.</b></a>',
+				true);
 		}
-		$this->zipBackup();
+		if (isset($_POST['backup']) && $this->verifyFormActions()) {
+			$this->zipBackup();
+		}
 	}
 
 	/**
@@ -425,6 +438,7 @@ class Wcms
 			$this->set($conf, $field, $menuCount, 'visibility', $visibility);
 			if ($menu) {
 				$this->createPage($slug);
+				$_SESSION['redirect_to'] = $slug;
 			}
 		} else {
 			$oldSlug = $this->get($conf, $field, $menu, 'slug');
@@ -496,6 +510,20 @@ EOT;
 			$this->createDb();
 		}
 		return json_decode(file_get_contents($this->dbPath));
+	}
+
+	/**
+	 * Get data from any json file
+	 * @param string $path
+	 * @return stdClass|null
+	 */
+	public function getJsonFileData(string $path): ?array
+	{
+		if (is_file($path) && file_exists($path)) {
+			return json_decode(file_get_contents($path), true);
+		}
+
+		return null;
 	}
 
 	/**
@@ -706,52 +734,26 @@ EOT;
 	 */
 	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
 	{
-		$returnArray = [];
+		$data = [];
 		if ($this->loggedIn) {
-			$branch = 'master';
-			$repos = $this->getThemesPluginsRepos($type);
+			$data = $this->getThemesPluginsCachedData($type);
 
-			foreach ($repos as $repo) {
-				$extractPath = $this->rootDir . "/$type/";
-				$repoParts = explode('/', $repo);
-				$name = array_pop($repoParts);
-				$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
-				$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
-				$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
-				$exists = is_dir($extractPath . $name);
-				$newVersion = $this->getOfficialVersion($repoFilesUrl);
-				$currentVersion = $exists ? $this->getThemePluginVersion($type, $name) : null;
-				if (empty($repo) || empty($name) || $newVersion === null) {
-					continue;
-				}
-
-				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
-				// Show waiting update notification for Themes/Plugins
-				if ($update) {
+			foreach ($data as $repo => $addon) {
+				if ($addon['update']) {
 					$this->alert('info',
-						'<b>New theme/plugin update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#themes">View theme/plugin updates switcher.</a></b>',
+						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list.</a></b>',
 						true);
 				}
-				$image = $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
 
-				$returnArray[] = [
-					'name' => ucfirst(str_replace('-', ' ', $name)),
-					'dirName' => $name,
-					'repo' => $repo,
-					'zip' => $repoZipUrl,
-					'install' => !is_dir($extractPath . $name),
-					'update' => $update,
-					'currentVersion' => $currentVersion,
-					'newVersion' => $newVersion,
-					'image' => $image !== null ? str_replace('https://github.com/',
-							'https://raw.githubusercontent.com/', $repoFilesUrl) . 'preview.jpg' : null,
-					'readme' => $this->getCheckFileFromRepo('summary', $repoFilesUrl),
-					'readmeUrl' => $repoReadmeUrl,
-				];
+				$dirName = $addon['dirName'];
+				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
+				$currentVersion = $exists ? $this->getThemePluginVersion($type, $dirName) : null;
+				$data[$repo]['install'] = !$exists;
+				$data[$repo]['currentVersion'] = $currentVersion;
 			}
 		}
 
-		return $returnArray;
+		return $data;
 	}
 
 	/**
@@ -764,9 +766,10 @@ EOT;
 		$db = $this->getDb();
 		$array = (array)$db->config->defaultRepos->{$type};
 		$arrayCustom = (array)$db->config->customRepos->{$type};
+		$data = $this->getJsonFileData($this->themesPluginsCachePath);
 		$lastSync = $db->config->defaultRepos->lastSync;
 
-		if (empty($array) || strtotime($lastSync) < strtotime('-1 days')) {
+		if (empty($array) || empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
 			$plugins = trim($this->getFileFromRepo('plugins-list.json', self::WCMS_CDN_REPO));
 			$themes = trim($this->getFileFromRepo('themes-list.json', self::WCMS_CDN_REPO));
 			if ($plugins !== '404: Not Found') {
@@ -782,9 +785,98 @@ EOT;
 			}
 
 			$this->set('config', 'defaultRepos', 'lastSync', date('Y/m/d'));
+			$this->cacheThemesPluginsData();
 		}
 
 		return array_merge($array, $arrayCustom);
+	}
+
+	/**
+	 * Retrieve cached Themes/Plugins data
+	 * @param string $type
+	 * @return array|null
+	 */
+	public function getThemesPluginsCachedData(string $type = self::THEMES_DIR): array
+	{
+		$this->getThemesPluginsRepos($type);
+		$data = $this->getJsonFileData($this->themesPluginsCachePath);
+		return $data !== null && array_key_exists($type, $data) ? $data[$type] : [];
+	}
+
+	/**
+	 * Force cache refresh for updates
+	 */
+	public function manuallyRefreshCacheData(): void
+	{
+		if (!isset($_REQUEST['manuallyResetCacheData']) || !$this->verifyFormActions(true)) {
+			return;
+		}
+		$this->cacheThemesPluginsData();
+		$this->checkWcmsCoreUpdate();
+		$this->set('config', 'defaultRepos', 'lastSync', date('Y/m/d'));
+		$this->redirect();
+	}
+
+	/**
+	 * Cache themes and plugins data
+	 */
+	private function cacheThemesPluginsData(): void
+	{
+		$branch = 'master';
+		$returnArray = [];
+		$db = $this->getDb();
+		$array = (array)$db->config->defaultRepos;
+		$arrayCustom = (array)$db->config->customRepos;
+		$savedData = $this->getJsonFileData($this->themesPluginsCachePath);
+
+		foreach ($array as $type => $repos) {
+			if ($type === 'lastSync') {
+				continue;
+			}
+			$concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
+
+			foreach ($concatenatedRepos as $repo) {
+				$extractPath = $this->rootDir . "/$type/";
+				$repoParts = explode('/', $repo);
+				$name = array_pop($repoParts);
+				$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
+				$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
+				$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
+				$exists = is_dir($extractPath . $name);
+				$newVersion = $this->getOfficialVersion($repoFilesUrl);
+				$currentVersion = $exists ? $this->getThemePluginVersion($type, $name) : null;
+				if (empty($repo) || empty($name) || $newVersion === null) {
+					continue;
+				}
+
+				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
+				if ($update) {
+					$this->alert('info',
+						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">View ' . $type . ' updates switcher.</a></b>',
+						true);
+				}
+				$image = $savedData[$type][$repo]['image'] ?? $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
+
+				$returnArray[$type][$repo] = [
+					'name' => ucfirst(str_replace('-', ' ', $name)),
+					'dirName' => $name,
+					'repo' => $repo,
+					'zip' => $repoZipUrl,
+					'install' => !$exists,
+					'update' => $update,
+					'currentVersion' => $currentVersion,
+					'newVersion' => $newVersion,
+					'image' => $image !== null
+						? str_replace('https://github.com/', 'https://raw.githubusercontent.com/',
+							$repoFilesUrl) . 'preview.jpg'
+						: null,
+					'readme' => $this->getCheckFileFromRepo('summary', $repoFilesUrl),
+					'readmeUrl' => $repoReadmeUrl,
+				];
+			}
+		}
+
+		$this->save($this->themesPluginsCachePath, (object)$returnArray);
 	}
 
 	/**
@@ -818,7 +910,8 @@ EOT;
 
 		$customRepositories[] = $url;
 		$this->set('config', 'customRepos', $type, $customRepositories);
-		$this->alert('success', 'Repository successfully added to <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
+		$this->alert('success',
+			'Repository successfully added to <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
 		$this->redirect();
 	}
 
@@ -1081,9 +1174,25 @@ EOT;
 			);
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
-			$this->alert('danger', 'Change your default password and login URL. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Click here to open security settings.</b></a>', true);
+			$this->alert('danger',
+				'Change your default password and login URL. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Click here to open security settings.</b></a>',
+				true);
 		}
-		if ($this->getOfficialVersion() > VERSION) {
+
+		$db = $this->getDb();
+		$lastSync = $db->config->defaultRepos->lastSync;
+		if (strtotime($lastSync) < strtotime('-1 days')) {
+			$this->checkWcmsCoreUpdate();
+		}
+	}
+
+	/**
+	 * Checks if there is new Wcms version
+	 */
+	private function checkWcmsCoreUpdate(): void
+	{
+		$onlineVersion = $this->getOfficialVersion();
+		if ($onlineVersion > VERSION) {
 			$this->alert(
 				'info',
 				'<h4><b>New WonderCMS update available</b></h4> - Backup your website and
@@ -1091,7 +1200,7 @@ EOT;
 				 <form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5">
 					<button type="submit" class="btn btn-info" name="backup">Download backup</button>
 					<div class="clear"></div>
-					<button class="btn btn-info marginTop5" name="update">Update WonderCMS ' . VERSION . ' to ' . $this->getOfficialVersion() . '</button>
+					<button class="btn btn-info marginTop5" name="update">Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
 					<input type="hidden" name="token" value="' . $this->getToken() . '">
 				</form>',
 				true
@@ -1217,14 +1326,18 @@ EOT;
 	}
 
 	/**
-	 * Save database to disk
+	 * Save object to disk (default is set for DB)
+	 * @param string|null $path
+	 * @param object|null $content
 	 * @return void
 	 */
-	public function save(): void
+	public function save(string $path = null, object $content = null): void
 	{
+		$path = $path ?? $this->dbPath;
+		$content = $content ?? $this->db;
 		file_put_contents(
-			$this->dbPath,
-			json_encode($this->db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+			$path,
+			json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
 		);
 	}
 
@@ -1249,7 +1362,6 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItem') {
 				$this->createMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to'] = $content;
 			}
 			if ($target === 'menuItemVsbl') {
 				$this->set('config', $fieldname, $menu, 'visibility', $visibility);
@@ -1417,7 +1529,7 @@ EOT;
 		$items = $this->get('config', 'menuItems');
 		foreach ($items as $key => $value) {
 			$output .= '<option value="' . $value->slug . '"' . ($value->slug === $this->get('config',
-					'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
+					'defaultPage') ? ' selected' : '') . '>' . $value->name . ' (/' . $value->slug . ')</option>';
 		}
 		$output .= '
 								</select>
@@ -1519,7 +1631,7 @@ EOT;
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
-							 <p class="subTitle">List of all ' . $type . '</p>
+							 <p class="subTitle">List of all ' . $type . ' <a class="btn btn-info btn-sm pull-right" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates">Check for updates (might take a minute)</a></p>
 							 <div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		foreach ($this->listAllThemesPlugins($type) as $addon) {
@@ -1528,7 +1640,7 @@ EOT;
 			$infoUrl = $addon['readmeUrl'];
 			$currentVersion = $addon['currentVersion'] ? sprintf('v%s', $addon['currentVersion']) : '';
 
-			$image = $addon['image'] !== null ? '<div style="text-align: center;"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></div>' : $defaultImage;
+			$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
 			$installButton = $addon['install'] ? '<a class="btn btn-success btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install">Install</a>' : '';
 			$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update">Update to ' . $addon['newVersion'] . '</a>' : '';
 			$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-md" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $addon['dirName'] . '?\')" title="Remove">Remove</a>' : '';
