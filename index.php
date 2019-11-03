@@ -146,7 +146,7 @@ class Wcms
 			}
 			if ($loadingPage && $loadingPage->visibility === 'hide') {
 				$this->alert('info',
-					'This page  (' . $this->currentPage . ') is currently hidden from the menu. <a data-toggle="modal" href="#settingsModal" data-target-tab="#general"><b>Click here to open menu visibility settings.</b></a>');
+					'This page (' . $this->currentPage . ') is currently hidden from the menu. <a data-toggle="modal" href="#settingsModal" data-target-tab="#general"><b>Open menu visibility settings</b></a>');
 			}
 		}
 
@@ -234,7 +234,7 @@ class Wcms
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
 		if (!empty($backupList)) {
 			$this->alert('danger',
-				'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and remove unnecessary backup files.</b></a>',
+				'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and delete unnecessary backup files</b></a>',
 				true);
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
@@ -253,13 +253,13 @@ class Wcms
 				if ($contents = $this->getFileFromRepo('.htaccess-ultimate')) {
 					file_put_contents('.htaccess', trim($contents));
 				}
-				$this->alert('success', 'Better security turned ON.');
+				$this->alert('success', 'Improved security turned ON.');
 				$this->redirect();
 			} elseif ($_POST['betterSecurity'] === 'off') {
 				if ($contents = $this->getFileFromRepo('.htaccess')) {
 					file_put_contents('.htaccess', trim($contents));
 				}
-				$this->alert('success', 'Better security turned OFF.');
+				$this->alert('success', 'Improved security turned OFF.');
 				$this->redirect();
 			}
 		}
@@ -290,12 +290,12 @@ class Wcms
 			&& $_SESSION['token'] === $_POST['token']
 			&& $this->hashVerify($_POST['token'])) {
 			if (!password_verify($_POST['old_password'], $this->get('config', 'password'))) {
-				$this->alert('danger', 'Wrong password.');
+				$this->alert('danger', 'Wrong password. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>');
 				$this->redirect();
 			}
 			if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
 				$this->alert('danger',
-					sprintf('Password must be longer than %d characters.', self::MIN_PASSWORD_LENGTH));
+					sprintf('Password must be longer than %d characters. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>', self::MIN_PASSWORD_LENGTH));
 				$this->redirect();
 			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
@@ -386,9 +386,7 @@ class Wcms
 <p>Click anywhere inside the gray dashed area to edit. Click outside the area to save.</p>
 
 <h1>How to install/update themes and plugins</h1>
-<p>1. Copy link/URL to ZIP file.</p>
-<p>2. Paste link in <i>Settings -> Themes and plugins</i> and click <i>Install/update</i>.</p>
-<p><a href="https://wondercms.com/themes" target="_blank">WonderCMS themes</a> | <a href="https://wondercms.com/plugins" target="_blank">WonderCMS plugins</a></p>'
+<p>By opening the Settings panel, you can install or update themes and plugins.</p>'
 				]
 			],
 			'blocks' => [
@@ -396,7 +394,7 @@ class Wcms
 					'content' => '<h3>About your website</h3>
 
 <p>Website description, photo, contact information, mini map or anything else.</p>
-<p>This block is visible on all pages.</p>'
+<p>This blue editable area is visible on all pages.</p>'
 				],
 				'footer' => [
 					'content' => '&copy;' . date('Y') . ' Your website'
@@ -540,7 +538,7 @@ EOT;
 				trim($_REQUEST['deleteThemePlugin']));
 			$type = $_REQUEST['type'];
 			if ($filename === $this->get('config', 'theme')) {
-				$this->alert('danger', 'Cannot delete currently active theme.');
+				$this->alert('danger', 'Cannot delete currently active theme. <a data-toggle="modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
 				$this->redirect();
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
@@ -581,7 +579,7 @@ EOT;
 			}
 		}
 
-		$this->alert('success', 'Page deleted.');
+		$this->alert('success', 'Page <b>' . $slug . '</b> deleted.');
 		$this->redirect();
 	}
 
@@ -833,7 +831,7 @@ EOT;
 			if ($type === 'lastSync') {
 				continue;
 			}
-      $concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
+			$concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
 
 			foreach ($concatenatedRepos as $repo) {
 				$extractPath = $this->rootDir . "/$type/";
@@ -852,7 +850,7 @@ EOT;
 				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
 				if ($update) {
 					$this->alert('info',
-						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">View ' . $type . ' updates switcher.</a></b>',
+						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list.</a></b>',
 						true);
 				}
 				$image = $savedData[$type][$repo]['image'] ?? $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
@@ -862,9 +860,7 @@ EOT;
 					'dirName' => $name,
 					'repo' => $repo,
 					'zip' => $repoZipUrl,
-					'install' => !$exists,
 					'update' => $update,
-					'currentVersion' => $currentVersion,
 					'newVersion' => $newVersion,
 					'image' => $image !== null
 						? str_replace('https://github.com/', 'https://raw.githubusercontent.com/',
@@ -1175,7 +1171,7 @@ EOT;
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
 			$this->alert('danger',
-				'Change your default password and login URL. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Click here to open security settings.</b></a>',
+				'Change your default password and login URL. <a data-toggle="modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>',
 				true);
 		}
 
@@ -1507,18 +1503,6 @@ EOT;
 		$output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
 								</div>
 							 </div>
-							 <p class="subTitle">Theme</p>
-							 <div class="form-group">
-								<div class="change">
-									<select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-		foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
-			$output .= '<option value="' . basename($dir) . '"' . (basename($dir) === $this->get('config',
-					'theme') ? ' selected' : '') . '>' . basename($dir) . ' theme</option>';
-		}
-		$output .= '
-									</select>
-								</div>
-							 </div>
 							 <p class="subTitle">Main website title</p>
 							 <div class="change">
 								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
@@ -1530,7 +1514,7 @@ EOT;
 		$items = $this->get('config', 'menuItems');
 		foreach ($items as $key => $value) {
 			$output .= '<option value="' . $value->slug . '"' . ($value->slug === $this->get('config',
-					'defaultPage') ? ' selected' : '') . '>' . $value->name . ' (/' . $value->slug . ')</option>';
+					'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
 		}
 		$output .= '
 								</select>
@@ -1579,8 +1563,8 @@ EOT;
 							 <div class="change">
 								<form action="' . self::url($this->currentPage) . '" method="post">
 									<div class="input-group">
-										<input type="password" name="old_password" class="form-control" placeholder="Old password">
-										<span class="input-group-btn"></span><input type="password" name="new_password" class="form-control" placeholder="New password">
+										<input type="password" name="old_password" class="form-control normalFont" placeholder="Old password">
+										<span class="input-group-btn"></span><input type="password" name="new_password" class="form-control normalFont" placeholder="New password">
 										<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Change password</button></span>
 									</div>
 									<input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '">
@@ -1592,8 +1576,8 @@ EOT;
 									<button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank">How to restore backup</a></p>
-							 <p class="subTitle">Better security (Apache only)</p>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><span class="fas fa-link"></span> How to restore backup</a></p>
+							 <p class="subTitle">Improved security (Apache only)</p>
 							 <p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
 							 <div class="change">
 								<form method="post">
@@ -1604,7 +1588,7 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank">Read more before enabling</a></p>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><span class="fas fa-link"></span> Read more before enabling</a></p>
 							</div>
 						</div>
 					</div>
@@ -1631,15 +1615,30 @@ EOT;
 	 */
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
-		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
-							 <p class="subTitle">List of all ' . $type . ' <a class="btn btn-info btn-sm pull-right" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates">Check for updates (might take a minute)</a></p>
+		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">';
+
+		if ($type === self::THEMES_DIR) {
+			$output .= '<p class="subTitle">Current theme</p>
+						 <div class="form-group">
+							<div class="change">
+								<select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
+			foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
+				$output .= '<option value="' . basename($dir) . '"' . (basename($dir) === $this->get('config', 'theme') ? ' selected' : '') . '>' . basename($dir) . '</option>';
+			}
+			$output .= '		</select>
+							</div>
+						</div>';
+		}
+		
+		$output .= '	<a class="btn btn-info btn-sm pull-right marginTop20" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><span class="glyphicon glyphicon-refresh"></span> Check for updates (might take a minute)</a>
+						<p class="subTitle">List of all ' . $type . '</p>
 							 <div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		foreach ($this->listAllThemesPlugins($type) as $addon) {
 			$name = $addon['name'];
 			$info = $addon['readme'];
 			$infoUrl = $addon['readmeUrl'];
-			$currentVersion = $addon['currentVersion'] ? sprintf('v%s', $addon['currentVersion']) : '';
+			$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s', $addon['currentVersion']) : '';
 
 			$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
 			$installButton = $addon['install'] ? '<a class="btn btn-success btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install">Install</a>' : '';
@@ -1650,8 +1649,8 @@ EOT;
 							<div>
 								$image
 								<h4>$name</h4>
-								<p>$info</p>
-								<p class='text-right small'>$currentVersion<br /><a href='$infoUrl' target='_blank' class='fas fa-link'> More info</a></p>
+								<p class='normalFont'>$info</p>
+								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><span class='fas fa-link'></span> More info</a></p>
 								<div class='text-left'>$installButton</div>
 								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
 							</div>
@@ -1792,12 +1791,12 @@ EOT;
 			case UPLOAD_ERR_OK:
 				break;
 			case UPLOAD_ERR_NO_FILE:
-				$this->alert('danger', 'No file selected.');
+				$this->alert('danger', 'No file selected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>Re-open file options</b></a>');
 				$this->redirect();
 				break;
 			case UPLOAD_ERR_INI_SIZE:
 			case UPLOAD_ERR_FORM_SIZE:
-				$this->alert('danger', 'File too large. Change maximum upload size limit or contact your host.');
+				$this->alert('danger', 'File too large. Change maximum upload size limit or contact your host. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>Re-open file options</b></a>');
 				$this->redirect();
 				break;
 			default:
@@ -1818,7 +1817,7 @@ EOT;
 			}
 		}
 		if (!in_array($mimeType, $allowedExtensions, true)) {
-			$this->alert('danger', 'File format is not allowed.');
+			$this->alert('danger', 'File format is not allowed. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>Re-open file options</b></a>');
 			$this->redirect();
 		}
 		if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'],
