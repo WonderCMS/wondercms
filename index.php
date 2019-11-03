@@ -833,7 +833,7 @@ EOT;
 			if ($type === 'lastSync') {
 				continue;
 			}
-			$concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
+      $concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
 
 			foreach ($concatenatedRepos as $repo) {
 				$extractPath = $this->rootDir . "/$type/";
@@ -1362,6 +1362,7 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItem') {
 				$this->createMenuItem($content, $menu, $visibility);
+				$_SESSION['redirect_to'] = $content;
 			}
 			if ($target === 'menuItemVsbl') {
 				$this->set('config', $fieldname, $menu, 'visibility', $visibility);
