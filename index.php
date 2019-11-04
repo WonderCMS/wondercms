@@ -61,6 +61,12 @@ class Wcms
 	/** @var string $rootDir root dir of the install (where index.php is) */
 	public $rootDir;
 
+	/** @var bool $headerResponseDefault read default header response */
+	public $headerResponseDefault = true;
+
+	/** @var string $headerResponse header status */
+	public $headerResponse = 'HTTP/1.0 200 OK';
+
 	/**
 	 * Constructor
 	 *
@@ -136,6 +142,8 @@ class Wcms
 	 */
 	public function render(): void
 	{
+		header($this->headerResponse);
+
 		// Alert admin that page is hidden
 		if ($this->loggedIn) {
 			$loadingPage = null;
@@ -1125,8 +1133,8 @@ EOT;
 	 */
 	public function notFoundResponse(): void
 	{
-		if (!$this->loggedIn && !$this->currentPageExists) {
-			header('HTTP/1.1 404 Not Found');
+		if (!$this->loggedIn && !$this->currentPageExists && $this->headerResponseDefault) {
+			$this->headerResponse = 'HTTP/1.1 404 Not Found';
 		}
 	}
 
