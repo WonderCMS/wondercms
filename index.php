@@ -737,15 +737,19 @@ EOT;
 			$data = $this->getThemesPluginsCachedData($type);
 
 			foreach ($data as $repo => $addon) {
-				if ($addon['update']) {
+				$dirName = $addon['dirName'];
+				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
+				$currentVersion = $exists ? $this->getThemePluginVersion($type, $dirName) : null;
+				$newVersion = $addon['newVersion'];
+				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
+
+				if ($update) {
 					$this->alert('info',
 						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list.</a></b>',
 						true);
 				}
 
-				$dirName = $addon['dirName'];
-				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
-				$currentVersion = $exists ? $this->getThemePluginVersion($type, $dirName) : null;
+				$data[$repo]['update'] = $update;
 				$data[$repo]['install'] = !$exists;
 				$data[$repo]['currentVersion'] = $currentVersion;
 			}
@@ -834,25 +838,16 @@ EOT;
 			$concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
 
 			foreach ($concatenatedRepos as $repo) {
-				$extractPath = $this->rootDir . "/$type/";
 				$repoParts = explode('/', $repo);
 				$name = array_pop($repoParts);
 				$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
 				$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
 				$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
-				$exists = is_dir($extractPath . $name);
 				$newVersion = $this->getOfficialVersion($repoFilesUrl);
-				$currentVersion = $exists ? $this->getThemePluginVersion($type, $name) : null;
 				if (empty($repo) || empty($name) || $newVersion === null) {
 					continue;
 				}
 
-				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
-				if ($update) {
-					$this->alert('info',
-						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list.</a></b>',
-						true);
-				}
 				$image = $savedData[$type][$repo]['image'] ?? $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
 
 				$returnArray[$type][$repo] = [
@@ -860,13 +855,12 @@ EOT;
 					'dirName' => $name,
 					'repo' => $repo,
 					'zip' => $repoZipUrl,
-					'update' => $update,
-					'newVersion' => $newVersion,
+					'newVersion' => htmlentities($newVersion),
 					'image' => $image !== null
 						? str_replace('https://github.com/', 'https://raw.githubusercontent.com/',
 							$repoFilesUrl) . 'preview.jpg'
 						: null,
-					'readme' => $this->getCheckFileFromRepo('summary', $repoFilesUrl),
+					'readme' => htmlentities($this->getCheckFileFromRepo('summary', $repoFilesUrl)),
 					'readmeUrl' => $repoReadmeUrl,
 				];
 			}
@@ -1101,7 +1095,7 @@ EOT;
 		if ($this->currentPage === 'logout'
 			&& isset($_REQUEST['token'])
 			&& $this->hashVerify($_REQUEST['token'])) {
-			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token']);
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
 			$this->redirect();
 		}
 	}
@@ -1630,9 +1624,10 @@ EOT;
 						</div>';
 		}
 
-		$output .= '	<a class="btn btn-info btn-sm pull-right marginTop20" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><span class="glyphicon glyphicon-refresh"></span> Check for updates (might take a minute)</a>
-						<p class="subTitle">List of all ' . $type . '</p>
-							 <div class="change row custom-cards">';
+		$output .= '<p class="subTitle pull-left float-left">List of all ' . $type . '</p>
+					<a class="btn btn-info btn-sm pull-right float-right marginTop20" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><span class="glyphicon glyphicon-refresh"></span> Check for updates (might take a minute)</a>
+					<div class="clear"></div>
+					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		foreach ($this->listAllThemesPlugins($type) as $addon) {
 			$name = $addon['name'];
