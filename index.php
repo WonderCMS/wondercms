@@ -112,12 +112,12 @@ class Wcms
 	 */
 	public function init(): void
 	{
-		$this->loadPlugins();
-		$this->loginStatus();
 		$this->pageStatus();
+		$this->loginStatus();
 		$this->logoutAction();
 		$this->loginAction();
 		$this->notFoundResponse();
+		$this->loadPlugins();
 
 		if ($this->loggedIn) {
 			$this->manuallyRefreshCacheData();
