@@ -1669,6 +1669,7 @@ EOT;
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
 					</form>
+					<p class="text-right"><a href="https://github.com/robiso/wondercms/wiki/Custom-repositories" target="_blank"><span class="fas fa-link"></span> Read more about custom repositories</a></p>
 				</div>';
 		return $output;
 	}
