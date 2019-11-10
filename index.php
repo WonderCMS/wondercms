@@ -31,7 +31,7 @@ class Wcms
 	public const MIN_PASSWORD_LENGTH = 8;
 
 	/** @var string WCMS_REPO - repo URL */
-	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
+	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/experimental3.0.0/';
 
 	/** @var string WCMS_CDN_REPO - CDN repo URL */
 	public const WCMS_CDN_REPO = 'https://raw.githubusercontent.com/robiso/wondercms-cdn-files/master/';
@@ -262,13 +262,13 @@ class Wcms
 	{
 		if (isset($_POST['betterSecurity']) && $this->verifyFormActions()) {
 			if ($_POST['betterSecurity'] === 'on') {
-				if ($contents = $this->getFileFromRepo('.htaccess-ultimate')) {
+				if ($contents = $this->getFileFromRepo('htaccess-ultimate', self::WCMS_CDN_REPO)) {
 					file_put_contents('.htaccess', trim($contents));
 				}
 				$this->alert('success', 'Improved security turned ON.');
 				$this->redirect();
 			} elseif ($_POST['betterSecurity'] === 'off') {
-				if ($contents = $this->getFileFromRepo('.htaccess')) {
+				if ($contents = $this->getFileFromRepo('htaccess', self::WCMS_CDN_REPO)) {
 					file_put_contents('.htaccess', trim($contents));
 				}
 				$this->alert('success', 'Improved security turned OFF.');
@@ -502,7 +502,7 @@ class Wcms
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.9/wcms-admin.min.css" integrity="sha384-fRM/Ur1ghnS4PUVLrsT+Jmq6flptARBaVf4PjkSL5jFpnVnPRm+ac1/U2cKy+Tcd" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.3/wcms-admin.min.css" integrity="sha384-tplGl8RSdBIv5lXZerlpOH4fJpytXNH6PIvmepg65PsL9JEe4d/ACrB3j4ORe/p0" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -755,7 +755,7 @@ EOT;
 				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
 				if ($update) {
 					$this->alert('info',
-						'<b>New ' . $type . ' update available. <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list.</a></b>',
+						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list</a></b>',
 						true);
 				}
 
@@ -1003,7 +1003,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.0.8/wcms-admin.min.js" integrity="sha384-j0UmDBSzMvuANUWoeW+OJQi2FvtgEN+irvGnarAIDwK8MsJdbR0J+YiL6yA+DxKA" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.3/wcms-admin.min.js" integrity="sha384-j0UmDBSzMvuANUWoeW+OJQi2FvtgEN+irvGnarAIDwK8MsJdbR0J+YiL6yA+DxKA" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1436,9 +1436,9 @@ EOT;
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
 		<div id="save"><h2>Saving...</h2></div>
-		<div id="adminPanel" class="container-fluid">
+		<div id="adminPanel">
 			<div class="text-right padding20">
-				<a data-toggle="modal" class="padding20" href="#settingsModal"><b>Settings</b></a><a href="' . self::url('logout&token=' . $this->getToken()) . '">Logout</a>
+				<a data-toggle="modal" class="btn btn-info btn-sm" href="#settingsModal"><i class="fas fa-cog"></i> <b>Settings</b></a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="btn btn-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Logout</a>
 			</div>
 			<div class="modal" id="settingsModal">
 				<div class="modal-dialog modal-xl">
@@ -1473,7 +1473,7 @@ EOT;
 					$this->currentPage)->description != '' ? $this->get('pages',
 					$this->currentPage)->description : '') . '</div>
 									</div>
-									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')">Delete page (' . $this->currentPage . ')</a>';
+									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger marginTop20" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="far fa-trash-alt"></i> Delete page (' . $this->currentPage . ')</a>';
 		} else {
 			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
 		}
@@ -1507,11 +1507,11 @@ EOT;
 											 <a class="fas fa-link" href="' . self::url($value->slug) . '" title="Visit page">visit</a>
 											</div>
 											<div class="col-xs-2 col-2 col-sm-1 text-right">
-											 <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')">&times;</a>
+											 <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-xs btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="far fa-trash-alt"></i></a>
 											</div>
 										</div>';
 		}
-		$output .= '<a class="menu-item-add btn btn-info marginTop20" data-toggle="tooltip" title="Add new page" type="button">Add page</a>
+		$output .= '<a class="menu-item-add btn btn-info marginTop20 cursorPointer" data-toggle="tooltip" title="Add new page"><i class="fas fa-plus-circle"></i> Add page</a>
 								</div>
 							 </div>
 							 <p class="subTitle">Main website title</p>
@@ -1542,7 +1542,7 @@ EOT;
 							 <div class="change">
 								<form action="' . self::url($this->currentPage) . '" method="post" enctype="multipart/form-data">
 									<div class="input-group"><input type="file" name="uploadFile" class="form-control">
-										<span class="input-group-btn"><button type="submit" class="btn btn-info input-group-append">Upload</button></span>
+										<span class="input-group-btn"><button type="submit" class="btn btn-info input-group-append"><i class="fas fa-file-upload"></i> Upload</button></span>
 										<input type="hidden" name="token" value="' . $this->getToken() . '">
 									</div>
 								</form>
@@ -1551,7 +1551,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file">&times;</a>
+									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="btn btn-xs btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="far fa-trash-alt"></i></a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -1567,7 +1567,7 @@ EOT;
 							 <div class="change">
 								<div data-target="config" id="login" class="editText">' . $this->get('config',
 				'login') . '</div>
-								<p class="text-right marginTop5">Important: bookmark your login URL after changing<br /><span class="normalFont"><b>' . self::url($this->get('config',
+								<p class="text-right marginTop5">Important: bookmark/save your login url after changing it<br /><span class="normalFont"><b>' . self::url($this->get('config',
 				'login')) . '</b></span>
 							 </div>
 							 <p class="subTitle">Password</p>
@@ -1576,7 +1576,7 @@ EOT;
 									<div class="input-group">
 										<input type="password" name="old_password" class="form-control normalFont" placeholder="Old password">
 										<span class="input-group-btn"></span><input type="password" name="new_password" class="form-control normalFont" placeholder="New password">
-										<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Change password</button></span>
+										<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="fas fa-lock"></i> Change password</button></span>
 									</div>
 									<input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -1587,7 +1587,7 @@ EOT;
 									<button type="submit" class="btn btn-block btn-info" name="backup">Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><span class="fas fa-link"></span> How to restore backup</a></p>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="fas fa-link"></i> How to restore backup</a></p>
 							 <p class="subTitle">Improved security (Apache only)</p>
 							 <p>HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
 							 <div class="change">
@@ -1599,7 +1599,7 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><span class="fas fa-link"></span> Read more before enabling</a></p>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><i class="fas fa-link"></i> Read more before enabling</a></p>
 							</div>
 						</div>
 					</div>
@@ -1642,7 +1642,7 @@ EOT;
 		}
 
 		$output .= '<p class="subTitle pull-left float-left">List of all ' . $type . '</p>
-					<a class="btn btn-info btn-sm pull-right float-right marginTop20" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><span class="glyphicon glyphicon-refresh"></span> Check for updates (might take a minute)</a>
+					<a class="btn btn-info btn-sm pull-right float-right marginTop20" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><i class="fas fa-sync-alt" aria-hidden="true"></i> Check for updates (might take a minute)</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
@@ -1656,16 +1656,16 @@ EOT;
 					$addon['currentVersion']) : '';
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="btn btn-success btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install">Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-md" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update">Update to ' . $addon['newVersion'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-md" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $addon['dirName'] . '?\')" title="Remove">Remove</a>' : '';
+				$installButton = $addon['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="fas fa-download"></i> Install</a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="fas fa-cloud-download-alt"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $addon['dirName'] . '?\')" title="Remove"><i class="far fa-trash-alt"></i> Remove</a>' : '';
 
 				$html = "<div class='col-sm-4'>
 							<div>
 								$image
 								<h4>$name</h4>
 								<p class='normalFont'>$info</p>
-								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><span class='fas fa-link'></span> More info</a></p>
+								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><i class='fas fa-link'></i> More info</a></p>
 								<div class='text-left'>$installButton</div>
 								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
 							</div>
@@ -1693,12 +1693,12 @@ EOT;
 					<form action="' . self::url($this->currentPage) . '" method="post">
 						<div class="form-group">
 							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
-								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info">Add</button></span>
+								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="fas fa-plus-circle"></i> Add</button></span>
 							</div>
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
 					</form>
-					<p class="text-right"><a href="https://github.com/robiso/wondercms/wiki/Custom-repositories" target="_blank"><span class="fas fa-link"></span> Read more about custom repositories</a></p>
+					<p class="text-right"><a href="https://github.com/robiso/wondercms/wiki/Custom-repositories" target="_blank"><i class="fas fa-link"></i> Read more about custom repositories</a></p>
 				</div>';
 		return $output;
 	}
@@ -1860,7 +1860,7 @@ EOT;
 			$this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
 			$this->alert('danger', 'Failed to move uploaded file.');
 		}
-		$this->alert('success', 'File uploaded.');
+		$this->alert('success', 'File uploaded. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>Open file options to see your uploaded file</b></a>');
 		$this->redirect();
 	}
 
