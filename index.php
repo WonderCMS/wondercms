@@ -52,7 +52,7 @@ class Wcms
 	public $listeners = [];
 
 	/** @var string $dataPath path to data folder */
-	protected $dataPath;
+	public $dataPath;
 
 	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
 	protected $themesPluginsCachePath;
@@ -79,6 +79,7 @@ class Wcms
 	 * @param string $filesFolder
 	 * @param string $dbName
 	 * @param string $rootDir
+	 * @throws Exception
 	 */
 	public function __construct(
 		string $dataFolder = 'data',
@@ -327,14 +328,15 @@ class Wcms
 	 *
 	 * @param string $folder the relative path of the folder to check/create
 	 * @return void
+	 * @throws Exception
 	 */
 	public function checkFolder(string $folder): void
 	{
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
-			$this->alert('danger', 'Could not create the data folder.');
+			throw new Exception('Could not create the data folder.');
 		}
 		if (!is_writable($folder)) {
-			$this->alert('danger', 'Could write to the data folder.');
+			throw new Exception('Could write to the data folder.');
 		}
 	}
 
@@ -428,6 +430,7 @@ class Wcms
 	 * @param string $menu
 	 * @param string $visibility show or hide
 	 * @return void
+	 * @throws Exception
 	 */
 	public function createMenuItem(string $content, string $menu, string $visibility = 'hide'): void
 	{
@@ -502,7 +505,7 @@ class Wcms
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.3/wcms-admin.min.css" integrity="sha384-tplGl8RSdBIv5lXZerlpOH4fJpytXNH6PIvmepg65PsL9JEe4d/ACrB3j4ORe/p0" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.4/wcms-admin.min.css" integrity="sha384-sShqXPTws1QY/rCyTCDtO5sQNOJn1M1dvogGQdHOE7hvp25p/waf+GCjcEqTNbJc" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -512,6 +515,7 @@ EOT;
 	/**
 	 * Get database content
 	 * @return stdClass
+	 * @throws Exception
 	 */
 	public function getDb(): stdClass
 	{
@@ -520,6 +524,8 @@ EOT;
 			// this code only runs one time (on first page load/install)
 			$this->checkFolder(dirname($this->dbPath));
 			$this->checkFolder($this->filesPath);
+			$this->checkFolder($this->rootDir . '/' . self::THEMES_DIR);
+			$this->checkFolder($this->rootDir . '/' . self::PLUGINS_DIR);
 			$this->createDb();
 		}
 		return json_decode(file_get_contents($this->dbPath), false);
@@ -776,6 +782,7 @@ EOT;
 	 * Get all repos from CDN
 	 * @param string $type
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getThemePluginRepos(string $type = self::THEMES_DIR): array
 	{
@@ -944,6 +951,7 @@ EOT;
 
 	/**
 	 * Install and update theme
+	 * @throws Exception
 	 */
 	public function installUpdateThemePluginAction(): void
 	{
@@ -954,7 +962,9 @@ EOT;
 		$url = $_REQUEST['installThemePlugin'];
 		$type = $_REQUEST['type'];
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
-		$folderName = array_pop(explode('/', str_replace('/archive/master.zip', '', $url)));
+		$folders = explode('/', str_replace('/archive/master.zip', '', $url));
+		$folderName = array_pop($folders);
+
 		if (in_array($type, self::VALID_DIRS, true)) {
 			$zipFile = $this->filesPath . '/ZIPFromURL.zip';
 			$zipResource = fopen($zipFile, 'w');
@@ -976,7 +986,9 @@ EOT;
 			$zip->close();
 			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
 			$this->recursiveDelete($path . $folderName);
-			rename($path . $folderName . '-master', $path . $folderName);
+			if (!rename($path . $folderName . '-master', $path . $folderName)) {
+				throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
+			}
 			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
 			$this->redirect();
 		}
@@ -1003,7 +1015,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.3/wcms-admin.min.js" integrity="sha384-j0UmDBSzMvuANUWoeW+OJQi2FvtgEN+irvGnarAIDwK8MsJdbR0J+YiL6yA+DxKA" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.4/wcms-admin.min.js" integrity="sha384-V8CuuLzxxmOn+6p4AD9lkRUTszkXivbUOKeOEgTCkEzA4p4Ago3czn5rSkYhcJdG" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1092,11 +1104,12 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
+				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Trying to log in</h2><p>Also checking for updates</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="input-group">
 						<input type="password" class="form-control" id="password" name="password">
 						<span class="input-group-btn input-group-append">
-							<button type="submit" class="btn btn-info">Login</button>
+							<button type="submit" class="btn btn-info" onclick="$(\'#login\').show();">Login</button>
 						</span>
 					</div>
 				</form>'
@@ -1168,6 +1181,7 @@ EOT;
 	 * Admin notifications
 	 * Alerts for non-existent pages, changing default settings, new version/update
 	 * @return void
+	 * @throws Exception
 	 */
 	public function notifyAction(): void
 	{
@@ -1435,7 +1449,8 @@ EOT;
 		}
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
-		<div id="save"><h2>Saving...</h2></div>
+		<div id="save" class="loader-overlay"><h2><i class="fas fa-spinner fa-pulse"></i> Saving</h2></div>
+		<div id="cache" class="loader-overlay"><h2><i class="fas fa-spinner fa-pulse"></i> Checking for updates</h2></div>
 		<div id="adminPanel">
 			<div class="text-right padding20">
 				<a data-toggle="modal" class="btn btn-info btn-sm" href="#settingsModal"><i class="fas fa-cog"></i> <b>Settings</b></a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="btn btn-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -1642,7 +1657,7 @@ EOT;
 		}
 
 		$output .= '<p class="subTitle pull-left float-left">List of all ' . $type . '</p>
-					<a class="btn btn-info btn-sm pull-right float-right marginTop20" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><i class="fas fa-sync-alt" aria-hidden="true"></i> Check for updates (might take a minute)</a>
+					<a class="btn btn-info btn-sm pull-right float-right marginTop20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><i class="fas fa-sync-alt" aria-hidden="true"></i> Check for updates (might take a minute)</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
@@ -1860,7 +1875,8 @@ EOT;
 			$this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
 			$this->alert('danger', 'Failed to move uploaded file.');
 		}
-		$this->alert('success', 'File uploaded. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>Open file options to see your uploaded file</b></a>');
+		$this->alert('success',
+			'File uploaded. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>Open file options to see your uploaded file</b></a>');
 		$this->redirect();
 	}
 
