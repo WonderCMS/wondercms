@@ -8,8 +8,8 @@
 [![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
 
-- WonderCMS is a flat file CMS (no database). It's fast, responsive, small, built with PHP and maintained since 2008.
-   - **Key features:** completely free and open source, no setup required, 1 click updates/backups, theme/plugin installer, easy to theme, lightweight.
+WonderCMS is an extremely small flat file CMS. It's fast, responsive.
+ - **Key features:** completely free and open source, no setup required, 1 click updates/backups, theme/plugin installer, easy to theme, lightweight. Built with PHP and maintained since 2008.
 
 ### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
