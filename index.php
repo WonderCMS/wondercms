@@ -90,6 +90,7 @@ class Wcms
 		$this->rootDir = $rootDir;
 		$this->setPaths($dataFolder, $filesFolder, $dbName);
 		$this->db = $this->getDb();
+		$this->loggedIn = $this->get('config', 'loggedIn');
 	}
 
 	/**
@@ -124,11 +125,10 @@ class Wcms
 		$this->loginAction();
 		$this->notFoundResponse();
 		$this->loadPlugins();
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			$this->manuallyRefreshCacheData();
 			$this->addCustomThemePluginRepository();
 			$this->installUpdateThemePluginAction();
-			$this->updateDBVersion();
 			$this->changePasswordAction();
 			$this->deleteFileThemePluginAction();
 			$this->backupAction();
@@ -150,7 +150,7 @@ class Wcms
 		header($this->headerResponse);
 
 		// Alert admin that page is hidden
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			$loadingPage = null;
 			foreach ($this->get('config', 'menuItems') as $item) {
 				if ($this->currentPage === $item->slug) {
@@ -241,7 +241,7 @@ class Wcms
 	 */
 	public function backupAction(): void
 	{
-		if (!$this->loggedIn) {
+		if (!$this->get('config', 'loggedIn')) {
 			return;
 		}
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
@@ -288,7 +288,7 @@ class Wcms
 	{
 		$blocks = $this->get('blocks');
 		if (isset($blocks->{$key})) {
-			return $this->loggedIn
+			return $this->get('config', 'loggedIn')
 				? $this->editable($key, $blocks->{$key}->content, 'blocks')
 				: $blocks->{$key}->content;
 		}
@@ -302,8 +302,8 @@ class Wcms
 	public function changePasswordAction(): void
 	{
 		if (isset($_POST['old_password'], $_POST['new_password'])
-			&& $this->loggedIn
 			&& $_SESSION['token'] === $_POST['token']
+			&& $this->get('config', 'loggedIn')
 			&& $this->hashVerify($_POST['token'])) {
 			if (!password_verify($_POST['old_password'], $this->get('config', 'password'))) {
 				$this->alert('danger',
@@ -318,7 +318,8 @@ class Wcms
 			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
 			$this->alert('success', 'Password changed.');
-			$this->redirect();
+			$this->set('config', 'forceLogout', true);
+			$this->logoutAction(true);
 		}
 	}
 
@@ -351,11 +352,12 @@ class Wcms
 		$password = $this->generatePassword();
 		$this->db = (object)[
 			'config' => [
-				'dbVersion' => '3.0.0',
 				'siteTitle' => 'Website title',
 				'theme' => 'default',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
+				'loggedIn' => false,
+				'forceLogout' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'defaultRepos' => [
 					'themes' => [],
@@ -478,6 +480,7 @@ class Wcms
 	 *
 	 * @param string $slug the name of the page in URL
 	 * @return void
+	 * @throws Exception
 	 */
 	public function createPage($slug = ''): void
 	{
@@ -502,7 +505,7 @@ class Wcms
 	 */
 	public function css(): string
 	{
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.4/wcms-admin.min.css" integrity="sha384-sShqXPTws1QY/rCyTCDtO5sQNOJn1M1dvogGQdHOE7hvp25p/waf+GCjcEqTNbJc" crossorigin="anonymous">
@@ -551,7 +554,7 @@ EOT;
 	 */
 	public function deleteFileThemePluginAction(): void
 	{
-		if (!$this->loggedIn) {
+		if (!$this->get('config', 'loggedIn')) {
 			return;
 		}
 		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
@@ -620,7 +623,7 @@ EOT;
 	public function footer(): string
 	{
 		$output = $this->get('blocks', 'footer')->content .
-			(!$this->loggedIn && $this->get('config', 'login') === 'loginURL'
+			(!$this->get('config', 'loggedIn') && $this->get('config', 'login') === 'loginURL'
 				? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>'
 				: '');
 		return $this->hook('footer', $output)[0];
@@ -650,20 +653,14 @@ EOT;
 	 */
 	public function get()
 	{
-		$numArgs = func_num_args();
 		$args = func_get_args();
-		switch ($numArgs) {
-			case 1:
-				return $this->db->{$args[0]};
-			case 2:
-				return $this->db->{$args[0]}->{$args[1]};
-			case 3:
-				return $this->db->{$args[0]}->{$args[1]}->{$args[2]};
-			case 4:
-				return $this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]};
-			default:
-				$this->alert('danger', 'Too many arguments to get().');
+		$object = $this->db;
+
+		foreach ($args as $key => $arg) {
+			$object = $object->{$arg} ?? $this->set(...array_merge($args, [null]));
 		}
+
+		return $object;
 	}
 
 	/**
@@ -750,7 +747,7 @@ EOT;
 	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
 	{
 		$newData = [];
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			$data = $this->getThemePluginCachedData($type);
 
 			foreach ($data as $repo => $addon) {
@@ -803,6 +800,7 @@ EOT;
 	 * Retrieve cached Themes/Plugins data
 	 * @param string $type
 	 * @return array|null
+	 * @throws Exception
 	 */
 	public function getThemePluginCachedData(string $type = self::THEMES_DIR): array
 	{
@@ -1001,7 +999,8 @@ EOT;
 	 */
 	public function verifyFormActions(bool $isRequest = false): bool
 	{
-		return ($isRequest ? isset($_REQUEST['token']) : isset($_POST['token'])) && $this->loggedIn && $this->hashVerify($isRequest ? $_REQUEST['token'] : $_POST['token']);
+		return ($isRequest ? isset($_REQUEST['token']) : isset($_POST['token'])) && $this->get('config',
+				'loggedIn') && $this->hashVerify($isRequest ? $_REQUEST['token'] : $_POST['token']);
 	}
 
 	/**
@@ -1010,7 +1009,7 @@ EOT;
 	 */
 	public function js(): string
 	{
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
@@ -1067,7 +1066,7 @@ EOT;
 		if ($this->currentPage !== $this->get('config', 'login')) {
 			return;
 		}
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			$this->redirect();
 		}
 		if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -1075,9 +1074,10 @@ EOT;
 		}
 		$password = $_POST['password'] ?? '';
 		if (password_verify($password, $this->get('config', 'password'))) {
-			session_regenerate_id();
+			session_regenerate_id(true);
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
+			$this->set('config', 'forceLogout', false);
 			$this->redirect();
 		}
 		$this->alert('danger', 'Wrong password.');
@@ -1090,7 +1090,11 @@ EOT;
 	 */
 	public function loginStatus(): void
 	{
-		$this->loggedIn = isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$loginStatus = $this->get('config', 'forceLogout')
+			? false
+			: isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$this->set('config', 'loggedIn', $loginStatus);
+		$this->loggedIn = $this->get('config', 'loggedIn');
 	}
 
 	/**
@@ -1104,7 +1108,7 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Trying to log in</h2><p>Also checking for updates</p></div>
+				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="input-group">
 						<input type="password" class="form-control" id="password" name="password">
@@ -1118,13 +1122,15 @@ EOT;
 
 	/**
 	 * Logout action
+	 * @param bool $forceLogout
 	 * @return void
 	 */
-	public function logoutAction(): void
+	public function logoutAction(bool $forceLogout = false): void
 	{
-		if ($this->currentPage === 'logout'
-			&& isset($_REQUEST['token'])
-			&& $this->hashVerify($_REQUEST['token'])) {
+		if ($forceLogout
+			|| ($this->currentPage === 'logout'
+				&& isset($_REQUEST['token'])
+				&& $this->hashVerify($_REQUEST['token']))) {
 			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
 			$this->redirect();
 		}
@@ -1155,7 +1161,7 @@ EOT;
 	 */
 	public function notFoundResponse(): void
 	{
-		if (!$this->loggedIn && !$this->currentPageExists && $this->headerResponseDefault) {
+		if (!$this->get('config', 'loggedIn') && !$this->currentPageExists && $this->headerResponseDefault) {
 			$this->headerResponse = 'HTTP/1.1 404 Not Found';
 		}
 	}
@@ -1166,7 +1172,7 @@ EOT;
 	 */
 	public function notFoundView()
 	{
-		if ($this->loggedIn) {
+		if ($this->get('config', 'loggedIn')) {
 			return [
 				'title' => str_replace('-', ' ', $this->currentPage),
 				'description' => '',
@@ -1185,7 +1191,7 @@ EOT;
 	 */
 	public function notifyAction(): void
 	{
-		if (!$this->loggedIn) {
+		if (!$this->get('config', 'loggedIn')) {
 			return;
 		}
 		if (!$this->currentPageExists) {
@@ -1278,7 +1284,7 @@ EOT;
 			'title' => $segments->title,
 			'description' => $segments->description,
 			'keywords' => $segments->keywords,
-			'content' => $this->loggedIn
+			'content' => $this->get('config', 'loggedIn')
 				? $this->editable('content', $segments->content, 'pages')
 				: $segments->content
 		];
@@ -1296,7 +1302,8 @@ EOT;
 		if (isset($this->get('pages')->{$this->currentPage})) {
 			$this->currentPageExists = true;
 		}
-		if (isset($_GET['page']) && !$this->loggedIn && $this->currentPage !== $this->slugify($_GET['page'])) {
+		if (isset($_GET['page']) && !$this->get('config',
+				'loggedIn') && $this->currentPage !== $this->slugify($_GET['page'])) {
 			$this->currentPageExists = false;
 		}
 	}
@@ -1365,10 +1372,11 @@ EOT;
 	/**
 	 * Saving menu items, default page, login URL, theme, editable content
 	 * @return void
+	 * @throws Exception
 	 */
 	public function saveAction(): void
 	{
-		if (!$this->loggedIn) {
+		if (!$this->get('config', 'loggedIn')) {
 			return;
 		}
 		if (isset($_SESSION['redirect_to'])) {
@@ -1444,7 +1452,7 @@ EOT;
 	 */
 	public function settings(): string
 	{
-		if (!$this->loggedIn) {
+		if (!$this->get('config', 'loggedIn')) {
 			return '';
 		}
 		$fileList = array_slice(scandir($this->filesPath), 2);
@@ -1771,21 +1779,11 @@ EOT;
 		$contents = $this->getFileFromRepo('index.php');
 		if ($contents) {
 			file_put_contents(__FILE__, $contents);
+			$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
+			$this->redirect();
 		}
-		$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
+		$this->alert('danger', 'Something went wrong. Could not update WonderCMS.');
 		$this->redirect();
-	}
-
-	/**
-	 * Update dbVersion parameter in database.js
-	 * Overwrites dbVersion with latest WonderCMS version
-	 * @return void
-	 */
-	public function updateDBVersion(): void
-	{
-		if ($this->get('config', 'dbVersion') < VERSION) {
-			$this->set('config', 'dbVersion', VERSION);
-		}
 	}
 
 	/**
