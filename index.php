@@ -317,8 +317,9 @@ class Wcms
 				$this->redirect();
 			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-			$this->alert('success', 'Password changed.');
+			$this->alert('success', 'Password changed. Please log in again.');
 			$this->set('config', 'forceLogout', true);
+			$this->redirect($this->get('config', 'login'));
 			$this->logoutAction(true);
 		}
 	}
@@ -334,10 +335,10 @@ class Wcms
 	public function checkFolder(string $folder): void
 	{
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
-			throw new Exception('Could not create the data folder.');
+			throw new Exception('Could not create data folder.');
 		}
 		if (!is_writable($folder)) {
-			throw new Exception('Could write to the data folder.');
+			throw new Exception('Could write to data folder.');
 		}
 	}
 
