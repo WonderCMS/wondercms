@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.0');
+define('VERSION', '3.0.1');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1657,7 +1657,7 @@ EOT;
 		}
 
 		$output .= '<p class="subTitle pull-left float-left">List of all ' . $type . '</p>
-					<a class="btn btn-info btn-sm pull-right float-right marginTop20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><i class="fas fa-sync-alt" aria-hidden="true"></i> Check for updates (might take a minute)</a>
+					<a class="btn btn-info btn-sm pull-right float-right marginTop20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><i class="fas fa-sync-alt" aria-hidden="true"></i> Check for updates</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
