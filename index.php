@@ -1660,11 +1660,11 @@ EOT;
 					</div>
 					<div class="modal-footer clear">
 						<p class="small">
-							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp; 
-							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; 
-							 <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; 
-							 <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; 
-							 <a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
+							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
+							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp;
+							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
+							<a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> nbsp;
+							<a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
 						</p>
 					</div>
 				 </div>
