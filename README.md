@@ -8,8 +8,18 @@
 [![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
 
-WonderCMS is an extremely small flat file CMS. It's fast, responsive.
- - **Key features:** completely free and open source, no setup required, 1 click updates/backups, theme/plugin installer, easy to theme, lightweight. Built with PHP and maintained since 2008.
+WonderCMS is an extremely small flat file Content Management System.
+ - **Key features**
+   - completely free and open source (FOSS)
+   - no setup required (unzip and upload)
+   - fast, responsive
+   - 1 click updates/backups
+   - theme/plugin installer
+   - easy to theme
+   - lightweight
+   - no "powered by" links
+   - supports most server types (Apache, NGINX, IIS)
+   - maintained since 2008
 
 ### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
@@ -70,9 +80,12 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
  - no configuration required, unzip and upload
  - simple inline click and edit functionality
  - theme and plugin installer/updater
- - 1 click update and backup
+ - 1 click update for core, themes and plugins
+ - 1 click backups
  - [easy to theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
  - [custom editable blocks](https://github.com/robiso/wondercms/wiki/Create-new-editable-areas-or-editable-blocks#difference-between-editable-blocks-and-editable-areas)
+ - custom theme and plugin repositories
+ - log of last 5 logged in IPs
  - file uploader
  - lightweight and fast
  - responsive
