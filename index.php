@@ -1663,7 +1663,7 @@ EOT;
 							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
 							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp;
 							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
-							<a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> nbsp;
+							<a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp;
 							<a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
 						</p>
 					</div>
@@ -1751,8 +1751,8 @@ EOT;
 		$output .= $updates;
 		$output .= $exists;
 		$output .= $installs;
-		$output .= '</div>	
-					<p class="subTitle">Custom repository</p>							
+		$output .= '</div>
+					<p class="subTitle">Custom repository</p>
 					<form action="' . self::url($this->currentPage) . '" method="post">
 						<div class="form-group">
 							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
