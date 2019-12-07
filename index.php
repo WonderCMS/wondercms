@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.2');
+define('VERSION', '3.0.3');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -773,7 +773,7 @@ EOT;
 				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
 				if ($update) {
 					$this->alert('info',
-						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list</a></b>',
+						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>',
 						true);
 				}
 
@@ -1685,7 +1685,7 @@ EOT;
 		foreach ($getIPs as $time => $adminIP) {
 			$renderIPs .= sprintf('<li>%s - %s</li>', date('M d, Y H:i:s', strtotime($time)), $adminIP);
 		}
-		return '<p class="subTitle">Admin login log - last 5 IPs</p>
+		return '<p class="subTitle">Last 5 logins</p>
 				<div class="change">
 					<ul>' . $renderIPs . '</ul>
 				</div>';
