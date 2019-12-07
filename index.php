@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.1');
+define('VERSION', '3.0.2');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -317,7 +317,7 @@ class Wcms
 				$this->redirect();
 			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-			$this->alert('success', 'Password changed.');
+			$this->alert('success', 'Password changed. Please log in again.');
 			$this->set('config', 'forceLogout', true);
 			$this->logoutAction(true);
 		}
@@ -334,10 +334,10 @@ class Wcms
 	public function checkFolder(string $folder): void
 	{
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
-			throw new Exception('Could not create the data folder.');
+			throw new Exception('Could not create data folder.');
 		}
 		if (!is_writable($folder)) {
-			throw new Exception('Could write to the data folder.');
+			throw new Exception('Could write to data folder.');
 		}
 	}
 
@@ -1132,7 +1132,7 @@ EOT;
 				&& isset($_REQUEST['token'])
 				&& $this->hashVerify($_REQUEST['token']))) {
 			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
-			$this->redirect();
+			$this->redirect($this->get('config', 'login'));
 		}
 	}
 
@@ -1681,7 +1681,7 @@ EOT;
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
 				$installButton = $addon['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="fas fa-download"></i> Install</a>' : '';
 				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="fas fa-cloud-download-alt"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $addon['dirName'] . '?\')" title="Remove"><i class="far fa-trash-alt"></i></a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="far fa-trash-alt"></i></a>' : '';
 
 				$html = "<div class='col-sm-4'>
 							<div>
