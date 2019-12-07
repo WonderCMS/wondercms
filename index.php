@@ -131,6 +131,7 @@ class Wcms
 			$this->installUpdateThemePluginAction();
 			$this->changePasswordAction();
 			$this->deleteFileThemePluginAction();
+			$this->changePageThemeAction();
 			$this->backupAction();
 			$this->betterSecurityAction();
 			$this->deletePageAction();
@@ -319,7 +320,6 @@ class Wcms
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
 			$this->alert('success', 'Password changed. Please log in again.');
 			$this->set('config', 'forceLogout', true);
-			$this->redirect($this->get('config', 'login'));
 			$this->logoutAction(true);
 		}
 	}
@@ -360,6 +360,7 @@ class Wcms
 				'loggedIn' => false,
 				'forceLogout' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
+				'lastLogins' => [],
 				'defaultRepos' => [
 					'themes' => [],
 					'plugins' => [],
@@ -573,6 +574,19 @@ EOT;
 				$this->alert('success', "Deleted {$filename}.");
 				$this->redirect();
 			}
+		}
+	}
+
+	public function changePageThemeAction(): void
+	{
+		if (isset($_REQUEST['selectThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+			$theme = $_REQUEST['selectThemePlugin'];
+			if (!is_dir($this->rootDir . '/' . $_REQUEST['type'] . '/' . $theme)) {
+				return;
+			}
+
+			$this->set('config', 'theme', $theme);
+			$this->redirect();
 		}
 	}
 
@@ -1079,10 +1093,26 @@ EOT;
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
+			$this->saveAdminLoginIP();
 			$this->redirect();
 		}
 		$this->alert('danger', 'Wrong password.');
 		$this->redirect($this->get('config', 'login'));
+	}
+
+	/**
+	 * Save admins last 5 IPs
+	 */
+	private function saveAdminLoginIP(): void
+	{
+		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'];
+		if (!$savedIPs = $this->get('config', 'lastLogins')) {
+			$this->set('config', 'lastLogins', []);
+			$savedIPs = [];
+		}
+		$savedIPs = (array)$savedIPs;
+		$savedIPs[date('Y/m/d H:i:s')] = $getAdminIP;
+		$this->set('config', 'lastLogins', array_slice($savedIPs, 0, 5));
 	}
 
 	/**
@@ -1133,7 +1163,7 @@ EOT;
 				&& isset($_REQUEST['token'])
 				&& $this->hashVerify($_REQUEST['token']))) {
 			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
-			$this->redirect();
+			$this->redirect($this->get('config', 'login'));
 		}
 	}
 
@@ -1623,8 +1653,9 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><i class="fas fa-link"></i> Read more before enabling</a></p>
-							</div>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><i class="fas fa-link"></i> Read more before enabling</a></p>';
+		$output .= $this->renderAdminLoginIPs();
+		$output .= '		</div>
 						</div>
 					</div>
 					<div class="modal-footer clear">
@@ -1644,28 +1675,31 @@ EOT;
 	}
 
 	/**
+	 * Render last login IPs
+	 * @return string
+	 */
+	private function renderAdminLoginIPs(): string
+	{
+		$getIPs = $this->get('config', 'lastLogins') ?? [];
+		$renderIPs = '';
+		foreach ($getIPs as $time => $adminIP) {
+			$renderIPs .= sprintf('<li>%s - %s</li>', date('M d, Y H:i:s', strtotime($time)), $adminIP);
+		}
+		return '<p class="subTitle">Admin login log - last 5 IPs</p>
+				<div class="change">
+					<ul>' . $renderIPs . '</ul>
+				</div>';
+	}
+
+	/**
 	 * Render Plugins/Themes cards
 	 * @param string $type
 	 * @return string
 	 */
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
-		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">';
-		if ($type === self::THEMES_DIR) {
-			$output .= '<p class="subTitle">Current theme</p>
-						 <div class="form-group">
-							<div class="change">
-								<select class="form-control" name="themeSelect" onchange="fieldSave(\'theme\',this.value,\'config\');">';
-			foreach (glob($this->rootDir . '/themes/*', GLOB_ONLYDIR) as $dir) {
-				$output .= '<option value="' . basename($dir) . '"' . (basename($dir) === $this->get('config',
-						'theme') ? ' selected' : '') . '>' . basename($dir) . '</option>';
-			}
-			$output .= '		</select>
-							</div>
-						</div>';
-		}
-
-		$output .= '<p class="subTitle pull-left float-left">List of all ' . $type . '</p>
+		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
+					<p class="subTitle pull-left float-left">List of all ' . $type . '</p>
 					<a class="btn btn-info btn-sm pull-right float-right marginTop20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check for updates"><i class="fas fa-sync-alt" aria-hidden="true"></i> Check for updates</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
@@ -1678,11 +1712,15 @@ EOT;
 				$infoUrl = $addon['readmeUrl'];
 				$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s',
 					$addon['currentVersion']) : '';
+				$directoryName = $addon['dirName'];
+				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
 				$installButton = $addon['install'] ? '<a class="btn btn-success btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="fas fa-download"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="fas fa-cloud-download-alt"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm" href="' . self::url('?deleteThemePlugin=' . $addon['dirName'] . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $addon['dirName'] . '?\')" title="Remove"><i class="far fa-trash-alt"></i></a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="fas fa-cloud-download-alt"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="far fa-trash-alt"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="btn btn-primary btn-sm" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="fas fa-check"></i> Activate</a>' : '';
+				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="btn btn-primary btn-sm" disabled>Active</a>' : '';
 
 				$html = "<div class='col-sm-4'>
 							<div>
@@ -1690,6 +1728,7 @@ EOT;
 								<h4>$name</h4>
 								<p class='normalFont'>$info</p>
 								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><i class='fas fa-link'></i> More info</a></p>
+								<div class='text-right'>$inactiveThemeButton $activeThemeButton</div>
 								<div class='text-left'>$installButton</div>
 								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
 							</div>
