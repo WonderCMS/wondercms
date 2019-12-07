@@ -1139,7 +1139,7 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute as checking for updates happens once per day.</p></div>
+				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per day.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="input-group">
 						<input type="password" class="form-control" id="password" name="password">
