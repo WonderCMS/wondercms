@@ -29,7 +29,8 @@ WonderCMS is an extremely small flat file CMS. It's fast, responsive.
   - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/latest)
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-   - Option 6: [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template)
+  - Option 6: [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template)
+     - Option 6a: [Watch video - installing WonderCMS on Microsoft Azure](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)
 
 ## Requirements
 - PHP 7.2 or greater
