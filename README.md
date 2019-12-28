@@ -1,4 +1,4 @@
-# WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup>
+# WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (maintained since 2008)</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 [![Project ](https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&v=100)](https://www.wondercms.com/about)
@@ -7,13 +7,13 @@
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
 [![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
-WonderCMS is an **extremely small** flat file CMS (without a database).
-- It's fast, responsive and **doesn't require any configuration**.
-- **Provides a very simple way for creating and editing websites**. It also includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer**, ...
+WonderCMS is an **extremely small** flat file CMS. It's fast, responsive and **doesn't require any configuration**.
+- Provides a simple way for creating and editing websites.
+- Includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer** and many more.
 
 ### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
-## Small and simple CMS
+## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files.
@@ -41,7 +41,7 @@ WonderCMS is an **extremely small** flat file CMS (without a database).
 - mod_rewrite module
 - any type of server (Apache, NGINX or IIS)
 
-*For setting up WonderCMS on NGINX or IIS servers, there is 1 additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
+*For setting up WonderCMS on NGINX or IIS servers, there is one additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
 
 **WonderCMS works on most Apache servers/hosts (even free ones) by default.**
 
@@ -150,8 +150,8 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
    - [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help)
    - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
-- [Themes](https://github.com/robiso/wondercms-themes)
-- [Plugins](https://github.com/robiso/wondercms-plugins)
+- [How to create a theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
+- [How to create a plugin](https://github.com/robiso/wondercms/wiki/List-of-hooks)
 
 #### Hosting and install tutorial links
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
