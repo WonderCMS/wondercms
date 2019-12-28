@@ -7,11 +7,9 @@
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
 [![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
-WonderCMS is an **extremely small** flat file Content Management System.
-
-It's super fast, responsive and **doesn't require any configuration**.
-
-WonderCMS **provides a very simple way for creating and editing websites**. It also includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer**, ...
+WonderCMS is an **extremely small** flat file CMS (without a database).
+- It's fast, responsive and **doesn't require any configuration**.
+- **Provides a very simple way for creating and editing websites**. It also includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer**, ...
 
 ### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
