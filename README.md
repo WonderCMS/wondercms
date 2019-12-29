@@ -1,4 +1,4 @@
-# WonderCMS <sup> • 5 <sup>files</sup> • 14<sup>KB zip (one of the smallest CMS)</sup></sup>
+# WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
 [![Project ](https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&v=100)](https://www.wondercms.com/about)
@@ -7,18 +7,19 @@
 [![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
 [![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
 
+WonderCMS is an **extremely small** flat file CMS. It's fast, responsive and **doesn't require any configuration**.
+- Provides a simple way for creating and editing websites.
+- Includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer** and many more.
 
-WonderCMS is an extremely small flat file CMS. It's fast, responsive.
- - **Key features:** completely free and open source, no setup required, 1 click updates/backups, theme/plugin installer, easy to theme, lightweight. Built with PHP and maintained since 2008.
+### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
 
-### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [Themes](https://www.wondercms.com/themes) • [Plugins](https://www.wondercms.com/plugins) • [Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
-
-## Extra small and simple flat file CMS
+## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files.
- - No cookies, tracking or "powered by" links.
- - Supports plugins ([hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
+ - Privacy oriented: no cookies, tracking or "powered by" links.
+ - Includes plugins ([via hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files) installer, [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
+ - Supports most server types (Apache, NGINX, IIS).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
 ## 1 step install
@@ -29,7 +30,8 @@ WonderCMS is an extremely small flat file CMS. It's fast, responsive.
   - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/latest)
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-   - Option 6: [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template)
+  - Option 6: [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template)
+     - Option 6a: [Watch video - installing WonderCMS on Microsoft Azure](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)
 
 ## Requirements
 - PHP 7.2 or greater
@@ -39,7 +41,7 @@ WonderCMS is an extremely small flat file CMS. It's fast, responsive.
 - mod_rewrite module
 - any type of server (Apache, NGINX or IIS)
 
-*For setting up WonderCMS on NGINX or IIS servers, there is 1 additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
+*For setting up WonderCMS on NGINX or IIS servers, there is one additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
 
 **WonderCMS works on most Apache servers/hosts (even free ones) by default.**
 
@@ -67,25 +69,29 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 
 ## Other features
  - no configuration required, unzip and upload
+ - extremely fast
  - simple inline click and edit functionality
  - theme and plugin installer/updater
- - 1 click update and backup
+ - 1 click updates
+ - 1 click backups
  - [easy to theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
  - [custom editable blocks](https://github.com/robiso/wondercms/wiki/Create-new-editable-areas-or-editable-blocks#difference-between-editable-blocks-and-editable-areas)
+ - custom theme and plugin repositories
+ - log of last 5 logged in IPs
  - file uploader
- - lightweight and fast
+ - lightweight
  - responsive
  - clean URLs
  - custom homepage
  - menu reordering and visibility
-   - hiding a page from the menu only hides it from the actual menu (and not from search engines)
+   - note: hiding a page from the menu only hides it from the actual menu (and not from search engines)
  - highlighted current page in menu
  - custom 404 page
  - basic SEO support
    - custom title, keywords and description for each page
  - [optional] functions.php file for loading your custom code
-   - functions.php file includes itself when you create it
-   - the location of functions.php file should be inside the current active theme folder (same location as theme.php)
+   - note 1: functions.php file includes itself when you create it
+   - note 2: the location of functions.php file should be inside the current active theme folder (same location as theme.php)
 
 ## List of donors
 Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for the support!
@@ -115,8 +121,8 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - WonderCMS is meant to be extremely simple and will not be over-bloated with features.
   - Specific features are added only if the majority of the WonderCMS community signals a wanted change.
   - Pull requests are welcome and appreciated.
-- To make WonderCMS sustainable and compact, a maximum number of 10 plugins and 25 themes will be supported.
-  - Once this limit is reached in each category, a simple voting system will be established. Users will be free to vote for their favorite plugins and themes to ensure they stay in the top 10 and top 25 pool. Votes will be held on a 6-month basis/twice per year (subject to change).
+- To make WonderCMS sustainable and compact, a maximum number of 20 plugins and 50 themes will be supported.
+  - Once this limit is reached in each category, a simple voting system will be established. Users will be free to vote for their favorite plugins and themes to ensure they stay in the top 20 and top 50 pool. Votes will be held on a 6-month basis/twice per year (subject to change).
   - The voting system comes in handy when users feel one of the top plugins or themes can be replaced by better ones with similar functionality or when a plugin/theme is no longer actively maintained.
   - This is a good way to ensure a small but good quality set of themes/plugins. The "top 10 and top 25" of each category will be easier to maintain and watch over by the whole community.
 - WonderCMS doesn't include an "auto-update" feature.
@@ -144,8 +150,8 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
    - [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help)
    - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
-- [Themes](https://github.com/robiso/wondercms-themes)
-- [Plugins](https://github.com/robiso/wondercms-plugins)
+- [How to create a theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
+- [How to create a plugin](https://github.com/robiso/wondercms/wiki/List-of-hooks)
 
 #### Hosting and install tutorial links
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)

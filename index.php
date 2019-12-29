@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.2');
+define('VERSION', '3.0.3');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -773,7 +773,7 @@ EOT;
 				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
 				if ($update) {
 					$this->alert('info',
-						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . ' list</a></b>',
+						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>',
 						true);
 				}
 
@@ -1139,7 +1139,7 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2></div>
+				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per day.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="input-group">
 						<input type="password" class="form-control" id="password" name="password">
@@ -1660,11 +1660,11 @@ EOT;
 					</div>
 					<div class="modal-footer clear">
 						<p class="small">
-							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp; 
-							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp; 
-							 <a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp; 
-							 <a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp; 
-							 <a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
+							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
+							<b><a href="https://wondercms.com/whatsnew" target="_blank">News</a> &nbsp;
+							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
+							<a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation" target="_blank">Docs</a> &nbsp;
+							<a href="https://wondercms.com/donate" target="_blank">Donate</a></b>
 						</p>
 					</div>
 				 </div>
@@ -1685,7 +1685,7 @@ EOT;
 		foreach ($getIPs as $time => $adminIP) {
 			$renderIPs .= sprintf('<li>%s - %s</li>', date('M d, Y H:i:s', strtotime($time)), $adminIP);
 		}
-		return '<p class="subTitle">Admin login log - last 5 IPs</p>
+		return '<p class="subTitle">Last 5 logins</p>
 				<div class="change">
 					<ul>' . $renderIPs . '</ul>
 				</div>';
@@ -1751,8 +1751,8 @@ EOT;
 		$output .= $updates;
 		$output .= $exists;
 		$output .= $installs;
-		$output .= '</div>	
-					<p class="subTitle">Custom repository</p>							
+		$output .= '</div>
+					<p class="subTitle">Custom repository</p>
 					<form action="' . self::url($this->currentPage) . '" method="post">
 						<div class="form-group">
 							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
