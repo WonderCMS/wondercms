@@ -864,7 +864,6 @@ EOT;
 	 */
 	private function cacheThemesPluginsData(): void
 	{
-		$branch = 'master';
 		$returnArray = [];
 		$db = $this->getDb();
 		$array = (array)$db->config->defaultRepos;
@@ -878,35 +877,71 @@ EOT;
 			$concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
 
 			foreach ($concatenatedRepos as $repo) {
-				$repoParts = explode('/', $repo);
-				$name = array_pop($repoParts);
-				$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
-				$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
-				$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
-				$newVersion = $this->getOfficialVersion($repoFilesUrl);
-				if (empty($repo) || empty($name) || $newVersion === null) {
+				$repoData = $this->downloadThemePluginsData($repo, $type, $savedData);
+				if (null === $repoData) {
 					continue;
 				}
 
-				$image = $savedData[$type][$repo]['image'] ?? $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
-
-				$returnArray[$type][$repo] = [
-					'name' => ucfirst(str_replace('-', ' ', $name)),
-					'dirName' => $name,
-					'repo' => $repo,
-					'zip' => $repoZipUrl,
-					'newVersion' => htmlentities($newVersion),
-					'image' => $image !== null
-						? str_replace('https://github.com/', 'https://raw.githubusercontent.com/',
-							$repoFilesUrl) . 'preview.jpg'
-						: null,
-					'readme' => htmlentities($this->getCheckFileFromRepo('summary', $repoFilesUrl)),
-					'readmeUrl' => $repoReadmeUrl,
-				];
+				$returnArray[$type][$repo] = $repoData;
 			}
 		}
 
 		$this->save($this->themesPluginsCachePath, (object)$returnArray);
+	}
+
+	/**
+	 * Cache single theme or plugin data
+	 * @param string $repo
+	 * @param string $type
+	 */
+	private function cacheSingleCacheThemePluginData(string $repo, string $type): void
+	{
+		$returnArray = $this->getJsonFileData($this->themesPluginsCachePath);
+
+		$repoData = $this->downloadThemePluginsData($repo, $type, $returnArray);
+		if (null === $repoData) {
+			return;
+		}
+
+		$returnArray[$type][$repo] = $repoData;
+		$this->save($this->themesPluginsCachePath, (object)$returnArray);
+	}
+
+	/**
+	 * Gathers single theme/plugin data from repository
+	 * @param string $repo
+	 * @param string $type
+	 * @param array $savedData
+	 * @return array|null
+	 */
+	private function downloadThemePluginsData(string $repo, string $type, array $savedData = []): ?array
+	{
+		$branch = 'master';
+		$repoParts = explode('/', $repo);
+		$name = array_pop($repoParts);
+		$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
+		$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
+		$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
+		$newVersion = $this->getOfficialVersion($repoFilesUrl);
+		if (empty($repo) || empty($name) || $newVersion === null) {
+			return null;
+		}
+
+		$image = $savedData[$type][$repo]['image'] ?? $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
+
+		return [
+			'name' => ucfirst(str_replace('-', ' ', $name)),
+			'dirName' => $name,
+			'repo' => $repo,
+			'zip' => $repoZipUrl,
+			'newVersion' => htmlentities($newVersion),
+			'image' => $image !== null
+				? str_replace('https://github.com/', 'https://raw.githubusercontent.com/',
+					$repoFilesUrl) . 'preview.jpg'
+				: null,
+			'readme' => htmlentities($this->getCheckFileFromRepo('summary', $repoFilesUrl)),
+			'readmeUrl' => $repoReadmeUrl,
+		];
 	}
 
 	/**
@@ -940,7 +975,7 @@ EOT;
 
 		$customRepositories[] = $url;
 		$this->set('config', 'customRepos', $type, $customRepositories);
-		$this->updateAndCacheThemePluginRepos();
+		$this->cacheSingleCacheThemePluginData($url, $type);
 		$this->alert('success',
 			'Repository successfully added to <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
 		$this->redirect();
