@@ -758,6 +758,7 @@ EOT;
 	 * Return array with all themes and their data
 	 * @param string $type
 	 * @return array
+	 * @throws Exception
 	 */
 	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
 	{
@@ -939,6 +940,7 @@ EOT;
 
 		$customRepositories[] = $url;
 		$this->set('config', 'customRepos', $type, $customRepositories);
+		$this->updateAndCacheThemePluginRepos();
 		$this->alert('success',
 			'Repository successfully added to <a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
 		$this->redirect();
