@@ -288,12 +288,14 @@ class Wcms
 	public function block(string $key): string
 	{
 		$blocks = $this->get('blocks');
+		$content = '';
+
 		if (isset($blocks->{$key})) {
-			return $this->get('config', 'loggedIn')
+			$content = $this->get('config', 'loggedIn')
 				? $this->editable($key, $blocks->{$key}->content, 'blocks')
 				: $blocks->{$key}->content;
 		}
-		return '';
+		return $this->hook('block', $content, $key)[0];
 	}
 
 	/**
@@ -657,10 +659,11 @@ EOT;
 	/**
 	 * Get CSRF token
 	 * @return string
+	 * @throws Exception
 	 */
 	public function getToken(): string
 	{
-		return $_SESSION['token'] ?? $_SESSION['token'] = bin2hex(openssl_random_pseudo_bytes(32));
+		return $_SESSION['token'] ?? $_SESSION['token'] = bin2hex(random_bytes(32));
 	}
 
 	/**
@@ -914,7 +917,7 @@ EOT;
 	 * @param array $savedData
 	 * @return array|null
 	 */
-	private function downloadThemePluginsData(string $repo, string $type, array $savedData = []): ?array
+	private function downloadThemePluginsData(string $repo, string $type, ?array $savedData = []): ?array
 	{
 		$branch = 'master';
 		$repoParts = explode('/', $repo);
@@ -1058,6 +1061,7 @@ EOT;
 	/**
 	 * Load JS and enable plugins to load JS
 	 * @return string
+	 * @throws Exception
 	 */
 	public function js(): string
 	{
