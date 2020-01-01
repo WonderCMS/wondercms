@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.3');
+define('VERSION', '3.0.4');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1153,6 +1153,7 @@ EOT;
 		}
 		$savedIPs = (array)$savedIPs;
 		$savedIPs[date('Y/m/d H:i:s')] = $getAdminIP;
+		krsort($savedIPs);
 		$this->set('config', 'lastLogins', array_slice($savedIPs, 0, 5));
 	}
 
@@ -1736,6 +1737,7 @@ EOT;
 	 * Render Plugins/Themes cards
 	 * @param string $type
 	 * @return string
+	 * @throws Exception
 	 */
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
