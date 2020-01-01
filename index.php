@@ -31,7 +31,7 @@ class Wcms
 	public const MIN_PASSWORD_LENGTH = 8;
 
 	/** @var string WCMS_REPO - repo URL */
-	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/experimental3.0.0/';
+	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
 
 	/** @var string WCMS_CDN_REPO - CDN repo URL */
 	public const WCMS_CDN_REPO = 'https://raw.githubusercontent.com/robiso/wondercms-cdn-files/master/';
