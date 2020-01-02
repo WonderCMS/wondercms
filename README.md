@@ -18,7 +18,7 @@ WonderCMS is an **extremely small** flat file CMS. It's fast, responsive and **d
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files.
  - Privacy oriented: no cookies, tracking or "powered by" links.
- - Includes plugins ([via hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps), [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files) installer, [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
+ - Includes plugins ([via hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)/plugins installer, [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
  - Supports most server types (Apache, NGINX, IIS).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
