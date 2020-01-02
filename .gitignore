@@ -1,8 +1,8 @@
 data
 CONTRIBUTING.md
+SECURITY.md
 license
 version
-.htaccess-ultimate
 phpunit
 themes
 !themes/default
@@ -10,3 +10,4 @@ themes
 data_test
 phpunit.phar
 tests
+.github
