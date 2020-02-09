@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.4');
+define('VERSION', '3.0.5');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -461,6 +461,7 @@ class Wcms
 			$this->set($conf, $field, $menuCount, 'visibility', $visibility);
 			if ($menu) {
 				$this->createPage($slug);
+				$_SESSION['redirect_to_name'] = $content;
 				$_SESSION['redirect_to'] = $slug;
 			}
 		} else {
@@ -512,7 +513,8 @@ class Wcms
 		if ($this->get('config', 'loggedIn')) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.4/wcms-admin.min.css" integrity="sha384-sShqXPTws1QY/rCyTCDtO5sQNOJn1M1dvogGQdHOE7hvp25p/waf+GCjcEqTNbJc" crossorigin="anonymous">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.5/wcms-admin.min.css" integrity="sha384-AmA6ze1UhQDAYPT/vdRaARgasdUQWM7R/jDLZSmc3WYTAN8SLSBH0+QpHh+HaCnv" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -1067,10 +1069,12 @@ EOT;
 	{
 		if ($this->get('config', 'loggedIn')) {
 			$scripts = <<<EOT
+<script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.4/wcms-admin.min.js" integrity="sha384-V8CuuLzxxmOn+6p4AD9lkRUTszkXivbUOKeOEgTCkEzA4p4Ago3czn5rSkYhcJdG" crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous" type="text/javascript"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.5/wcms-admin.min.js" integrity="sha384-WUm9Bn6GWkyymXLKCAOJ2wSToOgn+8m2Dy+0WIIH16L2EZvZE3GGqMca35c23o6e" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1454,8 +1458,9 @@ EOT;
 		}
 		if (isset($_SESSION['redirect_to'])) {
 			$newUrl = $_SESSION['redirect_to'];
-			unset($_SESSION['redirect_to']);
-			$this->alert('success', "Page <b>$newUrl</b> created.");
+			$newPageName = $_SESSION['redirect_to_name'];
+			unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+			$this->alert('success', "Page <b>$newPageName</b> created.");
 			$this->redirect($newUrl);
 		}
 		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
@@ -1464,7 +1469,8 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItem') {
 				$this->createMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to'] = $content;
+				$_SESSION['redirect_to_name'] = $content;
+				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
 			if ($target === 'menuItemVsbl') {
 				$this->set('config', $fieldname, $menu, 'visibility', $visibility);
@@ -1522,6 +1528,7 @@ EOT;
 	/**
 	 * Display admin settings panel
 	 * @return string
+	 * @throws Exception
 	 */
 	public function settings(): string
 	{
@@ -1592,7 +1599,7 @@ EOT;
 											 <i class="btn menu-toggle fas' . ($value->visibility === 'show' ? ' fa-eye menu-item-hide' : ' fa-eye-slash menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
 											</div>
 											<div class="col-xs-4 col-4 col-sm-8">
-											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems" class="editText">' . $value->name . '</div>
+											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $key . '" class="editText">' . $value->name . '</div>
 											</div>
 											<div class="col-xs-2 col-2 col-sm-1 text-left">';
 			$output .= ($key === $first) ? '' : '<a class="fas fa-arrow-up toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
@@ -1628,9 +1635,7 @@ EOT;
 							</div>
 							 <p class="subTitle">Footer</p>
 							 <div class="change">
-								<div data-target="blocks" id="footer" class="editText">'
-			. $this->get('blocks', 'footer')->content . '
-								</div>
+								<div data-target="blocks" id="footer" class="editText">' . $this->get('blocks', 'footer')->content . '</div>
 							 </div>
 							</div>
 							<div role="tabpanel" class="tab-pane" id="files">
