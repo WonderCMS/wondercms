@@ -12,14 +12,13 @@
 		<meta name="keywords" content="<?= $Wcms->page('keywords') ?>">
 
 		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-		<link rel="stylesheet" href="<?= $Wcms->asset('css/style.css') ?>">
 		<?= $Wcms->css() ?>
-
+		<link rel="stylesheet" href="<?= $Wcms->asset('css/style.css') ?>">
 	</head>
 
-    <body>
-        <?= $Wcms->settings() ?>
-        <?= $Wcms->alerts() ?>
+	<body>
+		<?= $Wcms->settings() ?>
+		<?= $Wcms->alerts() ?>
 
 		<nav class="navbar navbar-expand-lg navbar-light navbar-default">
 			<div class="container">
@@ -72,8 +71,6 @@
 
 		<script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
 		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous" type="text/javascript"></script>
-
 		<?= $Wcms->js() ?>
-
 	</body>
 </html>
