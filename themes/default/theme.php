@@ -16,9 +16,9 @@
 		<link rel="stylesheet" href="<?= $Wcms->asset('css/style.css') ?>">
 	</head>
 
-    <body>
-        <?= $Wcms->settings() ?>
-        <?= $Wcms->alerts() ?>
+	<body>
+		<?= $Wcms->settings() ?>
+		<?= $Wcms->alerts() ?>
 
 		<nav class="navbar navbar-expand-lg navbar-light navbar-default">
 			<div class="container">
