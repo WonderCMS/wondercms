@@ -776,7 +776,7 @@ EOT;
 				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
 				$currentVersion = $exists ? $this->getThemePluginVersion($type, $dirName) : null;
 				$newVersion = $addon['newVersion'];
-				$update = $newVersion !== null && $currentVersion !== null && $currentVersion !== $newVersion;
+				$update = $newVersion !== null && $currentVersion !== null && $newVersion > $currentVersion;
 				if ($update) {
 					$this->alert('info',
 						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>',
