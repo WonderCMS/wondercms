@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.5');
+define('VERSION', '3.0.6');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1074,7 +1074,7 @@ EOT;
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous" type="text/javascript"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.6/wcms-admin.min.js" integrity="sha384-iGeaGcFqWgvIUYNKdJbyfS/RhRr58bW8EoWDfefL9pjEkYFcdddFscR6+8ChP5/0" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.7/wcms-admin.min.js" integrity="sha384-cbfJeFbMB0TltR3Flm/fXRLMMfZpVdL3p2tgQ96vdJMfZ3HLY2awGuZ/0iiPxHUR" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1619,8 +1619,7 @@ EOT;
 							 </div>
 							 <p class="subTitle">Main website title</p>
 							 <div class="change">
-								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
-				'siteTitle') . '</div>
+								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config', 'siteTitle') . '</div>
 							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
