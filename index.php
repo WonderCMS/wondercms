@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.6');
+define('VERSION', '3.0.7');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -513,7 +513,6 @@ class Wcms
 		if ($this->get('config', 'loggedIn')) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.5/wcms-admin.min.css" integrity="sha384-AmA6ze1UhQDAYPT/vdRaARgasdUQWM7R/jDLZSmc3WYTAN8SLSBH0+QpHh+HaCnv" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
@@ -1069,11 +1068,9 @@ EOT;
 	{
 		if ($this->get('config', 'loggedIn')) {
 			$scripts = <<<EOT
-<script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.taboverride@4.0.0/build/jquery.taboverride.min.js" integrity="sha384-RU4BFEU2qmLJ+oImSowhm+0Py9sT+HUD71kZz1i0aWjBfPx+15Y1jmC8gMk1+1W4" crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.7/wcms-admin.min.js" integrity="sha384-cbfJeFbMB0TltR3Flm/fXRLMMfZpVdL3p2tgQ96vdJMfZ3HLY2awGuZ/0iiPxHUR" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
