@@ -3644,8 +3644,7 @@ EOT;
 					<div class="clear"></div>
 					<button class="btn btn-info marginTop5" name="update"><i class="refreshIcon"></i>Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
 					<input type="hidden" name="token" value="' . $this->getToken() . '">
-				</form>',
-				true
+				</form>'
 			);
 		}
 	}
