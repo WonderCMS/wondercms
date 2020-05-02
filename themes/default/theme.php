@@ -4,37 +4,49 @@
 <html lang="en">
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		
 		<meta http-equiv="X-UA-Compatible" content="IE=edge">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<title><?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?></title>
+		<meta name="title" content="<?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?>" />
 		<meta name="description" content="<?= $Wcms->page('description') ?>">
 		<meta name="keywords" content="<?= $Wcms->page('keywords') ?>">
+    
+		<meta property="og:url" content="<?= $this->url() ?>" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="<?= $Wcms->get('config', 'siteTitle') ?>" />
+		<meta property="og:title" content="<?= $Wcms->page('title') ?>" />
+		<meta name="twitter:site" content="<?= $this->url() ?>" />
+		<meta name="twitter:title" content="<?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?>" />
+		<meta name="twitter:description" content="<?= $Wcms->page('description') ?>" />
 
-		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <title><?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?></title>
+
+        <link rel="stylesheet" rel="preload" as="style" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <link rel="stylesheet" rel="preload" as="style" href="<?= $Wcms->asset('css/style.css') ?>">
+
 		<?= $Wcms->css() ?>
 
-		<link rel="stylesheet" href="<?= $Wcms->asset('css/style.css') ?>">
 	</head>
 
-	<body>
+	<body class="d-flex flex-column">
 		<?= $Wcms->settings() ?>
 		<?= $Wcms->alerts() ?>
 
 		<nav class="navbar navbar-expand-lg navbar-light navbar-default">
 			<div class="container">
 				<a class="navbar-brand" href="<?= $Wcms->url() ?>">
-					<?= $Wcms->get('config', 'siteTitle') ?>
+				    <?= $Wcms->siteTitle() ?>
 				</a>
 
 				<div class="navbar-header">
-				<button type="button" class="navbar-toggler navbar-toggle" data-toggle="collapse" data-target="#menu-collapse">
-					<span class="navbar-toggler-icon">
-						<span class="icon-bar"></span>
-						<span class="icon-bar"></span>
-						<span class="icon-bar"></span>
-					</span>
-				</button>
+    				<button type="button" class="navbar-toggler navbar-toggle" data-toggle="collapse" data-target="#menu-collapse">
+    					<span class="navbar-toggler-icon">
+    						<span class="icon-bar"></span>
+    						<span class="icon-bar"></span>
+    						<span class="icon-bar"></span>
+    					</span>
+    				</button>
 				</div>
 
 				<div class="collapse navbar-collapse" id="menu-collapse">
@@ -45,33 +57,34 @@
 			</div>
 		</nav>
 
-		<div class="container">
-			<div class="row">
-				<div class="col-lg-12 text-center padding40">
+        <section class="container mt-5 mb-5 skewAfter">
+            <div class="row">
+				<div class="col-lg-12 my-auto text-center padding40">
 					<?= $Wcms->page('content') ?>
 
 				</div>
 			</div>
-		</div>
-
-		<div class="container-fluid blueBackground whiteFont">
-			<div class="row">
-				<div class="col-lg-12 text-center padding40">
+    	</section>
+    	
+    	<div class="h-05"></div>
+    	
+    	<section class="container-fluid mt-5 mb-5 flex-grow">
+    	    <div class="row blueBackground">
+				<div class="col-lg-12 my-auto text-center padding40 resetTextRotation">
 					<?= $Wcms->block('subside') ?>
 
 				</div>
-			</div>
-		</div>
+    		</div>
+    	</section>
 
-		<footer class="container-fluid">
-			<div class="text-right padding20">
+<footer class="mt-4 footer">
+    <div class="container-fluid py-3 text-right">
 				<?= $Wcms->footer() ?>
-
-			</div>
-		</footer>
+    </div>
+</footer>
 
 		<script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
-		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous" type="text/javascript"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous" defer></script>
 		<?= $Wcms->js() ?>
 
 	</body>

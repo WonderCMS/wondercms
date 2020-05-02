@@ -1,42 +1,95 @@
-html {
-	min-height: 100%;
+html, body {
+    height: 100%;
 	position: relative;
-	box-shadow: 0 0 100px rgba(0, 0, 0, 0.27) inset;
-}
-
-body {
-	color: #555;
-	background: #eee;
-	margin-bottom: 60px;
+	box-shadow: 0 0 200px rgba(0, 0, 0, 0.27) inset;
+	color: #fff;
 	font-family: "Lucida Sans Unicode", Verdana;
+    background: #665fee;
+    background-image: -webkit-linear-gradient(45deg, rgb(102, 95, 238) 0%, rgb(39, 194, 222) 100%);
+    overflow-x: hidden;
 }
 
-.whiteFont {color: #fff;}
+.flex-grow {
+   flex: 1;
+}
+
+a, a:hover {
+	color: #bfe1ff;
+}
+
+.h-05 {height: 0.5% !important;}
+h1 {font-size: 5rem !important;}
 .padding20 {padding: 20px;}
 .padding40 {padding: 40px;}
-.blueBackground {background-color: #1ab;}
+.navbar-default .navbar-toggle {border: 0;}
+.navbar-light .navbar-nav .nav-link { color: #dfdfdf;}
+.navbar-light .navbar-brand, .navbar-light:hover .navbar-brand:hover { color: #fff;} 
+.navbar-expand-lg .navbar-nav .navf-link {padding: 1.5em 1em;}
+.nav li > a { padding: 20px;}
 
-.navbar-default .navbar-toggle {border-color: #888;}
+.blueBackground {
+    height: 250px;
+    min-height: 80%;
+    min-width: 110%;
+    left: -50px;
+    background-color: #f2f4f9;
+    -webkit-transform: rotate(-4deg);
+    -ms-transform: rotate(-4deg);
+    transform: rotate(-4deg);
+    z-index: 10;
+    color: #212529;
+    position: relative;
+}
+
+.resetTextRotation
+ {
+    transform: rotate(4deg) !important;
+}
 
 .navbar li {
-	font-size: 13px;
-	text-transform: uppercase;
+	font-size: 16px;
+	text-transform: small-caps;
+	margin-right: 25px;
 }
 
 .navbar, .navbar-collapse {
 	border: 0;
 	background: none;
+	padding-top: 10px;
 }
 
 ul.nav.navbar-nav.navbar-right li a:hover, ul.nav.navbar-nav.navbar-right li.active a {
-	color: #1ab;
+	color: #ffffff;
 	background: none;
-	border-bottom: 1px solid #1ab;
+	border-bottom: 1px solid #a5d5ff;
 }
 
-footer {
-	bottom: 0;
-	width: 100%;
-	font-size: 13px;
-	position: absolute;
+.footer {
+    color: #dfdfdf;
+    font-size: 13px;
+    padding: 20px;
+}
+
+
+@media (min-width: 300px) and (max-width: 767px) {
+    h1 {font-size: 3em !important;}
+    .vertical-center { 
+      height:20%;
+      width:100%;
+      text-align: center;
+    }
+    
+    .blueBackground {
+        height: 300px;
+        min-height: 100%;
+        min-width: 130%;
+        left: -40px;
+        background-color: #f2f4f9;
+        -webkit-transform: rotate(-4deg);
+        -ms-transform: rotate(-4deg);
+        transform: rotate(-4deg);
+        z-index: 10;
+        color: #212529;
+        position: relative;
+    }
 }
