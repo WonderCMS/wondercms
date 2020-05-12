@@ -250,8 +250,7 @@ class Wcms
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
 		if (!empty($backupList)) {
 			$this->alert('danger',
-				'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and delete unnecessary backup files</b></a>',
-				true);
+				'Backup files detected. <a data-toggle="modal" href="#settingsModal" data-target-tab="#files"><b>View and delete unnecessary backup files</b></a>');
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
 			$this->zipBackup();
@@ -398,7 +397,7 @@ class Wcms
 					'title' => 'Home',
 					'keywords' => 'Keywords, are, good, for, search, engines',
 					'description' => 'A short description is also good.',
-					'content' => '<h1>Website alive!</h1>
+					'content' => '<h1>It\'s alive!</h1>
 
 <h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
 				],
@@ -410,11 +409,11 @@ class Wcms
 <p>Click anywhere to edit and click outside the area to save. Changes are shown immediately.</p>
 <p>There are more options in the Settings.</p>
 
-<h2 class="mt-5 mb-3">How to create new pages</h2>
-<p><i>Settings -> Menu -> Add page</i></p>
+<h2 class="mt-5 mb-3">Creating new pages</h2>
+<p>Pages can be created easily in the Settings, Menu tab.</p>
 
 
-<h2 class="mt-5 mb-3">How to install themes and plugins</h2>
+<h2 class="mt-5 mb-3">Installing themes and plugins</h2>
 <p>By opening the Settings panel, you can install, update or remove themes or plugins.</p>
 <p>A simple editor can be found in the plugins section which makes editing even easier.</p>'
 				]
@@ -572,7 +571,7 @@ class Wcms
 }
 
 .editIcon{
-background-image:url("data:image/svg+xml,%3Csvg class='bi bi-pencil-square' viewBox='0 0 16 16' fill='%23aaaaaa' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z'/%3E%3Cpath fill-rule='evenodd' d='M1 13.5A1.5 1.5 0 002.5 15h11a1.5 1.5 0 001.5-1.5v-6a.5.5 0 00-1 0v6a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H9a.5.5 0 000-1H2.5A1.5 1.5 0 001 2.5v11z' clip-rule='evenodd'/%3E%3C/svg%3E");
+background-image:url("data:image/svg+xml,%3Csvg class='bi bi-pencil-square' viewBox='0 0 16 16' stroke='%23555555' fill='%23ffffff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z'/%3E%3Cpath fill-rule='evenodd' d='M1 13.5A1.5 1.5 0 002.5 15h11a1.5 1.5 0 001.5-1.5v-6a.5.5 0 00-1 0v6a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H9a.5.5 0 000-1H2.5A1.5 1.5 0 001 2.5v11z' clip-rule='evenodd'/%3E%3C/svg%3E");
 background-repeat:no-repeat;
 width: 1.5em;
 height: 1.5em;
@@ -739,7 +738,7 @@ outline: none !important;
     display: block;
     padding: 4px;
     min-height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg class='bi bi-pencil-square' viewBox='0 0 16 16' fill='%23bbbbbb' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z'/%3E%3Cpath fill-rule='evenodd' d='M1 13.5A1.5 1.5 0 002.5 15h11a1.5 1.5 0 001.5-1.5v-6a.5.5 0 00-1 0v6a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H9a.5.5 0 000-1H2.5A1.5 1.5 0 001 2.5v11z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg class='bi bi-pencil-square' viewBox='0 0 16 16' stroke='%23555555' fill='%23ffffff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z'/%3E%3Cpath fill-rule='evenodd' d='M1 13.5A1.5 1.5 0 002.5 15h11a1.5 1.5 0 001.5-1.5v-6a.5.5 0 00-1 0v6a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H9a.5.5 0 000-1H2.5A1.5 1.5 0 001 2.5v11z' clip-rule='evenodd'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: 99.8% 4px;
     background-size: 20px 20px;
@@ -747,7 +746,7 @@ outline: none !important;
 }
 
 .editTextOpen:focus-within {
-    background-image: url("data:image/svg+xml,%3Csvg class='bi bi-pencil-square' viewBox='0 0 16 16' fill='%2314cde1' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z'/%3E%3Cpath fill-rule='evenodd' d='M1 13.5A1.5 1.5 0 002.5 15h11a1.5 1.5 0 001.5-1.5v-6a.5.5 0 00-1 0v6a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H9a.5.5 0 000-1H2.5A1.5 1.5 0 001 2.5v11z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg class='bi bi-pencil-square' viewBox='0 0 16 16' stroke='%2314cde1' fill='%23ffffff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z'/%3E%3Cpath fill-rule='evenodd' d='M1 13.5A1.5 1.5 0 002.5 15h11a1.5 1.5 0 001.5-1.5v-6a.5.5 0 00-1 0v6a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H9a.5.5 0 000-1H2.5A1.5 1.5 0 001 2.5v11z' clip-rule='evenodd'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: 99.8% 4px;
     background-size: 20px 20px
@@ -927,7 +926,8 @@ outline: none !important;
     font-size: 1.5em;
     margin-bottom: .2em;
     line-height: 1em;
-    min-height: 40px
+    min-height: 40px;
+    margin-top: 1em;
 }
 
 #adminPanel .custom-cards .btn {
@@ -2580,9 +2580,12 @@ input[type=submit].btn-block {
 }
 
 .alertWrapper .close {
-    margin: -0.3rem -1.7rem 0rem auto !important;
     position: relative;
+    top: -2px;
+    right: -21px;
+    color: inherit;
     font-family: unset;
+    line-height: 1 !important;
 }
 
 #adminPanel .modal-body {
@@ -3026,8 +3029,7 @@ EOT;
 				$update = $newVersion !== null && $currentVersion !== null && $newVersion > $currentVersion;
 				if ($update) {
 					$this->alert('info',
-						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>',
-						true);
+						'New ' . $type . ' update available. <b><a data-toggle="modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>');
 				}
 
 				$addonType = $exists ? self::THEME_PLUGINS_TYPES['exists'] : self::THEME_PLUGINS_TYPES['installs'];
@@ -4136,7 +4138,7 @@ EOT;
 					<form action="' . self::url($this->currentPage) . '" method="post">
 						<div class="form-group">
 							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
-								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="addNewIcon"></i>Add</button></span>
+								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="addNewIcon"></i> Add</button></span>
 							</div>
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
