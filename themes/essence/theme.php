@@ -57,7 +57,7 @@
 			</div>
 		</nav>
 
-		<section class="container mt-5 mb-5 skewAfter">
+		<section class="container mt-5 mb-5">
 			<div class="row">
 				<div class="col-lg-12 my-auto text-center padding40">
 					<?= $Wcms->page('content') ?>
