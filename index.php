@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.7');
+define('VERSION', '3.0.8');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -357,7 +357,7 @@ class Wcms
 		$this->db = (object)[
 			'config' => [
 				'siteTitle' => 'Website title',
-				'theme' => 'default',
+				'theme' => 'essence',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'loggedIn' => false,
@@ -517,7 +517,7 @@ class Wcms
 	{
 		if ($this->get('config', 'loggedIn')) {
 			$styles = <<<'EOT'
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@dev308rc/wcms-admin.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.8/wcms-admin.min.css" integrity="sha384-8eXsopCWgkcT3ix3mugkJX9Hrh0YJ5evW7O6vevD+W2Flrxne+vT2TQaoC3vBhOQ" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -644,9 +644,9 @@ EOT;
 	 */
 	public function siteTitle(): string
 	{
-	    $output =  $this->get('config', 'siteTitle');
+		 $output = $this->get('config', 'siteTitle');
 		if ($this->get('config', 'loggedIn')) {
-		    $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
+			 $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $output;
 	}
@@ -658,7 +658,7 @@ EOT;
 	public function footer(): string
 	{
 		if ($this->get('config', 'loggedIn')) {
-    	    $output = '<div data-target="blocks" id="footer" class="editText editable">' . $this->get('blocks', 'footer')->content . '</div>';
+	 		 $output = '<div data-target="blocks" id="footer" class="editText editable">' . $this->get('blocks', 'footer')->content . '</div>';
 		} else {
 			$output .= $this->get('blocks', 'footer')->content .
 			(!$this->get('config', 'loggedIn') && $this->get('config', 'login') === 'loginURL'
@@ -1090,275 +1090,7 @@ EOT;
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
-<script type="text/javascript">
-class wcmsAdmin {
-    constructor() {
-        const self = this;
-
-        // Modals
-        const openModalButton = document.querySelectorAll('[data-toggle="wcms-modal"]');
-        const closeModalButton = document.querySelectorAll('[data-dismiss="wcms-modal"]');
-        openModalButton.forEach((element) => {
-            element.addEventListener('click', function () {
-                wcmsAdminActions.toggleModal(this, true);
-            })
-        });
-
-        var modal = document.getElementById('settingsModal');
-        window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
-        }
-
-        closeModalButton.forEach((element) => {
-            element.addEventListener('click', function () {
-                wcmsAdminActions.toggleModal(this, false);
-            })
-        });
-
-        // Tabs
-        const navTabs = document.querySelectorAll('ul.nav-tabs > li > a');
-        navTabs.forEach((element) => {
-            element.addEventListener('click', function (e) {
-                e.preventDefault();
-                wcmsAdminActions.openTabAction(this);
-            })
-        });
-
-        // Loader
-        const loaderLinks = document.querySelectorAll('[data-loader-id]');
-        loaderLinks.forEach((link) => {
-            link.addEventListener('click', function (event) {
-                wcmsAdminActions.showLoader(true, this.dataset.loaderId);
-            })
-        });
-
-        // Editable fields content save
-        const editableText = document.querySelectorAll('div.editText:not(.editTextOpen)');
-        editableText.forEach((editableElement) => {
-            editableElement.addEventListener('click', self.constructEditableFieldsAction);
-        });
-
-        // Menu item hidden or visible
-        const menuToggling = document.querySelectorAll('i.menu-toggle');
-        menuToggling.forEach((menuToggle) => {
-            menuToggle.addEventListener('click', self.hideOrShowMenuItemsAction)
-        });
-
-        // Add new page
-        document.getElementById('menuItemAdd').addEventListener('click', wcmsAdminActions.createNewPage);
-
-        // Reorder menu item
-        const menuSortTriggers = document.querySelectorAll('.menu-item-up, .menu-item-down');
-        menuSortTriggers.forEach((sortTrigger) => {
-            sortTrigger.addEventListener('click', self.reorderMenuItemsAction)
-        });
-    }
-
-    /**
-     * Method for creating textarea instead of selected editable fields
-     */
-    constructEditableFieldsAction() {
-        const target = this;
-        if (target.classList.contains('editTextOpen')) {
-            return;
-        }
-
-        target.classList.add('editTextOpen');
-        wcmsAdminActions.editableTextArea(target);
-        target.firstChild.focus();
-
-        const textarea = target.getElementsByTagName('textarea');
-        autosize(textarea);
-        tabOverride.set(textarea);
-    }
-
-    /**
-     * Method for reordering the items from menu
-     */
-    reorderMenuItemsAction() {
-        const target = this;
-        const position = target.classList.contains('menu-item-up') ? '-1' : '1';
-
-        wcmsAdminActions.sendPostRequest('menuItems', position, 'menuItemOrder', target.dataset.menu);
-    }
-
-    /**
-     * Method for hiding or showing the items from menu
-     */
-    hideOrShowMenuItemsAction() {
-        const target = this;
-        let visibility = null;
-
-        if (target.classList.contains('menu-item-hide')) {
-            target.classList.remove('eyeShowIcon', 'menu-item-hide');
-            target.classList.add('eyeHideIcon', 'menu-item-show');
-            target.setAttribute('title', 'Hide page from menu');
-            visibility = 'hide';
-        } else if (target.classList.contains('menu-item-show')) {
-            target.classList.add('eyeShowIcon', 'menu-item-hide');
-            target.classList.remove('eyeHideIcon', 'menu-item-show');
-            target.setAttribute('title', 'Show page in menu');
-            visibility = 'show';
-        } else {
-            return;
-        }
-
-        target.setAttribute('data-visibility', visibility);
-        wcmsAdminActions.sendPostRequest('menuItems', ' ', 'menuItemVsbl', target.dataset.menu, visibility);
-    }
-}
-
-/**
- * Wcms action method
- */
-const wcmsAdminActions = {
-    /**
-     * Method to open tab content
-     */
-    openTabAction(target) {
-        const tabsNavContainer = target.closest('.nav-tabs');
-        const tabContentId = target.getAttribute('href').replace('#', '');
-        const tabContent = document.getElementById(tabContentId);
-        const tabsContentContainer = tabContent.closest('.tab-content');
-
-        tabsNavContainer.querySelector('.active').classList.remove('active');
-        tabsContentContainer.querySelector('.active').classList.remove('active');
-        tabContent.classList.add('active');
-        target.classList.add('active');
-    },
-
-    /**
-     * Toggle modal based on clicked element
-     * @param target
-     * @param show
-     */
-    toggleModal(target, show) {
-        if (show) {
-            const modalId = target.getAttribute('href').replace('#', '');
-            document.body.classList.add('modal-open');
-            document.getElementById(modalId).style.display = 'block';
-
-            const targetTab = target.dataset.targetTab;
-            if (targetTab) {
-                const navTab = document.querySelector('ul.nav-tabs > li > a[href="' + targetTab + '"]');
-                if (navTab) {
-                    wcmsAdminActions.openTabAction(navTab);
-                }
-            }
-            return;
-        }
-
-        document.body.classList.remove('modal-open');
-        target.closest('.wcms-modal').style.display = 'none';
-    },
-
-    /**
-     * Method for creating new page
-     *
-     * @returns {boolean}
-     */
-    createNewPage: () => {
-        let newPageName = prompt('Enter page name');
-        if (!newPageName) {
-            return false;
-        }
-
-        newPageName = newPageName.replace(/[`~;:'",.<>\{\}\[\]\\\/]/gi, '').trim();
-        wcmsAdminActions.sendPostRequest('menuItems', newPageName, 'menuItem', 'none', 'hide');
-    },
-
-    /**
-     * Ajax saving method
-     */
-    contentSave: (id, newContent, dataTarget, dataMenu, dataVisibility, oldContent) => {
-        if (newContent !== oldContent) {
-            encodeURIComponent(wcmsAdminActions.sendPostRequest(id, newContent, dataTarget, dataMenu, dataVisibility));
-            return;
-        }
-
-        const target = document.getElementById(id);
-        target.classList.remove('editTextOpen');
-        target.innerHTML = newContent;
-    },
-
-    /**
-     * Post data to API and reload
-     *
-     * @param fieldname
-     * @param content
-     * @param target
-     * @param menu
-     * @param visibility
-     */
-    sendPostRequest: (fieldname, content, target, menu, visibility = null) => {
-        wcmsAdminActions.showLoader(true);
-
-        const dataRaw = {
-            fieldname: fieldname,
-            token: token,
-            content: content,
-            target: target,
-            menu: menu,
-            visibility: visibility
-        };
-        const data = Object.keys(dataRaw).map(function (key, index) {
-            return [key, dataRaw[key]].join('=');
-        }).join('&');
-
-        // Send request
-        const request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            setTimeout(() => window.location.reload(), 50);
-        }
-        request.open('POST', '', false);
-        request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-        request.send(data);
-    },
-
-    /**
-     * Show saving loader
-     * @param show
-     * @param loaderId
-     */
-    showLoader: (show, loaderId = 'save') => {
-        const loader = document.getElementById(loaderId);
-        loader.style.display = show ? 'block' : 'none';
-    },
-
-    /**
-     * Create editable field after clicking on div
-     * @param editableTarget
-     */
-    editableTextArea: (editableTarget) => {
-        const target = editableTarget;
-        const content = target.innerHTML;
-        const targetId = target.getAttribute('id');
-
-        const newElement = document.createElement('textarea');
-        newElement.onblur = function () {
-            wcmsAdminActions.contentSave(
-                targetId,
-                this.value,
-                target.dataset.target,
-                target.dataset.menu,
-                target.dataset.visibility,
-                content
-            );
-        }
-        newElement.setAttribute('id', targetId + '_field');
-        newElement.innerHTML = content;
-
-        editableTarget.innerHTML = '';
-        editableTarget.appendChild(newElement);
-    }
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    new wcmsAdmin();
-});
-</script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.8/wcms-admin.min.js" integrity="sha384-Hgory8HXpKm6VvI8PvRC808Vl87hLg8vqakmNbIFU9cNpZ6LA8ICxtVOABs2mDXX" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1514,7 +1246,7 @@ EOT;
 				</li>';
 		}
 		if ($this->get('config', 'loggedIn')) {
-		    $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
+			 $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $this->hook('menu', $output)[0];
 	}
@@ -1907,7 +1639,7 @@ EOT;
 							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
-								<select class="form-control" name="defaultPage" onchange="wcmsAdminActions.sendPostRequest(\'defaultPage\',this.value,\'config\');">';
+								<select id="changeDefaultPage" class="form-control" name="defaultPage">';
 		$items = $this->get('config', 'menuItems');
 		foreach ($items as $key => $value) {
 			$output .= '<option value="' . $value->slug . '"' . ($value->slug === $this->get('config',
@@ -1980,11 +1712,9 @@ EOT;
 								<form action="' . self::url($this->currentPage) . '" method="post">
 									<button type="submit" class="btn btn-block btn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
-							 </div>	
+							 </div>
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
-
-		                   </div>
-
+				 		 </div>
 						</div>
 					</div>
 					<div class="modal-footer clear">
