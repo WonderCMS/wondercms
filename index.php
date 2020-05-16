@@ -1592,7 +1592,7 @@ EOT;
 					$this->currentPage)->description != '' ? $this->get('pages',
 					$this->currentPage)->description : '') . '</div>
 									</div>
-									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . html_entity_decode($this->currentPage) . '?\')"><i class="deleteIconInButton"></i> Delete page</a>';
+									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page</a>';
 		} else {
 			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
 		}
