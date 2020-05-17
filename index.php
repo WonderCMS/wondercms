@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.0.8');
+define('VERSION', '3.1.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -644,7 +644,7 @@ EOT;
 	 */
 	public function siteTitle(): string
 	{
-		 $output = $this->get('config', 'siteTitle');
+		$output = $this->get('config', 'siteTitle');
 		if ($this->get('config', 'loggedIn')) {
 			 $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
@@ -660,7 +660,7 @@ EOT;
 		if ($this->get('config', 'loggedIn')) {
 	 		 $output = '<div data-target="blocks" id="footer" class="editText editable">' . $this->get('blocks', 'footer')->content . '</div>';
 		} else {
-			$output .= $this->get('blocks', 'footer')->content .
+			$output = $this->get('blocks', 'footer')->content .
 			(!$this->get('config', 'loggedIn') && $this->get('config', 'login') === 'loginURL'
 				? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>'
 				: '');
@@ -1090,7 +1090,7 @@ EOT;
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.8/wcms-admin.min.js" integrity="sha384-Hgory8HXpKm6VvI8PvRC808Vl87hLg8vqakmNbIFU9cNpZ6LA8ICxtVOABs2mDXX" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.9/wcms-admin.min.js" integrity="sha384-B/dbUkTl9vm3Ffs337h+/oupFbxzbYk8vArcqFH7lAss0QwL4oqfas8puhE/dgj5" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
