@@ -1,3 +1,9 @@
+<a href="https://wondercms.com" style="float: right;" target="_blank" title="Official WonderCMS website">
+    <img src="https://github.com/robiso/wondercms-cdn-files/blob/master/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="right" height="150" />
+</a>
+ 
+⭐ Star us on GitHub — it helps!
+
 # WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup>
 
 [![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
@@ -9,9 +15,11 @@
 
 WonderCMS is an **extremely small** flat file CMS. It's fast, responsive and **doesn't require any configuration**.
 - Provides a simple way for creating and editing websites.
-- Includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer** and many more.
+- Includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer** and much more.
 
-### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
+
+
+### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://www.wondercms.com/shop)
 
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
@@ -95,17 +103,23 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 
 ## List of donors
 Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for the support!
+- Sara Stojanovski
+- Jasmina Fabiani
+- Primož Cankar
+- Andraž Zvonar
+- Kim Fajdiga
+- Martin Jablonka
 - Martin King
+- Ben Gilbey
 - Darley Wilson
 - Josef Kmínek
 - Mikula Beutl
-- Martin Jablonka
-- Veselin Kamenarov
-- Håkon Wium Lie (creator of CSS)
+- Håkon Wium Lie - creator of CSS
 - Kenneth Rasmussen
 - David G.
 - Victor Onofrei
 - Matthew
+- Veselin Kamenarov
 - James Campbell
 - Kirsten Hogan
 - Denis Volin
@@ -138,6 +152,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [News/Changelog](https://www.wondercms.com/whatsnew)
 - [Community](https://www.wondercms.com/community)
 - [Donate](https://www.wondercms.com/donate)
+- [Get merch](https://www.wondercms.com/shop)
 - [Donors Hall of Fame](https://www.wondercms.com/donors)
 - [List of contributors](https://www.wondercms.com/special-contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
@@ -147,7 +162,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [Reddit](https://reddit.com/r/WonderCMS)
 
 #### Github links
-- [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+- [Docs/Wiki](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
    - [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help)
    - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
 - [How to create a theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
