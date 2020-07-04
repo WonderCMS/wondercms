@@ -19,7 +19,7 @@ WonderCMS is an **extremely small** flat file CMS. It's fast, responsive and **d
 
 
 
-### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://www.wondercms.com/shop)
+### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://swag.wondercms.com)
 
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
