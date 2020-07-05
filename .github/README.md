@@ -16,8 +16,9 @@
 <a href="https://paypal.me/WonderCMS" rel="nofollow"><img src="https://camo.githubusercontent.com/0cdc244481d2dc6524ce8e7a6a58b95a27a39773/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f646f6e6174652d50617950616c2d677265656e2e7376673f6c6f6e6743616368653d74727565" alt="Donate" data-canonical-src="https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true" style="max-width:100%;"></a>
 </p>
 
-<p align="center">WonderCMS is an <b>extremely small</b> flat file CMS. It's fast, responsive and <b>doesn't require any configuration</b>.
-    <br />Provides a simple way for creating and editing websites.</li>
+<p align="center">WonderCMS is an <b>extremely small</b> flat file CMS. It's fast, responsive and <b>doesn't require any configuration</b>.</p>
+
+<p align="center"> It provides a simple way for creating and editing websites.</li>
     <br />Includes features such as: <b>1-step install</b>, <b>1-click updates</b>, <b>1-click backups</b>, <b>theme/plugin installer</b> and much more.
 </p>
 
