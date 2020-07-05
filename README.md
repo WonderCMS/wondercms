@@ -16,14 +16,6 @@
 <a href="https://paypal.me/WonderCMS" rel="nofollow"><img src="https://camo.githubusercontent.com/0cdc244481d2dc6524ce8e7a6a58b95a27a39773/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f646f6e6174652d50617950616c2d677265656e2e7376673f6c6f6e6743616368653d74727565" alt="Donate" data-canonical-src="https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true" style="max-width:100%;"></a>
 </p>
 
-[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
-[![Project ](https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&v=100)](https://www.wondercms.com/about)
-![Maintained](https://img.shields.io/maintenance/yes/2020.svg?longCache=true)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true)](https://github.com/robiso/wondercms/blob/master/license)
-[![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
-[![Donate](https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true)](https://paypal.me/WonderCMS)
-    
-
 <p align="center">WonderCMS is an <b>extremely small</b> flat file CMS. It's fast, responsive and <b>doesn't require any configuration</b>.
     <br />Provides a simple way for creating and editing websites.</li>
     <br />Includes features such as: <b>1-step install</b>, <b>1-click updates</b>, <b>1-click backups</b>, <b>theme/plugin installer</b> and much more.
