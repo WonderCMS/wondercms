@@ -1,17 +1,28 @@
-# WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup>
+<h1 align="center">
+<a href="https://wondercms.com" target="_blank" title="Official WonderCMS website">
+    <img src="https://github.com/robiso/wondercms-cdn-files/blob/master/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
+</a>
+</h1>
 
-[![Docs](https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&v=100)](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
-[![Project ](https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&v=100)](https://www.wondercms.com/about)
-![Maintained](https://img.shields.io/maintenance/yes/2020.svg?longCache=true)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true)](https://github.com/robiso/wondercms/blob/master/license)
-[![Number of downloads since first release on GitHub](https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&longCache=true)](https://github.com/robiso/wondercms/releases)
-[![Donate](https://img.shields.io/badge/donate-PayPal-green.svg?longCache=true)](https://paypal.me/WonderCMS)
+<p align="center">⭐ Star us on GitHub — it helps!</p>
 
-WonderCMS is an **extremely small** flat file CMS. It's fast, responsive and **doesn't require any configuration**.
-- Provides a simple way for creating and editing websites.
-- Includes features such as: **1-step install**, **1-click updates**, **1-click backups**, **theme/plugin installer** and many more.
+# <div align="center">WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup></div>
 
-### **[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**
+<p align="center"><a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation"><img src="https://camo.githubusercontent.com/45b2b4156eee6b315080fad3c417be62fb10b7d3/68747470733a2f2f696d672e736869656c64732e696f2f72656164746865646f63732f7069702f737461626c652e7376673f6c6f6e6743616368653d7472756526763d313030" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
+<a href="https://www.wondercms.com/about" rel="nofollow"><img src="https://camo.githubusercontent.com/9939e040d7c234e669e0f617f0cb2247bf86b71b/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f70726f6a656374253230666f756e6465642532302d253230696e253230323030382d2532353630303f6c6f6e6743616368653d7472756526763d313030" alt="Project " data-canonical-src="https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&amp;v=100" style="max-width:100%;"></a>
+<a target="_blank" rel="noopener noreferrer" href="https://camo.githubusercontent.com/21e44ed76cd7c7d861a97c415edebdc421e8fcee/68747470733a2f2f696d672e736869656c64732e696f2f6d61696e74656e616e63652f7965732f323032302e7376673f6c6f6e6743616368653d74727565"><img src="https://camo.githubusercontent.com/21e44ed76cd7c7d861a97c415edebdc421e8fcee/68747470733a2f2f696d672e736869656c64732e696f2f6d61696e74656e616e63652f7965732f323032302e7376673f6c6f6e6743616368653d74727565" alt="Maintained" data-canonical-src="https://img.shields.io/maintenance/yes/2020.svg?longCache=true" style="max-width:100%;"></a>
+<a href="https://github.com/robiso/wondercms/blob/master/license"><img src="https://camo.githubusercontent.com/5098d9debf116c028641edd6d434f57ce436824c/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f6c6963656e73652f6d6173686170652f6170697374617475732e7376673f6c6f6e6743616368653d74727565" alt="License" data-canonical-src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" style="max-width:100%;"></a>
+<a href="https://github.com/robiso/wondercms/releases"><img src="https://camo.githubusercontent.com/016ebd6f0795dd02d373cfb8689b831e4438cc8b/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f646f776e6c6f6164732f726f6269736f2f776f6e646572636d732f746f74616c2e7376673f6c6162656c3d646f776e6c6f61647325323073696e636525323032303137266c6f6e6743616368653d74727565" alt="Number of downloads since first release on GitHub" data-canonical-src="https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&amp;longCache=true" style="max-width:100%;"></a>
+<a href="https://paypal.me/WonderCMS" rel="nofollow"><img src="https://camo.githubusercontent.com/0cdc244481d2dc6524ce8e7a6a58b95a27a39773/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f646f6e6174652d50617950616c2d677265656e2e7376673f6c6f6e6743616368653d74727565" alt="Donate" data-canonical-src="https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true" style="max-width:100%;"></a>
+</p>
+
+<p align="center">WonderCMS is an <b>extremely small</b> flat file CMS. It's fast, responsive and <b>doesn't require any configuration</b>.</p>
+
+<p align="center"> It provides a simple way for creating and editing websites.</li>
+    <br />Includes features such as: <b>1-step install</b>, <b>1-click updates</b>, <b>1-click backups</b>, <b>theme/plugin installer</b> and much more.
+</p>
+
+## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://swag.wondercms.com)</div>
 
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
@@ -95,17 +106,23 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 
 ## List of donors
 Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for the support!
+- Sara Stojanovski
+- Jasmina Fabiani
+- Primož Cankar
+- Andraž Zvonar
+- Kim Fajdiga
+- Martin Jablonka
 - Martin King
+- Ben Gilbey
 - Darley Wilson
 - Josef Kmínek
 - Mikula Beutl
-- Martin Jablonka
-- Veselin Kamenarov
-- Håkon Wium Lie (creator of CSS)
+- Håkon Wium Lie - creator of CSS
 - Kenneth Rasmussen
 - David G.
 - Victor Onofrei
 - Matthew
+- Veselin Kamenarov
 - James Campbell
 - Kirsten Hogan
 - Denis Volin
@@ -138,6 +155,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [News/Changelog](https://www.wondercms.com/whatsnew)
 - [Community](https://www.wondercms.com/community)
 - [Donate](https://www.wondercms.com/donate)
+- [Get merch](https://www.wondercms.com/shop)
 - [Donors Hall of Fame](https://www.wondercms.com/donors)
 - [List of contributors](https://www.wondercms.com/special-contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
@@ -147,7 +165,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [Reddit](https://reddit.com/r/WonderCMS)
 
 #### Github links
-- [Docs](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
+- [Docs/Wiki](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
    - [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help)
    - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
 - [How to create a theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
