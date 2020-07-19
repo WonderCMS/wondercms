@@ -113,6 +113,7 @@ final class WcmsTest extends TestCase
 
 		$this->wcms->loginAction();
 
+		// Too short password
 		$_POST['token'] = $this->wcms->getToken();
 		$_POST['old_password'] = self::PASSWORD;
 		$_POST['new_password'] = 'test';
@@ -120,6 +121,35 @@ final class WcmsTest extends TestCase
 		$this->wcms->loginStatus();
 		$this->wcms->changePasswordAction();
 
+		$this->assertEquals($_SESSION['alert']['danger'][0]['message'], 'Wrong password.');
+
+		$_POST['token'] = $this->wcms->getToken();
+		$_POST['old_password'] = self::PASSWORD;
+		$_POST['new_password'] = 'test123456789A';
+
+		$this->wcms->loginStatus();
+		$this->wcms->changePasswordAction();
 		$this->assertEquals($_SESSION['alert']['success'][0]['message'], 'Password changed.');
 	}
+
+//	public function testUploadFileAction(): void
+//	{
+//		$_POST['token'] = $this->wcms->getToken();
+//		$_FILES['uploadFile'] = $this->getTestFileArray();
+//		$this->wcms->uploadFileAction();
+//	}
+//
+//	private function getTestFileArray(): array
+//	{
+//		$filename = 'test.JPG">\' ? * + % $ # " !<svg onload=alert(document.domain)>.JPG';
+//		$filepath = __DIR__ . '/files/' . $filename;
+//
+//		return [
+//			'name' => $filename,
+//			'type' => 'image/png',
+//			'tmp_name' => $filepath,
+//			'error' => 0,
+//			'size' => 4
+//		];
+//	}
 }

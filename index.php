@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.0');
+define('VERSION', '3.1.1');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -567,17 +567,31 @@ EOT;
 			return;
 		}
 		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
-			$filename = str_ireplace(['/', './', '../', '..', '~', '~/', '\\'], null,
-				trim($_REQUEST['deleteThemePlugin']));
-			$type = $_REQUEST['type'];
+			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
+			$filename = str_ireplace(
+				['/', './', '../', '..', '~', '~/', '\\'],
+				null,
+				trim($_REQUEST['deleteThemePlugin'])
+			);
+			$type = str_ireplace(
+				['/', './', '../', '..', '~', '~/', '\\'],
+				null,
+				trim($_REQUEST['type'])
+			);
+			if (!in_array($type, $allowedDeleteTypes, true)) {
+				$this->alert('danger',
+					'Wrong delete folder path.');
+				$this->redirect();
+			}
 			if ($filename === $this->get('config', 'theme')) {
 				$this->alert('danger',
 					'Cannot delete currently active theme. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
 				$this->redirect();
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
-			if (file_exists("{$folder}/{$filename}")) {
-				$this->recursiveDelete("{$folder}/{$filename}");
+			$path = realpath("{$folder}/{$filename}");
+			if (file_exists($path)) {
+				$this->recursiveDelete($path);
 				$this->alert('success', "Deleted {$filename}.");
 				$this->redirect();
 			}
@@ -646,7 +660,7 @@ EOT;
 	{
 		$output = $this->get('config', 'siteTitle');
 		if ($this->get('config', 'loggedIn')) {
-			 $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
+			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $output;
 	}
@@ -658,12 +672,13 @@ EOT;
 	public function footer(): string
 	{
 		if ($this->get('config', 'loggedIn')) {
-	 		 $output = '<div data-target="blocks" id="footer" class="editText editable">' . $this->get('blocks', 'footer')->content . '</div>';
+			$output = '<div data-target="blocks" id="footer" class="editText editable">' . $this->get('blocks',
+					'footer')->content . '</div>';
 		} else {
 			$output = $this->get('blocks', 'footer')->content .
-			(!$this->get('config', 'loggedIn') && $this->get('config', 'login') === 'loginURL'
-				? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>'
-				: '');
+				(!$this->get('config', 'loggedIn') && $this->get('config', 'login') === 'loginURL'
+					? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>'
+					: '');
 		}
 		return $this->hook('footer', $output)[0];
 	}
@@ -1166,7 +1181,11 @@ EOT;
 	 */
 	private function saveAdminLoginIP(): void
 	{
-		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'];
+		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
+		if ($getAdminIP === null) {
+			return;
+		}
+
 		if (!$savedIPs = $this->get('config', 'lastLogins')) {
 			$this->set('config', 'lastLogins', []);
 			$savedIPs = [];
@@ -1246,7 +1265,7 @@ EOT;
 				</li>';
 		}
 		if ($this->get('config', 'loggedIn')) {
-			 $output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
+			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $this->hook('menu', $output)[0];
 	}
@@ -1460,7 +1479,8 @@ EOT;
 		$content = $content ?? $this->db;
 		file_put_contents(
 			$path,
-			json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+			json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+			LOCK_EX
 		);
 	}
 
@@ -1635,7 +1655,8 @@ EOT;
 							 </div>
 							 <p class="subTitle">Website title</p>
 							 <div class="change">
-								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config', 'siteTitle') . '</div>
+								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
+				'siteTitle') . '</div>
 							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
@@ -1895,44 +1916,80 @@ EOT;
 		if (!isset($_FILES['uploadFile']) || !$this->verifyFormActions()) {
 			return;
 		}
+		$allowedMimeTypes = [
+			'video/avi',
+			'text/css',
+			'text/x-asm',
+			'application/vnd.ms-word',
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			'video/x-flv',
+			'image/gif',
+			'text/html',
+			'image/x-icon',
+			'image/jpeg',
+			'application/octet-stream',
+			'audio/mp4',
+			'video/x-matroska',
+			'video/quicktime',
+			'audio/mpeg',
+			'video/mp4',
+			'video/mpeg',
+			'application/vnd.oasis.opendocument.spreadsheet',
+			'application/vnd.oasis.opendocument.text',
+			'application/ogg',
+			'video/ogg',
+			'application/pdf',
+			'image/png',
+			'application/vnd.ms-powerpoint',
+			'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+			'application/photoshop',
+			'application/rar',
+			'image/svg',
+			'image/svg+xml',
+			'application/svg+xm',
+			'text/plain',
+			'application/vnd.ms-excel',
+			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			'video/webm',
+			'video/x-ms-wmv',
+			'application/zip',
+		];
+
 		$allowedExtensions = [
-			'avi' => 'video/avi',
-			'css' => 'text/css',
-			'css' => 'text/x-asm',
-			'doc' => 'application/vnd.ms-word',
-			'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-			'flv' => 'video/x-flv',
-			'gif' => 'image/gif',
-			'htm' => 'text/html',
-			'html' => 'text/html',
-			'ico' => 'image/x-icon',
-			'jpg' => 'image/jpeg',
-			'kdbx' => 'application/octet-stream',
-			'm4a' => 'audio/mp4',
-			'mkv' => 'video/x-matroska',
-			'mov' => 'video/quicktime',
-			'mp3' => 'audio/mpeg',
-			'mp4' => 'video/mp4',
-			'mpg' => 'video/mpeg',
-			'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
-			'odt' => 'application/vnd.oasis.opendocument.text',
-			'ogg' => 'application/ogg',
-			'ogv' => 'video/ogg',
-			'pdf' => 'application/pdf',
-			'png' => 'image/png',
-			'ppt' => 'application/vnd.ms-powerpoint',
-			'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-			'psd' => 'application/photoshop',
-			'rar' => 'application/rar',
-			'svg' => 'image/svg',
-			'svg' => 'image/svg+xml',
-			'svg' => 'application/svg+xm',
-			'txt' => 'text/plain',
-			'xls' => 'application/vnd.ms-excel',
-			'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-			'webm' => 'video/webm',
-			'wmv' => 'video/x-ms-wmv',
-			'zip' => 'application/zip',
+			'avi',
+			'css',
+			'doc',
+			'docx',
+			'flv',
+			'gif',
+			'htm',
+			'html',
+			'ico',
+			'jpg',
+			'kdbx',
+			'm4a',
+			'mkv',
+			'mov',
+			'mp3',
+			'mp4',
+			'mpg',
+			'ods',
+			'odt',
+			'ogg',
+			'ogv',
+			'pdf',
+			'png',
+			'ppt',
+			'pptx',
+			'psd',
+			'rar',
+			'svg',
+			'txt',
+			'xls',
+			'xlsx',
+			'webm',
+			'wmv',
+			'zip',
 		];
 		if (!isset($_FILES['uploadFile']['error']) || is_array($_FILES['uploadFile']['error'])) {
 			$this->alert('danger', 'Invalid parameters.');
@@ -1957,25 +2014,28 @@ EOT;
 				$this->redirect();
 		}
 		$mimeType = '';
+		$fileName = basename(str_replace(
+			['"', "'", '*', '<', '>', '%22', '&#39;', '%', ';', '#', '&', './', '../', '/', '+'],
+			'',
+			filter_var($_FILES['uploadFile']['name'], FILTER_SANITIZE_STRING)
+		));
+		$nameExploded = explode('.', $fileName);
+		$ext = strtolower(array_pop($nameExploded));
+
 		if (class_exists('finfo')) {
 			$finfo = new finfo(FILEINFO_MIME_TYPE);
 			$mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
 		} elseif (function_exists('mime_content_type')) {
 			$mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
-		} else {
-			$nameExploded = explode('.', $_FILES['uploadFile']['name']);
-			$ext = strtolower(array_pop($nameExploded));
-			if (array_key_exists($ext, $allowedExtensions)) {
-				$mimeType = $allowedExtensions[$ext];
-			}
+		} elseif (array_key_exists($ext, $allowedExtensions)) {
+			$mimeType = $allowedExtensions[$ext];
 		}
-		if (!in_array($mimeType, $allowedExtensions, true)) {
+		if (!in_array($mimeType, $allowedMimeTypes, true) || !in_array($ext, $allowedExtensions)) {
 			$this->alert('danger',
 				'File format is not allowed. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>Re-open file options</b></a>');
 			$this->redirect();
 		}
-		if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'],
-			$this->filesPath . '/' . basename($_FILES['uploadFile']['name']))) {
+		if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . $fileName)) {
 			$this->alert('danger', 'Failed to move uploaded file.');
 		}
 		$this->alert('success',
