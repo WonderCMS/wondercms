@@ -46,7 +46,7 @@
 
 ## Requirements
 - PHP 7.2 or greater
-  - cURL extension
+  - c URL extension
   - mbstring extension
   - Zip extension
 - mod_rewrite module
