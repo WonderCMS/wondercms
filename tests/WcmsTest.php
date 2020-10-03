@@ -122,6 +122,8 @@ final class WcmsTest extends TestCase
 		$this->wcms->changePasswordAction();
 
 		$this->assertEquals($_SESSION['alert']['danger'][0]['message'], 'Wrong password.');
+		$this->assertEquals($_SESSION['alert']['danger'][1]['message'],
+			'Password must be longer than 8 characters. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>');
 
 		$_POST['token'] = $this->wcms->getToken();
 		$_POST['old_password'] = self::PASSWORD;
@@ -129,8 +131,26 @@ final class WcmsTest extends TestCase
 
 		$this->wcms->loginStatus();
 		$this->wcms->changePasswordAction();
-		$this->assertEquals($_SESSION['alert']['success'][0]['message'], 'Password changed.');
+
+		unset($_POST['old_password'], $_POST['new_password']);
+		$_POST['password'] = self::PASSWORD;
+		$this->wcms->loginAction();
+		$this->assertFalse(isset($_SESSION['loggedIn']));
+		$this->assertFalse(isset($_SESSION['rootDir']));
+		$this->assertEquals($_SESSION['alert']['danger'][0]['message'], 'Wrong password.');
 	}
+
+//	public function testInitStress(): void
+//	{
+//		for ($i = 0; $i < 1000; $i++) {
+//			try {
+//				$this->wcms->init();
+//				$this->testGetDb();
+//			} catch (Exception $e) {
+//				dd($e->getMessage());
+//			}
+//		}
+//	}
 
 //	public function testUploadFileAction(): void
 //	{
