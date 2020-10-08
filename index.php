@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.1');
+define('VERSION', '3.1.2');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -90,7 +90,6 @@ class Wcms
 		$this->rootDir = $rootDir;
 		$this->setPaths($dataFolder, $filesFolder, $dbName);
 		$this->db = $this->getDb();
-		$this->loggedIn = $this->get('config', 'loggedIn');
 	}
 
 	/**
@@ -125,7 +124,7 @@ class Wcms
 		$this->loginAction();
 		$this->notFoundResponse();
 		$this->loadPlugins();
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$this->manuallyRefreshCacheData();
 			$this->addCustomThemePluginRepository();
 			$this->installUpdateThemePluginAction();
@@ -151,7 +150,7 @@ class Wcms
 		header($this->headerResponse);
 
 		// Alert admin that page is hidden
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$loadingPage = null;
 			foreach ($this->get('config', 'menuItems') as $item) {
 				if ($this->currentPage === $item->slug) {
@@ -244,7 +243,7 @@ class Wcms
 	 */
 	public function backupAction(): void
 	{
-		if (!$this->get('config', 'loggedIn')) {
+		if (!$this->loggedIn) {
 			return;
 		}
 		$backupList = glob($this->filesPath . '/*-backup-*.zip');
@@ -292,7 +291,7 @@ class Wcms
 		$content = '';
 
 		if (isset($blocks->{$key})) {
-			$content = $this->get('config', 'loggedIn')
+			$content = $this->loggedIn
 				? $this->editable($key, $blocks->{$key}->content, 'blocks')
 				: $blocks->{$key}->content;
 		}
@@ -307,21 +306,22 @@ class Wcms
 	{
 		if (isset($_POST['old_password'], $_POST['new_password'])
 			&& $_SESSION['token'] === $_POST['token']
-			&& $this->get('config', 'loggedIn')
+			&& $this->loggedIn
 			&& $this->hashVerify($_POST['token'])) {
 			if (!password_verify($_POST['old_password'], $this->get('config', 'password'))) {
 				$this->alert('danger',
 					'Wrong password. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>');
 				$this->redirect();
+				return;
 			}
 			if (strlen($_POST['new_password']) < self::MIN_PASSWORD_LENGTH) {
 				$this->alert('danger',
 					sprintf('Password must be longer than %d characters. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>',
 						self::MIN_PASSWORD_LENGTH));
 				$this->redirect();
+				return;
 			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-			$this->alert('success', 'Password changed. Please log in again.');
 			$this->set('config', 'forceLogout', true);
 			$this->logoutAction(true);
 		}
@@ -360,7 +360,6 @@ class Wcms
 				'theme' => 'essence',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
-				'loggedIn' => false,
 				'forceLogout' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
@@ -519,7 +518,7 @@ class Wcms
 	 */
 	public function css(): string
 	{
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$styles = <<<'EOT'
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.0/wcms-admin.min.css" integrity="sha384-/NVs/Bv65kKsmmBcoBvW2ZaxIjHtNffpV17gGDivO2CQaFW1vY6ndJFKOiB1rH7m" crossorigin="anonymous">
 EOT;
@@ -567,7 +566,7 @@ EOT;
 	 */
 	public function deleteFileThemePluginAction(): void
 	{
-		if (!$this->get('config', 'loggedIn')) {
+		if (!$this->loggedIn) {
 			return;
 		}
 		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
@@ -663,7 +662,7 @@ EOT;
 	public function siteTitle(): string
 	{
 		$output = $this->get('config', 'siteTitle');
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $output;
@@ -675,12 +674,12 @@ EOT;
 	 */
 	public function footer(): string
 	{
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$output = '<div data-target="blocks" id="footer" class="editText editable">' . $this->get('blocks',
 					'footer')->content . '</div>';
 		} else {
 			$output = $this->get('blocks', 'footer')->content .
-				(!$this->get('config', 'loggedIn') && $this->get('config', 'login') === 'loginURL'
+				(!$this->loggedIn && $this->get('config', 'login') === 'loginURL'
 					? ' &bull; <a href="' . self::url('loginURL') . '">Login</a>'
 					: '');
 		}
@@ -807,7 +806,7 @@ EOT;
 	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
 	{
 		$newData = [];
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$data = $this->getThemePluginCachedData($type);
 
 			foreach ($data as $repo => $addon) {
@@ -1094,8 +1093,9 @@ EOT;
 	 */
 	public function verifyFormActions(bool $isRequest = false): bool
 	{
-		return ($isRequest ? isset($_REQUEST['token']) : isset($_POST['token'])) && $this->get('config',
-				'loggedIn') && $this->hashVerify($isRequest ? $_REQUEST['token'] : $_POST['token']);
+		return ($isRequest ? isset($_REQUEST['token']) : isset($_POST['token']))
+			&& $this->loggedIn
+			&& $this->hashVerify($isRequest ? $_REQUEST['token'] : $_POST['token']);
 	}
 
 	/**
@@ -1105,7 +1105,7 @@ EOT;
 	 */
 	public function js(): string
 	{
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
@@ -1161,7 +1161,7 @@ EOT;
 		if ($this->currentPage !== $this->get('config', 'login')) {
 			return;
 		}
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$this->redirect();
 		}
 		if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -1206,11 +1206,9 @@ EOT;
 	 */
 	public function loginStatus(): void
 	{
-		$loginStatus = $this->get('config', 'forceLogout')
+		$this->loggedIn = $this->get('config', 'forceLogout')
 			? false
 			: isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
-		$this->set('config', 'loggedIn', $loginStatus);
-		$this->loggedIn = $this->get('config', 'loggedIn');
 	}
 
 	/**
@@ -1227,7 +1225,7 @@ EOT;
 				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per day.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="input-group">
-						<input type="password" class="form-control" id="password" name="password" autofocus>
+						<input type="password" class="form-control" id="password" name="password" placeholder="Password" autofocus>
 						<span class="input-group-btn input-group-append">
 							<button type="submit" class="btn btn-info" onclick="$(\'#login\').show();">Login</button>
 						</span>
@@ -1268,7 +1266,7 @@ EOT;
 					<a class="nav-link" href="' . self::url($item->slug) . '">' . $item->name . '</a>
 				</li>';
 		}
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $this->hook('menu', $output)[0];
@@ -1280,7 +1278,7 @@ EOT;
 	 */
 	public function notFoundResponse(): void
 	{
-		if (!$this->get('config', 'loggedIn') && !$this->currentPageExists && $this->headerResponseDefault) {
+		if (!$this->loggedIn && !$this->currentPageExists && $this->headerResponseDefault) {
 			$this->headerResponse = 'HTTP/1.1 404 Not Found';
 		}
 	}
@@ -1291,7 +1289,7 @@ EOT;
 	 */
 	public function notFoundView()
 	{
-		if ($this->get('config', 'loggedIn')) {
+		if ($this->loggedIn) {
 			return [
 				'title' => str_replace('-', ' ', $this->currentPage),
 				'description' => '',
@@ -1310,7 +1308,7 @@ EOT;
 	 */
 	public function notifyAction(): void
 	{
-		if (!$this->get('config', 'loggedIn')) {
+		if (!$this->loggedIn) {
 			return;
 		}
 		if (!$this->currentPageExists) {
@@ -1402,7 +1400,7 @@ EOT;
 			'title' => $segments->title,
 			'description' => $segments->description,
 			'keywords' => $segments->keywords,
-			'content' => $this->get('config', 'loggedIn')
+			'content' => $this->loggedIn
 				? $this->editable('content', $segments->content, 'pages')
 				: $segments->content
 		];
@@ -1420,8 +1418,9 @@ EOT;
 		if (isset($this->get('pages')->{$this->currentPage})) {
 			$this->currentPageExists = true;
 		}
-		if (isset($_GET['page']) && !$this->get('config',
-				'loggedIn') && $this->currentPage !== $this->slugify($_GET['page'])) {
+		if (isset($_GET['page'])
+			&& !$this->loggedIn
+			&& $this->currentPage !== $this->slugify($_GET['page'])) {
 			$this->currentPageExists = false;
 		}
 	}
@@ -1476,16 +1475,36 @@ EOT;
 	 * @param string|null $path
 	 * @param object|null $content
 	 * @return void
+	 * @throws Exception
 	 */
 	public function save(string $path = null, object $content = null): void
 	{
 		$path = $path ?? $this->dbPath;
 		$content = $content ?? $this->db;
-		file_put_contents(
-			$path,
-			json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
-			LOCK_EX
-		);
+		$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+		if (empty($content) || empty($json) || json_last_error() !== JSON_ERROR_NONE) {
+			$errorMessage = sprintf(
+				'%s - Error while trying to save in %s: %s',
+				time(),
+				$path,
+				print_r($content, true)
+			);
+			try {
+				$randomNumber = random_bytes(8);
+			} catch (Exception $e) {
+				$randomNumber = microtime(false);
+			}
+			$logName = date('Y-m-d H:i:s') . '-error-' . bin2hex($randomNumber) . '.log';
+			$logsPath = sprintf('%s/data/logs', $this->rootDir);
+			$this->checkFolder($logsPath);
+			error_log(
+				$errorMessage,
+				3,
+				sprintf('%s/%s', $logsPath, $logName)
+			);
+			return;
+		}
+		file_put_contents($path, $json, LOCK_EX);
 	}
 
 	/**
@@ -1495,7 +1514,7 @@ EOT;
 	 */
 	public function saveAction(): void
 	{
-		if (!$this->get('config', 'loggedIn')) {
+		if (!$this->loggedIn) {
 			return;
 		}
 		if (isset($_SESSION['redirect_to'])) {
@@ -1574,7 +1593,7 @@ EOT;
 	 */
 	public function settings(): string
 	{
-		if (!$this->get('config', 'loggedIn')) {
+		if (!$this->loggedIn) {
 			return '';
 		}
 		$fileList = array_slice(scandir($this->filesPath), 2);
