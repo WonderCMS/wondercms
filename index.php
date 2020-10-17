@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.2');
+define('VERSION', '3.1.3');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -410,7 +410,6 @@ class Wcms
 
 <h2 class="mt-5 mb-3">Creating new pages</h2>
 <p>Pages can be created easily in the Settings, Menu tab.</p>
-
 
 <h2 class="mt-5 mb-3">Installing themes and plugins</h2>
 <p>By opening the Settings panel, you can install, update or remove themes or plugins.</p>
@@ -959,6 +958,9 @@ EOT;
 	private function downloadThemePluginsData(string $repo, string $type, ?array $savedData = []): ?array
 	{
 		$branch = 'master';
+		if (!$this->checkBranch($repo, $branch)) {
+			$branch = 'main';
+		}
 		$repoParts = explode('/', $repo);
 		$name = array_pop($repoParts);
 		$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
@@ -987,6 +989,16 @@ EOT;
 	}
 
 	/**
+	 * Check if branch is master or main
+	 * @return bool
+	 */
+	private function checkBranch(string $repo, string $branch): bool
+	{
+		$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
+		return $this->getOfficialVersion($repoFilesUrl) !== null;
+	}
+
+	/**
 	 * Add custom repository links for themes and plugins
 	 */
 	public function addCustomThemePluginRepository(): void
@@ -1006,7 +1018,7 @@ EOT;
 			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
 				$errorMessage = 'Repository already exists.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null:
+			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null || $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
 				$errorMessage = 'Repository not added - missing version file.';
 				break;
 		}
@@ -1054,7 +1066,7 @@ EOT;
 		$url = $_REQUEST['installThemePlugin'];
 		$type = $_REQUEST['type'];
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
-		$folders = explode('/', str_replace('/archive/master.zip', '', $url));
+		$folders = explode('/', str_replace(['/archive/master.zip','/archive/main.zip'], '', $url));
 		$folderName = array_pop($folders);
 
 		if (in_array($type, self::VALID_DIRS, true)) {
@@ -1078,7 +1090,11 @@ EOT;
 			$zip->close();
 			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
 			$this->recursiveDelete($path . $folderName);
-			if (!rename($path . $folderName . '-master', $path . $folderName)) {
+			$themePluginFolder = $path . $folderName . '-master';
+			if (!is_dir($themePluginFolder)) {
+				$themePluginFolder = $path . $folderName . '-main';
+			}
+			if (!rename($themePluginFolder, $path . $folderName)) {
 				throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
 			}
 			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
