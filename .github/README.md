@@ -4,7 +4,7 @@
 </a>
 </h1>
 
-<p align="center">⭐ Star us on GitHub — it helps!</p>
+<p align="center">⭐ Star us on GitHub ⭐</p>
 
 # <div align="center">WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup></div>
 
@@ -27,7 +27,7 @@
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
-    - Transferring your website to a new host/server is done by only copy/pasting all files.
+    - Transferring your website to a new host/server is done by only copy/pasting all files (no additional configuration/migration)
  - Privacy oriented: no cookies, tracking or "powered by" links.
  - Includes plugins ([via hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)/plugins installer, [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
  - Supports most server types (Apache, NGINX, IIS).
@@ -105,7 +105,12 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
    - note 2: the location of functions.php file should be inside the current active theme folder (same location as theme.php)
 
 ## List of donors
-Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for the support!
+Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for supporting WonderCMS!
+- Otis Schmakel
+- Tjaša Jelačič
+- Peter Černuta
+- John Greene
+- David Bojanovič
 - Sara Stojanovski
 - Jasmina Fabiani
 - Primož Cankar
