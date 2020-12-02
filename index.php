@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.3');
+define('VERSION', '3.1.4');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -398,26 +398,26 @@ class Wcms
 					'description' => 'A short description is also good.',
 					'content' => '<h1>It\'s alive!</h1>
 
-<h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
+<h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>
+
+<p class="mt-4">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>'
 				],
 				'example' => [
 					'title' => 'Example',
 					'keywords' => 'Keywords, are, good, for, search, engines',
 					'description' => 'A short description is also good.',
-					'content' => '<h1 class="mb-3">Editing is easy</h1>
-<p>Click anywhere to edit and click outside the area to save. Changes are live and shown immediately.</p>
-<p>There are more options in the Settings.</p>
+					'content' => '<h1 class="mb-3">Easy editing</h1>
+<p>Click anywhere to edit, click outside the area to save. Changes are live and shown immediately.</p>
 
-<h2 class="mt-5 mb-3">Creating new pages</h2>
-<p>Pages can be created easily in the Settings, Menu tab.</p>
+<h2 class="mt-5 mb-3">Create new page</h2>
+<p>Pages can be created in the Menu above.</p>
 
-<h2 class="mt-5 mb-3">Installing themes and plugins</h2>
-<p>By opening the Settings panel, you can install, update or remove themes or plugins.</p>
-<p>A simple editor can be found in the plugins section which makes editing even easier.</p>
+<h2 class="mt-5 mb-3">Install themes and plugins</h2>
+<p>To install, update or remove themes/plugins, visit the Settings.</p>
 
-<h2 class="mt-5 mb-3"><b>Please support future WonderCMS development</b></h2>
+<h2 class="mt-5 mb-3"><b>Please support WonderCMS</b></h2>
 <p>WonderCMS has been free for over 10 years.</p>
-<p><a href="https://swag.wondercms.com"><u>Click here to support us by getting merch</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
+<p><a href="https://swag.wondercms.com"><u>Click here to support us by getting a t-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
 				]
 			],
 			'blocks' => [
@@ -1012,13 +1012,13 @@ EOT;
 		$customRepositories = (array)$this->get('config', 'customRepos', $type);
 		$errorMessage = null;
 		switch (true) {
-			case strpos($url, 'https://github.com/') === false && strpos($url, 'https://gitlab.com/') === false:
+			case !$this->isValidGitURL($url):
 				$errorMessage = 'Invalid repository URL. Only GitHub and GitLab are supported.';
 				break;
 			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
 				$errorMessage = 'Repository already exists.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null || $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
+			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null && $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
 				$errorMessage = 'Repository not added - missing version file.';
 				break;
 		}
@@ -1062,8 +1062,12 @@ EOT;
 		if (!isset($_REQUEST['installThemePlugin'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-
 		$url = $_REQUEST['installThemePlugin'];
+		if(!$this->isValidGitURL($url)) {
+			$this->alert('danger', 'Invalid repository URL. Only GitHub and GitLab are supported.');
+			$this->redirect();
+		}
+
 		$type = $_REQUEST['type'];
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
 		$folders = explode('/', str_replace(['/archive/master.zip','/archive/main.zip'], '', $url));
@@ -1100,6 +1104,16 @@ EOT;
 			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
 			$this->redirect();
 		}
+	}
+
+	/**
+	 * Validate if ZIP URL is from Git
+	 * @param string $url
+	 * @return boolean
+	 */
+	private function isValidGitURL(string $url): bool
+	{
+		return strpos($url, 'https://github.com/') !== false || strpos($url, 'https://gitlab.com/') !== false;
 	}
 
 	/**
