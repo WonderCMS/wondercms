@@ -398,26 +398,26 @@ class Wcms
 					'description' => 'A short description is also good.',
 					'content' => '<h1>It\'s alive!</h1>
 
-<h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>'
+<h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>
+
+<p class="mt-4">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>'
 				],
 				'example' => [
 					'title' => 'Example',
 					'keywords' => 'Keywords, are, good, for, search, engines',
 					'description' => 'A short description is also good.',
-					'content' => '<h1 class="mb-3">Editing is easy</h1>
-<p>Click anywhere to edit and click outside the area to save. Changes are live and shown immediately.</p>
-<p>There are more options in the Settings.</p>
+					'content' => '<h1 class="mb-3">Easy editing</h1>
+<p>Click anywhere to edit, click outside the area to save. Changes are live and shown immediately.</p>
 
-<h2 class="mt-5 mb-3">Creating new pages</h2>
-<p>Pages can be created easily in the Settings, Menu tab.</p>
+<h2 class="mt-5 mb-3">Create new page</h2>
+<p>Pages can be created in the Menu above.</p>
 
-<h2 class="mt-5 mb-3">Installing themes and plugins</h2>
-<p>By opening the Settings panel, you can install, update or remove themes or plugins.</p>
-<p>A simple editor can be found in the plugins section which makes editing even easier.</p>
+<h2 class="mt-5 mb-3">Install themes and plugins</h2>
+<p>To install, update or remove themes/plugins, visit the Settings.</p>
 
-<h2 class="mt-5 mb-3"><b>Please support future WonderCMS development</b></h2>
+<h2 class="mt-5 mb-3"><b>Please support WonderCMS</b></h2>
 <p>WonderCMS has been free for over 10 years.</p>
-<p><a href="https://swag.wondercms.com"><u>Click here to support us by getting merch</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
+<p><a href="https://swag.wondercms.com"><u>Click here to support us by getting a t-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
 				]
 			],
 			'blocks' => [
