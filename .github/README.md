@@ -6,8 +6,6 @@
     <sup>5 files • 20KB zip - one of the smallest CMS</sup></p>
 </h1>
 
-<p align="center">⭐ Star us on GitHub ⭐</p>
-
 # <div align="center">WonderCMS</div>
 
 <p align="center"><a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation"><img src="https://camo.githubusercontent.com/45b2b4156eee6b315080fad3c417be62fb10b7d3/68747470733a2f2f696d672e736869656c64732e696f2f72656164746865646f63732f7069702f737461626c652e7376673f6c6f6e6743616368653d7472756526763d313030" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
