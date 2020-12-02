@@ -3,7 +3,7 @@
     <img src="https://github.com/robiso/wondercms-cdn-files/blob/master/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
  <br>Free Website Builder<br>
-    <sup>Smallest CMS (5 files • 20KB zip)</sup></p>
+    <sup>Smallest CMS (5 files • 20KB zip)</sup>
 </h1>
 
 # <div align="center">WonderCMS</div>
