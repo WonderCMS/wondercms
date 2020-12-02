@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.3');
+define('VERSION', '3.1.4');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1012,13 +1012,13 @@ EOT;
 		$customRepositories = (array)$this->get('config', 'customRepos', $type);
 		$errorMessage = null;
 		switch (true) {
-			case strpos($url, 'https://github.com/') === false && strpos($url, 'https://gitlab.com/') === false:
+			case !$this->isValidGitURL($url):
 				$errorMessage = 'Invalid repository URL. Only GitHub and GitLab are supported.';
 				break;
 			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
 				$errorMessage = 'Repository already exists.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null || $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
+			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null && $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
 				$errorMessage = 'Repository not added - missing version file.';
 				break;
 		}
@@ -1062,8 +1062,12 @@ EOT;
 		if (!isset($_REQUEST['installThemePlugin'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-
 		$url = $_REQUEST['installThemePlugin'];
+		if(!$this->isValidGitURL($url)) {
+			$this->alert('danger', 'Invalid repository URL. Only GitHub and GitLab are supported.');
+			$this->redirect();
+		}
+
 		$type = $_REQUEST['type'];
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
 		$folders = explode('/', str_replace(['/archive/master.zip','/archive/main.zip'], '', $url));
@@ -1100,6 +1104,16 @@ EOT;
 			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
 			$this->redirect();
 		}
+	}
+
+	/**
+	 * Validate if ZIP URL is from Git
+	 * @param string $url
+	 * @return boolean
+	 */
+	private function isValidGitURL(string $url): bool
+	{
+		return strpos($url, 'https://github.com/') !== false || strpos($url, 'https://gitlab.com/') !== false;
 	}
 
 	/**
