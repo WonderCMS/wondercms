@@ -3,7 +3,7 @@
     <img src="https://github.com/robiso/wondercms-cdn-files/blob/master/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
  <br>Free Website Builder<br>
-    <sup>5 files • 20KB zip - one of the smallest CMS</sup></p>
+    <sup>Smallest CMS (5 files • 20KB zip)</sup></p>
 </h1>
 
 # <div align="center">WonderCMS</div>
@@ -24,6 +24,8 @@
 
 ## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://swag.wondercms.com)</div>
 
+<br>
+
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
   - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/default/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/default/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
@@ -33,8 +35,12 @@
  - Supports most server types (Apache, NGINX, IIS).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
+<br>
+
 ## 1 step install
 - Unzip and upload [latest version](https://www.wondercms.com/latest) to your server.
+
+<br>
 
 ### Other install options
   - Option 2: Clone from GitHub: `git clone https://github.com/robiso/wondercms.git`
@@ -42,6 +48,8 @@
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
   - Option 6: [Watch video - installing WonderCMS on Microsoft Azure](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)
+
+<br>
 
 ## Requirements
 - PHP 7.2 or greater
@@ -55,12 +63,16 @@
 
 **WonderCMS works on most Apache servers/hosts (even free ones) by default.**
 
+<br>
+
 ## Libraries used (7)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
 - 4 libraries located in theme.php, **always included**:
   - <sup>`jquery.min.js (3.1.4)`, `bootstrap.min.js (4.4.1)`, `bootstrap.min.css (4.4.1)`, 'popper.min.js (1.16.0)'</sup>
 - 3 libraries located in index.php, **included only when logged in**:
   - <sup>`wcms-admin.min.js`, `autosize.min.js (4.0.2)`, `taboverride.min.js (4.0.3)`.</sup>
+
+<br>
 
 ## Security features
 - Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie. Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
@@ -76,6 +88,8 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 - WonderCMS includes CSRF verification tokens for each user action and additionally uses the hash_equals function to prevent CSRF token timing attacks.
 - No known vulnerabilities.
    - Special thanks to yassineaddi, hypnito and other security researchers.
+
+<br>
 
 ## Other features
  - no configuration required, unzip and upload
@@ -102,6 +116,8 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
  - [optional] functions.php file for loading your custom code
    - note 1: functions.php file includes itself when you create it
    - note 2: the location of functions.php file should be inside the current active theme folder (same location as theme.php)
+
+<br>
 
 ## List of donors
 Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for supporting WonderCMS!
@@ -135,6 +151,8 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - Bikespain
 - Aleksandr
 
+<br>
+
 ## What to (or not to) expect from WonderCMS
 - WonderCMS is meant to be a small gift to the internet and a simple alternative to website creating. It's 100% free and doesn't not include any "powered by" links.
 - WonderCMS doesn't track users and is not interested in any user data.
@@ -153,6 +171,8 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - If you run into any issues when using WonderCMS, you can always expect someone to *try* to help you in the [WonderCMS community](https://www.wondercms.com/community).
   - Since WonderCMS is completely free and no one is paid to provide support, it's important to remain patient and respectful while asking for help.
 
+<br>
+
 ## Links
 #### Website links
 - [Official website](https://www.wondercms.com)
@@ -163,14 +183,17 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [List of contributors](https://www.wondercms.com/special-contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
 
+
 #### Community & Support
 - [GitHub Issues](https://github.com/robiso/wondercms/issues)
 - [Community](https://www.wondercms.com/community)
 - [Slack](https://wondercms.slack.com)
 
+
 #### Social links
 - [Twitter](https://twitter.com/wondercms)
 - [Reddit](https://reddit.com/r/WonderCMS)
+
 
 #### Github links
 - [Docs/Wiki](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
@@ -178,6 +201,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
    - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
 - [How to create a theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
 - [How to create a plugin](https://github.com/robiso/wondercms/wiki/List-of-hooks)
+
 
 #### Hosting and install tutorial links
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
