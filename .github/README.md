@@ -182,4 +182,4 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 #### Hosting and install tutorial links
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
 - [Install via cPanel - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-- ([Deploy on Microsoft Azure - 2 minute Azure video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes))</sup>
+- [Deploy on Microsoft Azure - 2 minute Azure video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)</sup>
