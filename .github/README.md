@@ -41,8 +41,7 @@
   - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/latest)
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-  - Option 6: [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template)
-     - Option 6a: [Watch video - installing WonderCMS on Microsoft Azure](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)
+  - Option 6: [Watch video - installing WonderCMS on Microsoft Azure](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)
 
 ## Requirements
 - PHP 7.2 or greater
@@ -56,12 +55,12 @@
 
 **WonderCMS works on most Apache servers/hosts (even free ones) by default.**
 
-## Libraries used (6)
+## Libraries used (7)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
-- 3 libraries located in theme.php, **always included**:
-  - <sup>`jquery.min.js (1.12.4)`, `bootstrap.min.js (3.3.7)`, `bootstrap.min.css (3.3.7)`.</sup>
+- 4 libraries located in theme.php, **always included**:
+  - <sup>`jquery.min.js (3.1.4)`, `bootstrap.min.js (4.4.1)`, `bootstrap.min.css (4.4.1)`, 'popper.min.js (1.16.0)'</sup>
 - 3 libraries located in index.php, **included only when logged in**:
-  - <sup>`autosize.min.js (4.0.2)`, `taboverride.min.js (4.0.3)`, `jquery.taboverride.min.js (4.0.0)`.</sup>
+  - <sup>`wcms-admin.min.js`, `autosize.min.js (4.0.2)`, `taboverride.min.js (4.0.3)`.</sup>
 
 ## Security features
 - Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie. Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
@@ -158,12 +157,16 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 #### Website links
 - [Official website](https://www.wondercms.com)
 - [News/Changelog](https://www.wondercms.com/whatsnew)
-- [Community](https://www.wondercms.com/community)
 - [Donate](https://www.wondercms.com/donate)
 - [Get merch](https://www.wondercms.com/shop)
 - [Donors Hall of Fame](https://www.wondercms.com/donors)
 - [List of contributors](https://www.wondercms.com/special-contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
+
+#### Community & Support
+- [GitHub Issues](https://github.com/robiso/wondercms/issues)
+- [Community](https://www.wondercms.com/community)
+- [Slack](https://wondercms.slack.com)
 
 #### Social links
 - [Twitter](https://twitter.com/wondercms)
@@ -179,4 +182,4 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 #### Hosting and install tutorial links
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
 - [Install via cPanel - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-- [Deploy on Microsoft Azure](https://azure.microsoft.com/en-gb/try/app-service/web/wondercms/?Language=php&Step=template) ([2 minute Azure video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes))</sup>
+- ([Deploy on Microsoft Azure - 2 minute Azure video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes))</sup>
