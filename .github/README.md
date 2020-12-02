@@ -2,12 +2,13 @@
 <a href="https://wondercms.com" target="_blank" title="Official WonderCMS website">
     <img src="https://github.com/robiso/wondercms-cdn-files/blob/master/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
- <br>Free Website Builder</p>
+ <br>Free Website Builder<br>
+    <sup>5 files • 20KB zip - one of the smallest CMS</sup></p>
 </h1>
 
 <p align="center">⭐ Star us on GitHub ⭐</p>
 
-# <div align="center">WonderCMS <sup> • 5 <sup>files</sup> • 20<sup>KB zip (one of the smallest CMS)</sup></sup></div>
+# <div align="center">WonderCMS</div>
 
 <p align="center"><a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation"><img src="https://camo.githubusercontent.com/45b2b4156eee6b315080fad3c417be62fb10b7d3/68747470733a2f2f696d672e736869656c64732e696f2f72656164746865646f63732f7069702f737461626c652e7376673f6c6f6e6743616368653d7472756526763d313030" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
 <a href="https://www.wondercms.com/about" rel="nofollow"><img src="https://camo.githubusercontent.com/9939e040d7c234e669e0f617f0cb2247bf86b71b/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f70726f6a656374253230666f756e6465642532302d253230696e253230323030382d2532353630303f6c6f6e6743616368653d7472756526763d313030" alt="Project " data-canonical-src="https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&amp;v=100" style="max-width:100%;"></a>
