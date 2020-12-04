@@ -66,7 +66,7 @@
 ## Libraries used (7)
 Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
 - 4 libraries located in theme.php, **always included**:
-  - <sup>`jquery.min.js (3.1.4)`, `bootstrap.min.js (4.4.1)`, `bootstrap.min.css (4.4.1)`, 'popper.min.js (1.16.0)'</sup>
+  - <sup>`jquery.min.js (3.1.4)`, `bootstrap.min.js (4.4.1)`, `bootstrap.min.css (4.4.1)`, `popper.min.js (1.16.0)`</sup>
 - 3 libraries located in index.php, **included only when logged in**:
   - <sup>`wcms-admin.min.js`, `autosize.min.js (4.0.2)`, `taboverride.min.js (4.0.3)`.</sup>
 
