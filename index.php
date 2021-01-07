@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.4');
+define('VERSION', '3.1.5');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -214,7 +214,7 @@ class Wcms
 					. $alert['class']
 					. (!$alert['sticky'] ? ' alert-dismissible' : '')
 					. '">'
-					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '')
+					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove()">&times;</button>' : '')
 					. $alert['message']
 					. '</div>';
 			}
@@ -379,8 +379,8 @@ class Wcms
 						'visibility' => 'show'
 					],
 					'1' => [
-						'name' => 'Example',
-						'slug' => 'example',
+						'name' => 'How to',
+						'slug' => 'how-to',
 						'visibility' => 'show'
 					]
 				]
@@ -394,30 +394,32 @@ class Wcms
 				],
 				'home' => [
 					'title' => 'Home',
-					'keywords' => 'Keywords, are, good, for, search, engines',
-					'description' => 'A short description is also good.',
+					'keywords' => 'Enter, page, keywords, for, search, engines',
+					'description' => 'A page description is also good for search engines.',
 					'content' => '<h1>It\'s alive!</h1>
 
-<h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>
+<p>Your password for editing your website is: <b>' . $password . '</b></p>
 
-<p class="mt-4">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>'
+<p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>
+
+<p>To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>'
 				],
-				'example' => [
-					'title' => 'Example',
-					'keywords' => 'Keywords, are, good, for, search, engines',
-					'description' => 'A short description is also good.',
-					'content' => '<h1 class="mb-3">Easy editing</h1>
+				'how-to' => [
+					'title' => 'How to',
+					'keywords' => 'Enter, keywords, for, this page',
+					'description' => 'A page description is also good for search engines.',
+					'content' => '<h2>Easy editing</h2>
 <p>Click anywhere to edit, click outside the area to save. Changes are live and shown immediately.</p>
 
-<h2 class="mt-5 mb-3">Create new page</h2>
+<h2>Create new page</h2>
 <p>Pages can be created in the Menu above.</p>
 
-<h2 class="mt-5 mb-3">Install themes and plugins</h2>
+<h2>Install themes and plugins</h2>
 <p>To install, update or remove themes/plugins, visit the Settings.</p>
 
-<h2 class="mt-5 mb-3"><b>Please support WonderCMS</b></h2>
-<p>WonderCMS has been free for over 10 years.</p>
-<p><a href="https://swag.wondercms.com"><u>Click here to support us by getting a t-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
+<h2><b>Please support WonderCMS</b></h2>
+<p>WonderCMS has been free for over 12 years<br>
+<a href="https://swag.wondercms.com"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
 				]
 			],
 			'blocks' => [
@@ -1206,7 +1208,7 @@ EOT;
 			$this->saveAdminLoginIP();
 			$this->redirect();
 		}
-		$this->alert('danger', 'Wrong password.');
+		$this->alert('danger', '<center><b>Wrong password</b></center>', 1);
 		$this->redirect($this->get('config', 'login'));
 	}
 
@@ -1254,8 +1256,9 @@ EOT;
 			'content' => '
 				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per day.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
-					<div class="input-group">
+					<div class="input-group text-center">
 						<input type="password" class="form-control" id="password" name="password" placeholder="Password" autofocus>
+						<br><br>
 						<span class="input-group-btn input-group-append">
 							<button type="submit" class="btn btn-info" onclick="$(\'#login\').show();">Login</button>
 						</span>
@@ -1349,7 +1352,7 @@ EOT;
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
 			$this->alert('danger',
-				'Change both your default password and login URL. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
+				'Change your default password and login URL. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
 		}
 
 		$db = $this->getDb();
@@ -1683,7 +1686,7 @@ EOT;
 								<div id="menuSettings" class="container-fluid">';
 		foreach ($items as $key => $value) {
 			$output .= '
-										<div class="row marginTop5">
+										<div class="row marginTop20">
 											<div class="col-xs-1 col-sm-1 col-1 text-right">
 											 <i class="btn menu-toggle ' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
 											</div>
@@ -1750,11 +1753,11 @@ EOT;
 		$output .= $this->renderThemePluginTab('plugins');
 		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
+								<p class="change marginTop5 small"><b class="danger">Important save your login link/url to log in to your website next time:</b><br/> <span class="normalFont">' . self::url($this->get('config',
+				'login')) . '</b></span>
 							 <div class="change">
 								<div data-target="config" id="login" class="editText">' . $this->get('config',
 				'login') . '</div>
-								<p class="marginTop5 small"><b>Save your login URL to log in to your website next time:<br/> <span class="normalFont">' . self::url($this->get('config',
-				'login')) . '</b></span>
 							 </div>
 							 <p class="subTitle">Password</p>
 							 <div class="change">
@@ -1767,6 +1770,13 @@ EOT;
 									<input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
+<p class="subTitle">Backup</p>
+							 <div class="change">
+								<form action="' . self::url($this->currentPage) . '" method="post">
+									<button type="submit" class="btn btn-block btn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
+								</form>
+							 </div>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 							 <p class="subTitle">Improved security (Apache only)</p>
 							 <p class="change small">HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
 							 <div class="change">
@@ -1781,13 +1791,6 @@ EOT;
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
 		$output .= $this->renderAdminLoginIPs();
 		$output .= '
-							 <p class="subTitle">Backup</p>
-							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post">
-									<button type="submit" class="btn btn-block btn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
-								</form>
-							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 				 		 </div>
 						</div>
 					</div>
