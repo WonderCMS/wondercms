@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.5');
+define('VERSION', '3.2.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -27,6 +27,13 @@ class Wcms
 		'exists' => 'exist',
 	];
 
+	/** Database main keys */
+	public const DB_CONFIG = 'config';
+	public const DB_MENU_ITEMS = 'menuItems';
+	public const DB_MENU_ITEMS_SUBPAGE = 'subpages';
+	public const DB_PAGES_KEY = 'pages';
+	public const DB_PAGES_SUBPAGE_KEY = 'subpages';
+
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters */
 	public const MIN_PASSWORD_LENGTH = 8;
 
@@ -38,6 +45,9 @@ class Wcms
 
 	/** @var string $currentPage - current page */
 	public $currentPage = '';
+
+	/** @var array $currentPageTree - Tree hierarchy of the current page */
+	public $currentPageTree = [];
 
 	/** @var bool $currentPageExists - check if current page exists */
 	public $currentPageExists = false;
@@ -118,8 +128,8 @@ class Wcms
 	 */
 	public function init(): void
 	{
-		$this->pageStatus();
 		$this->loginStatus();
+		$this->pageStatus();
 		$this->logoutAction();
 		$this->loginAction();
 		$this->notFoundResponse();
@@ -355,7 +365,7 @@ class Wcms
 		$this->checkMinimumRequirements();
 		$password = $this->generatePassword();
 		$this->db = (object)[
-			'config' => [
+			self::DB_CONFIG => [
 				'siteTitle' => 'Website title',
 				'theme' => 'essence',
 				'defaultPage' => 'home',
@@ -376,12 +386,14 @@ class Wcms
 					'0' => [
 						'name' => 'Home',
 						'slug' => 'home',
-						'visibility' => 'show'
+						'visibility' => 'show',
+						self::DB_MENU_ITEMS_SUBPAGE => new stdClass()
 					],
 					'1' => [
 						'name' => 'How to',
 						'slug' => 'how-to',
-						'visibility' => 'show'
+						'visibility' => 'show',
+						self::DB_MENU_ITEMS_SUBPAGE => new stdClass()
 					]
 				]
 			],
@@ -390,7 +402,8 @@ class Wcms
 					'title' => '404',
 					'keywords' => '404',
 					'description' => '404',
-					'content' => '<h1>Sorry, page not found. :(</h1>'
+					'content' => '<h1>Sorry, page not found. :(</h1>',
+					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'home' => [
 					'title' => 'Home',
@@ -402,7 +415,8 @@ class Wcms
 
 <p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>
 
-<p>To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>'
+<p>To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>',
+					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'how-to' => [
 					'title' => 'How to',
@@ -419,7 +433,8 @@ class Wcms
 
 <h2><b>Please support WonderCMS</b></h2>
 <p>WonderCMS has been free for over 12 years<br>
-<a href="https://swag.wondercms.com"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
+<a href="https://swag.wondercms.com"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>',
+					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				]
 			],
 			'blocks' => [
@@ -441,76 +456,250 @@ class Wcms
 	/**
 	 * Create menu item
 	 *
-	 * @param string $content
+	 * @param string $name
+	 * @param string|null $menu
+	 * @param bool $createPage
+	 * @param string $visibility show or hide
+	 * @return void
+	 * @throws Exception
+	 */
+	public function createMenuItem(
+		string $name,
+		string $menu = null,
+		string $visibility = 'hide',
+		bool $createPage = false
+	): void {
+		if (!in_array($visibility, ['show', 'hide'], true)) {
+			return;
+		}
+		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
+		$slug = $this->createUniqueSlug($name, $menu);
+
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$menuTree = $menu ? explode('-', $menu) : null;
+		$slugTree = [];
+		if (count($menuTree)) {
+			foreach ($menuTree as $childMenuKey) {
+				$childMenu = $menuSelectionObject->{$childMenuKey};
+				$menuSelectionObject = $childMenu->subpages;
+				$slugTree[] = $childMenu->slug;
+			}
+		}
+		$slugTree[] = $slug;
+
+		$menuCount = count(get_object_vars($menuSelectionObject));
+
+		$menuSelectionObject->{$menuCount}->name = $name;
+		$menuSelectionObject->{$menuCount}->slug = $slug;
+		$menuSelectionObject->{$menuCount}->visibility = $visibility;
+		$menuSelectionObject->{$menuCount}->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+
+		if ($createPage) {
+			$this->createPage($slugTree);
+			$_SESSION['redirect_to_name'] = $name;
+			$_SESSION['redirect_to'] = $slug;
+		}
+	}
+
+	/**
+	 * Update menu item
+	 *
+	 * @param string $name
 	 * @param string $menu
 	 * @param string $visibility show or hide
 	 * @return void
 	 * @throws Exception
 	 */
-	public function createMenuItem(string $content, string $menu, string $visibility = 'hide'): void
+	public function updateMenuItem(string $name, string $menu, string $visibility = 'hide'): void
 	{
-		$conf = 'config';
-		$field = 'menuItems';
-		$exist = is_numeric($menu);
-		$content = empty($content) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $content);
-		$slug = $this->slugify($content);
-		$menuCount = count(get_object_vars($this->get($conf, $field)));
+		if (!in_array($visibility, ['show', 'hide'], true)) {
+			return;
+		}
+		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
+		$slug = $this->createUniqueSlug($name, $menu);
 
-		$db = $this->getDb();
-		foreach ($db->config->{$field} as $value) {
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$menuTree = explode('-', $menu);
+		$slugTree = [];
+		$menuKey = array_pop($menuTree);
+		if (count($menuTree) > 0) {
+			foreach ($menuTree as $childMenuKey) {
+				$childMenu = $menuSelectionObject->{$childMenuKey};
+				$menuSelectionObject = $childMenu->subpages;
+				$slugTree[] = $childMenu->slug;
+			}
+		}
+
+		$slugTree[] = $menuSelectionObject->{$menuKey}->slug;
+		$menuSelectionObject->{$menuKey}->name = $name;
+		$menuSelectionObject->{$menuKey}->slug = $slug;
+		$menuSelectionObject->{$menuKey}->visibility = $visibility;
+		$menuSelectionObject->{$menuKey}->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+
+		$this->deletePageFromDb($slugTree);
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
+			// Change old slug with new one
+			array_pop($slugTree);
+			$slugTree[] = $slug;
+			$this->set(self::DB_CONFIG, 'defaultPage', implode('/', $slugTree));
+		}
+	}
+
+	/**
+	 * Check if slug already exists and creates unique one
+	 *
+	 * @param string $slug
+	 * @param string|null $menu
+	 * @return string
+	 */
+	public function createUniqueSlug(string $slug, string $menu = null): string
+	{
+		$slug = $this->slugify($slug);
+		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$menuCount = count(get_object_vars($allMenuItems));
+
+		// Check if it is subpage
+		$menuTree = $menu ? explode('-', $menu) : null;
+		if (count($menuTree)) {
+			foreach ($menuTree as $childMenuKey) {
+				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages;
+			}
+		}
+
+		foreach ($allMenuItems as $value) {
 			if ($value->slug === $slug) {
 				$slug .= '-' . $menuCount;
 				break;
 			}
 		}
-		if (!$exist) {
-			$this->set($conf, $field, $menuCount, new StdClass);
-			$this->set($conf, $field, $menuCount, 'name', str_replace('-', ' ', $content));
-			$this->set($conf, $field, $menuCount, 'slug', $slug);
-			$this->set($conf, $field, $menuCount, 'visibility', $visibility);
-			if ($menu) {
-				$this->createPage($slug);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $slug;
-			}
-		} else {
-			$oldSlug = $this->get($conf, $field, $menu, 'slug');
-			$this->set($conf, $field, $menu, 'name', $content);
-			$this->set($conf, $field, $menu, 'slug', $slug);
-			$this->set($conf, $field, $menu, 'visibility', $visibility);
 
-			$oldPageContent = $this->get('pages', $oldSlug);
-			$this->unset('pages', $oldSlug);
-			$this->set('pages', $slug, $oldPageContent);
-			$this->set('pages', $slug, 'title', $content);
-			if ($this->get('config', 'defaultPage') === $oldSlug) {
-				$this->set('config', 'defaultPage', $slug);
-			}
-		}
+		return $slug;
 	}
 
 	/**
 	 * Create new page
 	 *
-	 * @param string $slug the name of the page in URL
+	 * @param array|null $slugTree
+	 * @param bool $createMenuItem
 	 * @return void
 	 * @throws Exception
 	 */
-	public function createPage($slug = ''): void
+	public function createPage(array $slugTree = null, bool $createMenuItem = false): void
 	{
-		$this->db->pages->{$slug ?: $this->currentPage} = new stdClass;
-		$this->save();
-		$pageName = $slug ?: $this->slugify($this->currentPage);
-		$this->set('pages', $pageName, 'title', (!$slug)
-			? mb_convert_case(str_replace('-', ' ', $this->currentPage), MB_CASE_TITLE)
-			: mb_convert_case(str_replace('-', ' ', $slug), MB_CASE_TITLE));
-		$this->set('pages', $pageName, 'keywords',
-			'Keywords, are, good, for, search, engines');
-		$this->set('pages', $pageName, 'description',
-			'A short description is also good.');
-		if (!$slug) {
-			$this->createMenuItem($this->slugify($this->currentPage), '');
+		$pageExists = false;
+		$pageData = null;
+		foreach ($slugTree as $parentPage) {
+			if (!$pageData) {
+				$pageData = $this->get('pages')->{$parentPage};
+				continue;
+			}
+
+			$pageData = $pageData->subpages->{$parentPage} ?? null;
+			$pageExists = !empty($pageData);
 		}
+
+		if ($pageExists) {
+			$this->alert('danger', 'Can not create page with existing slug.');
+			return;
+		}
+
+		$slug = array_pop($slugTree);
+		$pageSlug = $slug ?: $this->slugify($this->currentPage);
+		$allPages = $selectedPage = clone $this->get(self::DB_PAGES_KEY);
+		$menuKey = null;
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				// Find menu key tree
+				if ($createMenuItem) {
+					$menuKeys = $menuKey !== null ? explode('-', $menuKey) : $menuKey;
+					$menuItems = json_decode(json_encode($this->get(self::DB_CONFIG, self::DB_MENU_ITEMS)), true);
+					foreach ($menuKeys as $key) {
+						$menuItems = $menuItems[$key][self::DB_MENU_ITEMS_SUBPAGE];
+					}
+
+					if (false !== ($index = array_search($childSlug, array_column($menuItems, 'slug'), true))) {
+						$menuKey = $menuKey === null ? $index : $menuKey . '-' . $index;
+					} elseif ($menuKey === null) {
+						$menuKey = count($menuItems);
+					}
+				}
+
+				// Create new parent page if it does not exist
+				if (!$selectedPage->{$childSlug}) {
+					$parentTitle = mb_convert_case(str_replace('-', ' ', $childSlug), MB_CASE_TITLE);
+					$selectedPage->{$childSlug}->title = $parentTitle;
+					$selectedPage->{$childSlug}->keywords = 'Keywords, are, good, for, search, engines';
+					$selectedPage->{$childSlug}->description = 'A short description is also good.';
+
+					if ($createMenuItem) {
+						$this->createMenuItem($parentTitle, $menuKey);
+					}
+				}
+
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+			}
+		}
+
+		$pageTitle = !$slug ? str_replace('-', ' ', $pageSlug) : $pageSlug;
+
+		$selectedPage->{$slug}->title = mb_convert_case($pageTitle, MB_CASE_TITLE);
+		$selectedPage->{$slug}->keywords = 'Keywords, are, good, for, search, engines';
+		$selectedPage->{$slug}->description = 'A short description is also good.';
+		$selectedPage->{$slug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+		$this->set(self::DB_PAGES_KEY, $allPages);
+
+		if ($createMenuItem) {
+			$this->createMenuItem($pageTitle, $menuKey);
+		}
+	}
+
+	/**
+	 * Update page data
+	 *
+	 * @param array $slugTree
+	 * @param string $fieldname
+	 * @param string $content
+	 * @return void
+	 * @throws Exception
+	 */
+	public function updatePage(array $slugTree, string $fieldname, string $content): void
+	{
+		$slug = array_pop($slugTree);
+		$allPages = $selectedPage = clone $this->get(self::DB_PAGES_KEY);
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+			}
+		}
+
+		$selectedPage->{$slug}->{$fieldname} = $content;
+		$this->set(self::DB_PAGES_KEY, $allPages);
+	}
+
+	/**
+	 * Delete existing page by slug
+	 *
+	 * @param array|null $slugTree
+	 */
+	public function deletePageFromDb(array $slugTree = null): void
+	{
+		$slug = array_pop($slugTree);
+
+		$selectedPage = $this->db->{self::DB_PAGES_KEY};
+		if (!empty($slugTree)) {
+			$pageData = null;
+			foreach ($slugTree as $childSlug) {
+				$selectedPage = $selectedPage->{$childSlug}->subpages;
+			}
+		}
+
+		unset($selectedPage->{$slug});
 	}
 
 	/**
@@ -618,27 +807,36 @@ EOT;
 	/**
 	 * Delete page
 	 * @return void
+	 * @throws Exception
 	 */
 	public function deletePageAction(): void
 	{
 		if (!isset($_GET['delete']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-		$slug = $_GET['delete'];
-		if (isset($this->get('pages')->{$slug})) {
-			$this->unset('pages', $slug);
-		}
-		$menuItems = json_decode(json_encode($this->get('config', 'menuItems')), true);
-		if (false !== ($index = array_search($slug, array_column($menuItems, 'slug'), true))) {
-			unset($menuItems[$index]);
-			$newMenu = array_values($menuItems);
-			$this->set('config', 'menuItems', json_decode(json_encode($newMenu), false));
-			if ($this->get('config', 'defaultPage') === $slug) {
-				$allMenuItems = $this->get('config', 'menuItems') ?? [];
-				$firstMenuItem = reset($allMenuItems);
-				$this->set('config', 'defaultPage', $firstMenuItem->slug ?? $slug);
+		$slugTree = explode('/', $_GET['delete']);
+		$this->deletePageFromDb($slugTree);
+
+		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$selectedMenuItemParent = $selectedMenuItemKey = null;
+		foreach ($slugTree as $slug) {
+			$selectedMenuItemParent = $selectedMenuItem->{self::DB_MENU_ITEMS_SUBPAGE} ?? $selectedMenuItem;
+			foreach ($selectedMenuItemParent as $menuItemKey => $menuItem) {
+				if ($menuItem->slug === $slug) {
+					$selectedMenuItem = $menuItem;
+					$selectedMenuItemKey = $menuItemKey;
+					break;
+				}
 			}
 		}
+		unset($selectedMenuItemParent->{$selectedMenuItemKey});
+
+		$slug = array_pop($slugTree);
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === $slug) {
+			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems{0}->slug);
+		}
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
+
 		$this->alert('success', 'Page <b>' . $slug . '</b> deleted.');
 		$this->redirect();
 	}
@@ -1020,7 +1218,8 @@ EOT;
 			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
 				$errorMessage = 'Repository already exists.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null && $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
+			case $this->getOfficialVersion(sprintf('%s/master/',
+					$url)) === null && $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
 				$errorMessage = 'Repository not added - missing version file.';
 				break;
 		}
@@ -1065,14 +1264,14 @@ EOT;
 			return;
 		}
 		$url = $_REQUEST['installThemePlugin'];
-		if(!$this->isValidGitURL($url)) {
+		if (!$this->isValidGitURL($url)) {
 			$this->alert('danger', 'Invalid repository URL. Only GitHub and GitLab are supported.');
 			$this->redirect();
 		}
 
 		$type = $_REQUEST['type'];
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
-		$folders = explode('/', str_replace(['/archive/master.zip','/archive/main.zip'], '', $url));
+		$folders = explode('/', str_replace(['/archive/master.zip', '/archive/main.zip'], '', $url));
 		$folderName = array_pop($folders);
 
 		if (in_array($type, self::VALID_DIRS, true)) {
@@ -1294,10 +1493,7 @@ EOT;
 			if ($item->visibility === 'hide') {
 				continue;
 			}
-			$output .=
-				'<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . 'nav-item">
-					<a class="nav-link" href="' . self::url($item->slug) . '">' . $item->name . '</a>
-				</li>';
+			$output .= $this->renderPageNavMenuItem($item);
 		}
 		if ($this->loggedIn) {
 			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
@@ -1374,7 +1570,7 @@ EOT;
 				'<h3>New WonderCMS update available</h3>
 				<p>&nbsp;- Backup your website and
 				<a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.</p>
-				 <form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5">
+				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
 					<button type="submit" class="btn btn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
 					<div class="clear"></div>
 					<button class="btn btn-info marginTop5" name="update"><i class="refreshIcon"></i>Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
@@ -1385,33 +1581,70 @@ EOT;
 	}
 
 	/**
+	 * Update menu visibility state
+	 *
+	 * @param string $visibility - "show" for visible, "hide" for invisible
+	 * @param string $menu
+	 * @throws Exception
+	 */
+	public function updateMenuItemVisibility(string $visibility, string $menu): void
+	{
+		if (!in_array($visibility, ['show', 'hide'], true)) {
+			return;
+		}
+
+		$menuTree = $menu ? explode('-', $menu) : null;
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+
+		// Find sub menu item
+		if ($menuTree) {
+			$mainParentMenu = array_shift($menuTree);
+			$menuSelectionObject = $menuItems->{$mainParentMenu};
+			foreach ($menuTree as $childMenuKey) {
+				$menuSelectionObject = $menuSelectionObject->subpages->{$childMenuKey};
+			}
+		}
+
+		$menuSelectionObject->visibility = $visibility;
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+	}
+
+	/**
 	 * Reorder the pages
 	 *
 	 * @param int $content 1 for down arrow or -1 for up arrow
-	 * @param int $menu
+	 * @param string $menu
 	 * @return void
+	 * @throws Exception
 	 */
-	public function orderMenuItem(int $content, int $menu): void
+	public function orderMenuItem(int $content, string $menu): void
 	{
 		// check if content is 1 or -1 as only those values are acceptable
-		if (!in_array($content, [1, -1])) {
+		if (!in_array($content, [1, -1], true)) {
 			return;
 		}
-		$conf = 'config';
-		$field = 'menuItems';
-		$targetPosition = $menu + $content;
-		// save the target to avoid overwrite
-		// use clone to copy the object entirely
-		$tmp = clone $this->get($conf, $field, $targetPosition);
-		$move = $this->get($conf, $field, $menu);
-		// move the menu item to new position
-		$this->set($conf, $field, $targetPosition, 'name', $move->name);
-		$this->set($conf, $field, $targetPosition, 'slug', $move->slug);
-		$this->set($conf, $field, $targetPosition, 'visibility', $move->visibility);
-		// write the other menu item to the previous position
-		$this->set($conf, $field, $menu, 'name', $tmp->name);
-		$this->set($conf, $field, $menu, 'slug', $tmp->slug);
-		$this->set($conf, $field, $menu, 'visibility', $tmp->visibility);
+		$menuTree = $menu ? explode('-', $menu) : null;
+		$mainParentMenu = $selectedMenuKey = array_shift($menuTree);
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+
+		// Sorting of subpages in menu
+		if ($menuTree) {
+			$selectedMenuKey = array_pop($menuTree);
+			$menuSelectionObject = $menuItems->{$mainParentMenu}->subpages;
+			foreach ($menuTree as $childMenuKey) {
+				$menuSelectionObject = $menuSelectionObject->{$childMenuKey}->subpages;
+			}
+		}
+
+		$targetPosition = $selectedMenuKey + $content;
+
+		// Find and switch target and selected menu position in DB
+		$selectedMenu = $menuSelectionObject->{$selectedMenuKey};
+		$targetMenu = $menuSelectionObject->{$targetPosition};
+		$menuSelectionObject->{$selectedMenuKey} = $targetMenu;
+		$menuSelectionObject->{$targetPosition} = $selectedMenu;
+
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 	}
 
 	/**
@@ -1423,11 +1656,13 @@ EOT;
 	 */
 	public function page(string $key): string
 	{
-		$segments = $this->currentPageExists
-			? $this->get('pages', $this->currentPage)
-			: ($this->get('config', 'login') === $this->currentPage
+		$segments = $this->getCurrentPageData();
+		if (!$this->currentPageExists || !$segments) {
+			$segments = $this->get('config', 'login') === $this->currentPage
 				? (object)$this->loginView()
-				: (object)$this->notFoundView());
+				: (object)$this->notFoundView();
+		}
+
 		$segments->content = $segments->content ?? '<h2>Click here add content</h2>';
 		$keys = [
 			'title' => $segments->title,
@@ -1442,20 +1677,51 @@ EOT;
 	}
 
 	/**
+	 * Return database data of current page
+	 *
+	 * @return object|null
+	 */
+	public function getCurrentPageData(): ?object
+	{
+		$pageData = null;
+		foreach ($this->currentPageTree as $parentPage) {
+			if (!$pageData) {
+				$pageData = $this->get('pages')->{$parentPage};
+				continue;
+			}
+
+			$pageData = $pageData->subpages->{$parentPage} ?? null;
+			if (!$pageData) {
+				return null;
+			}
+		}
+
+		return $pageData;
+	}
+
+	/**
+	 * Get current page url
+	 *
+	 * @return string
+	 */
+	public function getCurrentPageUrl(): string
+	{
+		$path = '';
+		foreach ($this->currentPageTree as $parentPage) {
+			$path .= $parentPage . '/';
+		}
+
+		return self::url($path);
+	}
+
+	/**
 	 * Page status (exists or doesn't exist)
 	 * @return void
 	 */
 	public function pageStatus(): void
 	{
-		$this->currentPage = empty($this->parseUrl()) ? $this->get('config', 'defaultPage') : $this->parseUrl();
-		if (isset($this->get('pages')->{$this->currentPage})) {
-			$this->currentPageExists = true;
-		}
-		if (isset($_GET['page'])
-			&& !$this->loggedIn
-			&& $this->currentPage !== $this->slugify($_GET['page'])) {
-			$this->currentPageExists = false;
-		}
+		$this->currentPage = $this->parseUrl() ?: $this->get('config', 'defaultPage');
+		$this->currentPageExists = !empty($this->getCurrentPageData());
 	}
 
 	/**
@@ -1464,10 +1730,19 @@ EOT;
 	 */
 	public function parseUrl(): string
 	{
-		if (isset($_GET['page']) && $_GET['page'] === $this->get('config', 'login')) {
+		if (!isset($_GET['page'])) {
+			$defaultPage = $this->get('config', 'defaultPage');
+			$this->currentPageTree = [$defaultPage];
+			return $defaultPage;
+		}
+
+		$this->currentPageTree = explode('/', rtrim($_GET['page'], '/'));
+		if ($_GET['page'] === $this->get('config', 'login')) {
 			return htmlspecialchars($_GET['page'], ENT_QUOTES);
 		}
-		return isset($_GET['page']) ? $this->slugify($_GET['page']) : '';
+
+		$currentPage = end($this->currentPageTree);
+		return $this->slugify($currentPage);
 	}
 
 	/**
@@ -1562,12 +1837,17 @@ EOT;
 			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
 				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItem') {
-				$this->createMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $this->slugify($content);
+				$menuTree = $menu ? explode('-', $menu) : [];
+				if (is_numeric($menuTree[0])) {
+					$this->updateMenuItem($content, $menu, $visibility);
+					$_SESSION['redirect_to_name'] = $content;
+					$_SESSION['redirect_to'] = $this->slugify($content);
+				} else {
+					$this->createMenuItem($content, $menu, $visibility, true);
+				}
 			}
 			if ($target === 'menuItemVsbl') {
-				$this->set('config', $fieldname, $menu, 'visibility', $visibility);
+				$this->updateMenuItemVisibility($visibility, $menu);
 			}
 			if ($target === 'menuItemOrder') {
 				$this->orderMenuItem($content, $menu);
@@ -1586,10 +1866,10 @@ EOT;
 			} elseif ($target === 'blocks') {
 				$this->set('blocks', $fieldname, 'content', $content);
 			} elseif ($target === 'pages') {
-				if (!isset($this->get('pages')->{$this->currentPage})) {
-					$this->createPage();
+				if (!$this->currentPageExists) {
+					$this->createPage($this->currentPageTree, true);
 				}
-				$this->set('pages', $this->currentPage, $fieldname, $content);
+				$this->updatePage($this->currentPageTree, $fieldname, $content);
 			}
 		}
 	}
@@ -1597,6 +1877,7 @@ EOT;
 	/**
 	 * Set something to database
 	 * @return void
+	 * @throws Exception
 	 */
 	public function set(): void
 	{
@@ -1629,6 +1910,7 @@ EOT;
 		if (!$this->loggedIn) {
 			return '';
 		}
+		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
@@ -1652,23 +1934,20 @@ EOT;
 							<div role="tabpanel" class="tab-pane active" id="currentPage">';
 		if ($this->currentPageExists) {
 			$output .= '
-									<p class="subTitle">Page title</p>
-									<div class="change">
-										<div data-target="pages" id="title" class="editText">' . ($this->get('pages',
-					$this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div>
-									</div>
-									<p class="subTitle">Page keywords</p>
-									<div class="change">
-										<div data-target="pages" id="keywords" class="editText">' . ($this->get('pages',
-					$this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div>
-									</div>
-									<p class="subTitle">Page description</p>
-									<div class="change">
-										<div data-target="pages" id="description" class="editText">' . ($this->get('pages',
-					$this->currentPage)->description != '' ? $this->get('pages',
-					$this->currentPage)->description : '') . '</div>
-									</div>
-									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page</a>';
+								<p class="subTitle">Page title</p>
+								<div class="change">
+									<div data-target="pages" id="title" class="editText">' . ($currentPageData->title ?: '') . '</div>
+								</div>
+								<p class="subTitle">Page keywords</p>
+								<div class="change">
+									<div data-target="pages" id="keywords" class="editText">' . ($currentPageData->keywords ?: '') . '</div>
+								</div>
+								<p class="subTitle">Page description</p>
+								<div class="change">
+									<div data-target="pages" id="description" class="editText">' . ($currentPageData->description ?: '') . '</div>
+								</div>
+								<a href="' . self::url('?delete=' . implode('/',
+						$this->currentPageTree) . '&token=' . $this->getToken()) . '" class="btn btn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page</a>';
 		} else {
 			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
 		}
@@ -1685,26 +1964,12 @@ EOT;
 							 <div>
 								<div id="menuSettings" class="container-fluid">';
 		foreach ($items as $key => $value) {
-			$output .= '
-										<div class="row marginTop20">
-											<div class="col-xs-1 col-sm-1 col-1 text-right">
-											 <i class="btn menu-toggle ' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
-											</div>
-											<div class="col-xs-4 col-4 col-sm-8">
-											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $key . '" class="editText">' . $value->name . '</div>
-											</div>
-											<div class="col-xs-2 col-2 col-sm-1 text-left">';
-			$output .= ($key === $first) ? '' : '<a class="upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
-			$output .= ($key === $end) ? '' : ' <a class="downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
-			$output .= '
-											</div>
-											<div class="col-xs-2 col-2 col-sm-1 text-left">
-											 <a class="linkIcon" href="' . self::url($value->slug) . '" title="Visit page">visit</a>
-											</div>
-											<div class="col-xs-2 col-2 col-sm-1 text-right">
-											 <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
-											</div>
-										</div>';
+			$output .= '<div class="row marginTop20">';
+			$output .= $this->renderSettingsMenuItem($key, $value, ($key === $first), ($key === $end), $value->slug);
+			if (property_exists($value, 'subpages')) {
+				$output .= $this->renderSettingsSubMenuItem($value->subpages, $key, $value->slug);
+			}
+			$output .= '</div>';
 		}
 		$output .= '<a class="menu-item-add btn btn-info marginTop20 cursorPointer" data-toggle="tooltip" id="menuItemAdd" title="Add new page"><i class="addNewIcon"></i> Add page</a>
 								</div>
@@ -1729,7 +1994,7 @@ EOT;
 							<div role="tabpanel" class="tab-pane" id="files">
 							 <p class="subTitle">Upload</p>
 							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post" enctype="multipart/form-data">
+								<form action="' . $this->getCurrentPageUrl() . '" method="post" enctype="multipart/form-data">
 									<div class="input-group"><input type="file" name="uploadFile" class="form-control">
 										<span class="input-group-btn"><button type="submit" class="btn btn-info input-group-append"><i class="uploadIcon"></i>Upload</button></span>
 										<input type="hidden" name="token" value="' . $this->getToken() . '">
@@ -1761,7 +2026,7 @@ EOT;
 							 </div>
 							 <p class="subTitle">Password</p>
 							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post">
+								<form action="' . $this->getCurrentPageUrl() . '" method="post">
 									<div class="input-group">
 										<input type="password" name="old_password" class="form-control normalFont" placeholder="Old password">
 										<span class="input-group-btn"></span><input type="password" name="new_password" class="form-control normalFont" placeholder="New password">
@@ -1772,7 +2037,7 @@ EOT;
 							 </div>
 <p class="subTitle">Backup</p>
 							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post">
+								<form action="' . $this->getCurrentPageUrl() . '" method="post">
 									<button type="submit" class="btn btn-block btn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
@@ -1809,6 +2074,121 @@ EOT;
 			</div>
 		</div>';
 		return $this->hook('settings', $output)[0];
+	}
+
+	/**
+	 * Render page navigation items
+	 *
+	 * @param object $item
+	 * @param string $parentSlug
+	 * @return string
+	 */
+	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
+	{
+		if (property_exists($item, 'subpages')) {
+			$subpages = $item->subpages;
+		}
+
+		$parentSlug .= $item->slug . '/';
+		$output = '<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? '' : '') . 'nav-item">
+				  	  <a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
+
+		// Recursive method for rendering infinite subpages
+		if ($subpages) {
+			$output .= '<ul class="navbar-right">';
+			foreach ($subpages as $subpage) {
+				if ($subpage->visibility === 'hide') {
+					continue;
+				}
+				$output .= $this->renderPageNavMenuItem($subpage, $parentSlug);
+			}
+			$output .= '</ul>';
+		}
+
+		$output .= '</li>';
+
+		return $output;
+	}
+
+	/**
+	 * Render menu item for settings
+	 *
+	 * @param string $menuKeyTree
+	 * @param object $value
+	 * @param bool $isFirstEl
+	 * @param bool $isLastEl
+	 * @param string $slugTree
+	 * @return string
+	 * @throws Exception
+	 */
+	private function renderSettingsMenuItem(
+		string $menuKeyTree,
+		object $value,
+		bool $isFirstEl,
+		bool $isLastEl,
+		string $slugTree
+	): string {
+		$output = '<div class="col-xs-1 col-sm-1 col-1 text-right">
+					   <i class="btn menu-toggle ' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
+					</div>
+					<div class="col-xs-3 col-3 col-sm-7">
+					   <div data-target="menuItem" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText">' . $value->name . '</div>
+					</div>
+					<div class="col-xs-2 col-2 col-sm-1 text-left">';
+
+		if (!$isFirstEl) {
+			$output .= '<a class="upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move up"></a>';
+		}
+		if (!$isLastEl) {
+			$output .= '<a class="downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
+		}
+		$output .= '</div>
+					<div class="col-xs-2 col-2 col-sm-1 text-left">
+					   <a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page">visit</a>
+					</div>
+					<div class="col-xs-3 col-3 col-sm-2 text-right">
+					   <a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-sm btn-danger" data-menu="' . $menuKeyTree . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
+					</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Render sub menu item for settings
+	 *
+	 * @param object $subpages
+	 * @param string $parentKeyTree
+	 * @param string $parentSlugTree
+	 * @return string
+	 * @throws Exception
+	 */
+	private function renderSettingsSubMenuItem(object $subpages, string $parentKeyTree, string $parentSlugTree): string
+	{
+		reset($subpages);
+		$firstSubpage = key($subpages);
+		end($subpages);
+		$endSubpage = key($subpages);
+		$output = '';
+
+		foreach ($subpages as $subpageKey => $subpage) {
+			$keyTree = $parentKeyTree . '-' . $subpageKey;
+			$slugTree = $parentSlugTree . '/' . $subpage->slug;
+			$output .= '<div class="col-xs-1"></div>';
+			$output .= '<div class="col-xs-11">
+							<div class="row marginTop5">';
+			$firstElement = ($subpageKey === $firstSubpage);
+			$lastElement = ($subpageKey === $endSubpage);
+			$output .= $this->renderSettingsMenuItem($keyTree, $subpage, $firstElement, $lastElement, $slugTree);
+
+			// Recursive method for rendering infinite subpages
+			if (property_exists($subpage, 'subpages')) {
+				$output .= $this->renderSettingsSubMenuItem($subpage->subpages, $keyTree, $slugTree);
+			}
+			$output .= '	</div>
+						</div>';
+		}
+
+		return $output;
 	}
 
 	/**
@@ -1890,7 +2270,7 @@ EOT;
 		$output .= $installs;
 		$output .= '</div>
 					<p class="subTitle">Custom repository</p>
-					<form action="' . self::url($this->currentPage) . '" method="post">
+					<form action="' . $this->getCurrentPageUrl() . '" method="post">
 						<div class="form-group">
 							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
 								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="addNewIcon"></i> Add</button></span>
