@@ -476,12 +476,17 @@ class Wcms
 		$slug = $this->createUniqueSlug($name, $menu);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		$menuTree = $menu ? explode('-', $menu) : null;
+		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : null;
 		$slugTree = [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
 				$childMenu = $menuSelectionObject->{$childMenuKey};
-				$menuSelectionObject = $childMenu->subpages;
+
+				if (!property_exists($childMenu, self::DB_MENU_ITEMS_SUBPAGE)) {
+					$childMenu->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+				}
+
+				$menuSelectionObject = $childMenu->{self::DB_MENU_ITEMS_SUBPAGE};
 				$slugTree[] = $childMenu->slug;
 			}
 		}
@@ -498,7 +503,7 @@ class Wcms
 		if ($createPage) {
 			$this->createPage($slugTree);
 			$_SESSION['redirect_to_name'] = $name;
-			$_SESSION['redirect_to'] = $slug;
+			$_SESSION['redirect_to'] = implode('/', $slugTree);
 		}
 	}
 
@@ -526,7 +531,12 @@ class Wcms
 		if (count($menuTree) > 0) {
 			foreach ($menuTree as $childMenuKey) {
 				$childMenu = $menuSelectionObject->{$childMenuKey};
-				$menuSelectionObject = $childMenu->subpages;
+
+				if (!property_exists($childMenu, self::DB_MENU_ITEMS_SUBPAGE)) {
+					$childMenu->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+				}
+
+				$menuSelectionObject = $childMenu->{self::DB_MENU_ITEMS_SUBPAGE};
 				$slugTree[] = $childMenu->slug;
 			}
 		}
@@ -613,17 +623,7 @@ class Wcms
 			foreach ($slugTree as $childSlug) {
 				// Find menu key tree
 				if ($createMenuItem) {
-					$menuKeys = $menuKey !== null ? explode('-', $menuKey) : $menuKey;
-					$menuItems = json_decode(json_encode($this->get(self::DB_CONFIG, self::DB_MENU_ITEMS)), true);
-					foreach ($menuKeys as $key) {
-						$menuItems = $menuItems[$key][self::DB_MENU_ITEMS_SUBPAGE];
-					}
-
-					if (false !== ($index = array_search($childSlug, array_column($menuItems, 'slug'), true))) {
-						$menuKey = $menuKey === null ? $index : $menuKey . '-' . $index;
-					} elseif ($menuKey === null) {
-						$menuKey = count($menuItems);
-					}
+					$menuKey = $this->findAndUpdateMenuKey($menuKey, $childSlug);
 				}
 
 				// Create new parent page if it does not exist
@@ -635,6 +635,7 @@ class Wcms
 
 					if ($createMenuItem) {
 						$this->createMenuItem($parentTitle, $menuKey);
+						$menuKey = $this->findAndUpdateMenuKey($menuKey, $childSlug); // Add newly added menu key
 					}
 				}
 
@@ -660,6 +661,29 @@ class Wcms
 	}
 
 	/**
+	 * Find and update menu key tree based on newly requested slug
+	 * @param string|null $menuKey
+	 * @param string $slug
+	 * @return string
+	 */
+	private function findAndUpdateMenuKey(?string $menuKey, string $slug): string
+	{
+		$menuKeys = $menuKey !== null ? explode('-', $menuKey) : $menuKey;
+		$menuItems = json_decode(json_encode($this->get(self::DB_CONFIG, self::DB_MENU_ITEMS)), true);
+		foreach ($menuKeys as $key) {
+			$menuItems = $menuItems[$key][self::DB_MENU_ITEMS_SUBPAGE] ?? [];
+		}
+
+		if (false !== ($index = array_search($slug, array_column($menuItems, 'slug'), true))) {
+			$menuKey = $menuKey === null ? $index : $menuKey . '-' . $index;
+		} elseif ($menuKey === null) {
+			$menuKey = count($menuItems);
+		}
+
+		return $menuKey;
+	}
+
+	/**
 	 * Update page data
 	 *
 	 * @param array $slugTree
@@ -674,6 +698,10 @@ class Wcms
 		$allPages = $selectedPage = clone $this->get(self::DB_PAGES_KEY);
 		if (!empty($slugTree)) {
 			foreach ($slugTree as $childSlug) {
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
 				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
 			}
 		}
@@ -1836,15 +1864,13 @@ EOT;
 			&& $this->hashVerify($_POST['token'])) {
 			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
 				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
-			if ($target === 'menuItem') {
-				$menuTree = $menu ? explode('-', $menu) : [];
-				if (is_numeric($menuTree[0])) {
-					$this->updateMenuItem($content, $menu, $visibility);
-					$_SESSION['redirect_to_name'] = $content;
-					$_SESSION['redirect_to'] = $this->slugify($content);
-				} else {
-					$this->createMenuItem($content, $menu, $visibility, true);
-				}
+			if ($target === 'menuItemUpdate') {
+				$this->updateMenuItem($content, $menu, $visibility);
+				$_SESSION['redirect_to_name'] = $content;
+				$_SESSION['redirect_to'] = $this->slugify($content);
+			}
+			if ($target === 'menuItemCreate') {
+				$this->createMenuItem($content, $menu, $visibility, true);
 			}
 			if ($target === 'menuItemVsbl') {
 				$this->updateMenuItemVisibility($visibility, $menu);
@@ -1881,22 +1907,16 @@ EOT;
 	 */
 	public function set(): void
 	{
-		$numArgs = func_num_args();
 		$args = func_get_args();
-		switch ($numArgs) {
-			case 2:
-				$this->db->{$args[0]} = $args[1];
-				break;
-			case 3:
-				$this->db->{$args[0]}->{$args[1]} = $args[2];
-				break;
-			case 4:
-				$this->db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3];
-				break;
-			case 5:
-				$this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4];
-				break;
+
+		$value = array_pop($args);
+		$lastKey = array_pop($args);
+		$data = $this->db;
+		foreach ($args as $arg) {
+			$data = $data->{$arg};
 		}
+		$data->{$lastKey} = $value;
+
 		$this->save();
 	}
 
@@ -1921,7 +1941,7 @@ EOT;
 				<div class="modal-dialog modal-xl">
 				 <div class="modal-content">
 					<div class="modal-header"><button type="button" class="close" data-dismiss="wcms-modal" aria-hidden="true">&times;</button></div>
-					<div class="modal-body col-xs-12 col-12">
+					<div class="modal-body coll-xs-12 coll-12">
 						<ul class="nav nav-tabs justify-content-center text-center" role="tablist">
 							<li role="presentation" class="nav-item"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab" class="nav-link active">Current page</a></li>
 							<li role="presentation" class="nav-item"><a href="#menu" aria-controls="menu" role="tab" data-toggle="tab" class="nav-link">Menu</a></li>
@@ -1930,7 +1950,7 @@ EOT;
 							<li role="presentation" class="nav-item"><a href="#plugins" aria-controls="plugins" role="tab" data-toggle="tab" class="nav-link">Plugins</a></li>
 							<li role="presentation" class="nav-item"><a href="#security" aria-controls="security" role="tab" data-toggle="tab" class="nav-link">Security</a></li>
 						</ul>
-						<div class="tab-content col-md-8 col-md-offset-2 offset-md-2">
+						<div class="tab-content coll-md-8 coll-md-offset-2 offset-md-2">
 							<div role="tabpanel" class="tab-pane active" id="currentPage">';
 		if ($this->currentPageExists) {
 			$output .= '
@@ -2085,17 +2105,18 @@ EOT;
 	 */
 	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
 	{
+		$subpages = false;
 		if (property_exists($item, 'subpages')) {
 			$subpages = $item->subpages;
 		}
 
 		$parentSlug .= $item->slug . '/';
-		$output = '<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? '' : '') . 'nav-item">
+		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav ' : '') . '">
 				  	  <a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
 
 		// Recursive method for rendering infinite subpages
 		if ($subpages) {
-			$output .= '<ul class="navbar-right">';
+			$output .= '<ul>';
 			foreach ($subpages as $subpage) {
 				if ($subpage->visibility === 'hide') {
 					continue;
@@ -2128,25 +2149,27 @@ EOT;
 		bool $isLastEl,
 		string $slugTree
 	): string {
-		$output = '<div class="col-xs-1 col-sm-1 col-1 text-right">
-					   <i class="btn menu-toggle ' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
+		$arraySlugTree = explode('/', $slugTree);
+		array_shift($arraySlugTree);
+		$subMenuLevel = count($arraySlugTree);
+		$output = '<div class="coll-xs-2 coll-sm-1">
+					   <i class="menu-toggle eyeIcon' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
 					</div>
-					<div class="col-xs-3 col-3 col-sm-7">
-					   <div data-target="menuItem" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText">' . $value->name . '</div>
+					<div class="coll-xs-5 coll-md-8">
+					   <div data-target="menuItemUpdate" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText" style="margin-right: ' . (13 * $subMenuLevel) . 'px;">' . $value->name . '</div>
 					</div>
-					<div class="col-xs-2 col-2 col-sm-1 text-left">';
+					<div class="coll-xs-5 coll-md-3 text-right">';
 
 		if (!$isFirstEl) {
-			$output .= '<a class="upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move up"></a>';
+			$output .= '<a class="arrowIcon upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move up"></a>';
 		}
 		if (!$isLastEl) {
-			$output .= '<a class="downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
+			$output .= '<a class="arrowIcon downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
 		}
-		$output .= '</div>
-					<div class="col-xs-2 col-2 col-sm-1 text-left">
-					   <a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page">visit</a>
+		$output .= '   <a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page">visit</a>
 					</div>
-					<div class="col-xs-3 col-3 col-sm-2 text-right">
+					<div class="coll-xs-12 text-right marginTop5 marginBottom20">
+					   <a class="menu-item-add btn btn-sm btn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
 					   <a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-sm btn-danger" data-menu="' . $menuKeyTree . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
 					</div>';
 
@@ -2173,8 +2196,7 @@ EOT;
 		foreach ($subpages as $subpageKey => $subpage) {
 			$keyTree = $parentKeyTree . '-' . $subpageKey;
 			$slugTree = $parentSlugTree . '/' . $subpage->slug;
-			$output .= '<div class="col-xs-1"></div>';
-			$output .= '<div class="col-xs-11">
+			$output .= '<div class="coll-xs-offset-1 coll-xs-11">
 							<div class="row marginTop5">';
 			$firstElement = ($subpageKey === $firstSubpage);
 			$lastElement = ($subpageKey === $endSubpage);
@@ -2239,7 +2261,7 @@ EOT;
 				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="btn btn-primary btn-sm btn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="btn btn-primary btn-sm btn-block" disabled>Active</a>' : '';
 
-				$html = "<div class='col-sm-4'>
+				$html = "<div class='coll-sm-4'>
 							<div>
 								$image
 								<h4>$name</h4>
