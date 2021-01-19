@@ -1408,7 +1408,9 @@ EOT;
 		if (file_exists($location . '/functions.php')) {
 			require_once $location . '/functions.php';
 		}
-		require_once $location . '/theme.php';
+
+		$customPageTemplate = sprintf('%s/%s.php', $location, $this->currentPage);
+		require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
 	}
 
 	/**
