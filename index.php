@@ -602,7 +602,7 @@ class Wcms
 		$pageData = null;
 		foreach ($slugTree as $parentPage) {
 			if (!$pageData) {
-				$pageData = $this->get('pages')->{$parentPage};
+				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage};
 				continue;
 			}
 
@@ -1711,14 +1711,26 @@ EOT;
 	 */
 	public function getCurrentPageData(): ?object
 	{
+		return $this->getPageData(implode('/', $this->currentPageTree));
+	}
+
+	/**
+	 * Return database data of any page
+	 *
+	 * @param string $slugTree
+	 * @return object|null
+	 */
+	public function getPageData(string $slugTree): ?object
+	{
+		$arraySlugTree = explode('/', $slugTree);
 		$pageData = null;
-		foreach ($this->currentPageTree as $parentPage) {
-			if (!$pageData) {
-				$pageData = $this->get('pages')->{$parentPage};
+		foreach ($arraySlugTree as $slug) {
+			if ($pageData === null) {
+				$pageData = $this->get(self::DB_PAGES_KEY)->{$slug};
 				continue;
 			}
 
-			$pageData = $pageData->subpages->{$parentPage} ?? null;
+			$pageData = $pageData->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
 			if (!$pageData) {
 				return null;
 			}
@@ -1878,10 +1890,10 @@ EOT;
 			if ($target === 'menuItemOrder') {
 				$this->orderMenuItem($content, $menu);
 			}
-			if ($fieldname === 'defaultPage' && !isset($this->get('pages')->$content)) {
+			if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
 				return;
 			}
-			if ($fieldname === 'login' && (empty($content) || isset($this->get('pages')->$content))) {
+			if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
 				return;
 			}
 			if ($fieldname === 'theme' && !is_dir($this->rootDir . '/themes/' . $content)) {
@@ -2003,9 +2015,9 @@ EOT;
 							 <div class="change">
 								<select id="changeDefaultPage" class="form-control" name="defaultPage">';
 		$items = $this->get('config', 'menuItems');
-		foreach ($items as $key => $value) {
-			$output .= '<option value="' . $value->slug . '"' . ($value->slug === $this->get('config',
-					'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
+		$defaultPage = $this->get('config', 'defaultPage');
+		foreach ($items as $item) {
+			$output .= $this->renderDefaultPageOptions($item, $defaultPage);
 		}
 		$output .= '
 								</select>
@@ -2094,6 +2106,32 @@ EOT;
 			</div>
 		</div>';
 		return $this->hook('settings', $output)[0];
+	}
+
+	/**
+	 * Render options for default page selection
+	 *
+	 * @param object $menuItem
+	 * @param string $defaultPage
+	 * @param string $parentSlug
+	 * @param string $parentName
+	 * @return string
+	 */
+	private function renderDefaultPageOptions(
+		object $menuItem,
+		string $defaultPage,
+		string $parentSlug = '',
+		string $parentName = ''
+	): string {
+		$slug = $parentSlug ? sprintf('%s/%s', $parentSlug, $menuItem->slug) : $menuItem->slug;
+		$name = $parentName ? sprintf('%s | %s', $parentName, $menuItem->name) : $menuItem->name;
+		$output = '<option value="' . $slug . '" ' . ($slug === $defaultPage ? 'selected' : '') . '>' . $name . '</option>';
+
+		foreach ($menuItem->subpages ?? [] as $subpage) {
+			$output .= $this->renderDefaultPageOptions($subpage, $defaultPage, $slug, $name);
+		}
+
+		return $output;
 	}
 
 	/**
