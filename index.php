@@ -854,6 +854,11 @@ EOT;
 		$this->deletePageFromDb($slugTree);
 
 		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		if (count(get_object_vars($allMenuItems)) === 1) {
+			$this->alert('danger','Last page cannot be deleted. At least one page must exist.');
+			$this->redirect();
+		}
+
 		$selectedMenuItemParent = $selectedMenuItemKey = null;
 		foreach ($slugTree as $slug) {
 			$selectedMenuItemParent = $selectedMenuItem->{self::DB_MENU_ITEMS_SUBPAGE} ?? $selectedMenuItem;
@@ -1640,7 +1645,7 @@ EOT;
 			return;
 		}
 
-		$menuTree = $menu ? explode('-', $menu) : null;
+		$menuTree = explode('-', $menu);
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 
 		// Find sub menu item
