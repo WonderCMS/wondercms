@@ -483,7 +483,7 @@ class Wcms
 		$slug = $this->createUniqueSlug($name, $menu);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : null;
+		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
 		$slugTree = [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
@@ -578,7 +578,7 @@ class Wcms
 		$menuCount = count(get_object_vars($allMenuItems));
 
 		// Check if it is subpage
-		$menuTree = $menu ? explode('-', $menu) : null;
+		$menuTree = $menu ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
 				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages;
