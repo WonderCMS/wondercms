@@ -2107,7 +2107,7 @@ EOT;
 							 <div class="change">
 								<form method="post">
 									<div class="wbtn-group wbtn-group-justified w-100">
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="forceHttps" value="true">ON</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="forceHttps" value="true" onclick="return confirm(\'Are you sure? This might break your website if you do not have SSL configured correctly.\')">ON</button></div>
 										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="forceHttps" value="false">OFF</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
