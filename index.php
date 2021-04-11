@@ -1137,6 +1137,7 @@ EOT;
 
 	/**
 	 * Cache themes and plugins data
+	 * @throws Exception
 	 */
 	private function cacheThemesPluginsData(): void
 	{
@@ -1169,6 +1170,7 @@ EOT;
 	 * Cache single theme or plugin data
 	 * @param string $repo
 	 * @param string $type
+	 * @throws Exception
 	 */
 	private function cacheSingleCacheThemePluginData(string $repo, string $type): void
 	{
@@ -1187,7 +1189,7 @@ EOT;
 	 * Gathers single theme/plugin data from repository
 	 * @param string $repo
 	 * @param string $type
-	 * @param array $savedData
+	 * @param array|null $savedData
 	 * @return array|null
 	 */
 	private function downloadThemePluginsData(string $repo, string $type, ?array $savedData = []): ?array
@@ -1225,16 +1227,20 @@ EOT;
 
 	/**
 	 * Check if branch is master or main
+	 * @param string $repo
+	 * @param string $branch
 	 * @return bool
 	 */
 	private function checkBranch(string $repo, string $branch): bool
 	{
-		$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
-		return $this->getOfficialVersion($repoFilesUrl) !== null;
+		$repoFilesUrl = sprintf('%s/archive/%s', $repo, $branch);
+		$headers = @get_headers($repoFilesUrl);
+		return strpos($headers[0], '404') === false;
 	}
 
 	/**
 	 * Add custom repository links for themes and plugins
+	 * @throws Exception
 	 */
 	public function addCustomThemePluginRepository(): void
 	{
@@ -1253,8 +1259,8 @@ EOT;
 			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
 				$errorMessage = 'Repository already exists.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/',
-					$url)) === null && $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
+			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null
+				&& $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
 				$errorMessage = 'Repository not added - missing version file.';
 				break;
 		}
