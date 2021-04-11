@@ -501,6 +501,7 @@ class Wcms
 
 		$menuCount = count(get_object_vars($menuSelectionObject));
 
+		$menuSelectionObject->{$menuCount} = new stdClass;
 		$menuSelectionObject->{$menuCount}->name = $name;
 		$menuSelectionObject->{$menuCount}->slug = $slug;
 		$menuSelectionObject->{$menuCount}->visibility = $visibility;
@@ -656,6 +657,7 @@ class Wcms
 
 		$pageTitle = !$slug ? str_replace('-', ' ', $pageSlug) : $pageSlug;
 
+		$selectedPage->{$slug} = new stdClass;
 		$selectedPage->{$slug}->title = mb_convert_case($pageTitle, MB_CASE_TITLE);
 		$selectedPage->{$slug}->keywords = 'Keywords, are, good, for, search, engines';
 		$selectedPage->{$slug}->description = 'A short description is also good.';
