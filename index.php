@@ -730,7 +730,6 @@ class Wcms
 
 		$selectedPage = $this->db->{self::DB_PAGES_KEY};
 		if (!empty($slugTree)) {
-			$pageData = null;
 			foreach ($slugTree as $childSlug) {
 				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
@@ -867,10 +866,13 @@ EOT;
 			}
 		}
 		unset($selectedMenuItemParent->{$selectedMenuItemKey});
+		$allMenuItems = $this->reindexObject($allMenuItems);
 
-		$slug = array_pop($slugTree);
-		if ($this->get(self::DB_CONFIG, 'defaultPage') === $slug) {
-			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems[0]->slug);
+		$defaultPage = $this->get(self::DB_CONFIG, 'defaultPage');
+		$defaultPageArray = explode('/', $defaultPage);
+		$treeIntersect = array_intersect_assoc($defaultPageArray, $slugTree);
+		if ($treeIntersect === $slugTree) {
+			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems->{0}->slug);
 		}
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
 
@@ -1235,9 +1237,11 @@ EOT;
 	 */
 	private function checkBranch(string $repo, string $branch): bool
 	{
-		$repoFilesUrl = sprintf('%s/archive/%s', $repo, $branch);
+		$repoFilesUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
 		$headers = @get_headers($repoFilesUrl);
-		return strpos($headers[0], '404') === false;
+		return empty(array_filter($headers, static function ($header) {
+			return(strpos($header, '404 Not Found'));
+		}));
 	}
 
 	/**
@@ -1787,7 +1791,7 @@ EOT;
 	{
 		if (!isset($_GET['page'])) {
 			$defaultPage = $this->get('config', 'defaultPage');
-			$this->currentPageTree = [$defaultPage];
+			$this->currentPageTree = explode('/', $defaultPage);
 			return $defaultPage;
 		}
 
@@ -2627,5 +2631,21 @@ EOT;
 				. implode(', ', $missingExtensions)
 				. '. Contact your host or configure your server to enable them with correct permissions.</p>');
 		}
+	}
+
+	/**
+	 * Helper for reseting the index key of the object
+	 * @param stdClass $object
+	 * @return stdClass
+	 */
+	private function reindexObject(stdClass $object): stdClass
+	{
+		$reindexObject = new stdClass;
+		$index = 0;
+		foreach ($object as $value) {
+			$reindexObject->{$index} = $value;
+			$index++;
+		}
+		return $reindexObject;
 	}
 }
