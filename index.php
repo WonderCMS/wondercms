@@ -2663,7 +2663,7 @@ EOT;
 	 */
 	private function isHttpsForced(): bool
 	{
-		return (new Wcms)->get('config', 'forceHttps') ?? false;
+		return $this->get('config', 'forceHttps') ?? false;
 	}
 
 	/**
