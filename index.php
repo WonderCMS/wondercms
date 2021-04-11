@@ -128,6 +128,7 @@ class Wcms
 	 */
 	public function init(): void
 	{
+		$this->forceSSL();
 		$this->loginStatus();
 		$this->pageStatus();
 		$this->logoutAction();
@@ -142,7 +143,7 @@ class Wcms
 			$this->deleteFileThemePluginAction();
 			$this->changePageThemeAction();
 			$this->backupAction();
-			$this->betterSecurityAction();
+			$this->forceHttpsAction();
 			$this->deletePageAction();
 			$this->saveAction();
 			$this->updateAction();
@@ -267,25 +268,16 @@ class Wcms
 	}
 
 	/**
-	 * Replace the .htaccess with one adding security settings
+	 * Save if WCMS should force https
 	 * @return void
+	 * @throws Exception
 	 */
-	public function betterSecurityAction(): void
+	public function forceHttpsAction(): void
 	{
-		if (isset($_POST['betterSecurity']) && $this->verifyFormActions()) {
-			if ($_POST['betterSecurity'] === 'on') {
-				if ($contents = $this->getFileFromRepo('htaccess-ultimate', self::WCMS_CDN_REPO)) {
-					file_put_contents('.htaccess', trim($contents));
-				}
-				$this->alert('success', 'Improved security turned ON.');
-				$this->redirect();
-			} elseif ($_POST['betterSecurity'] === 'off') {
-				if ($contents = $this->getFileFromRepo('htaccess', self::WCMS_CDN_REPO)) {
-					file_put_contents('.htaccess', trim($contents));
-				}
-				$this->alert('success', 'Improved security turned OFF.');
-				$this->redirect();
-			}
+		if (isset($_POST['forceHttps']) && $this->verifyFormActions()) {
+			$this->set('config', 'forceHttps', $_POST['forceHttps'] === 'true');
+			$this->alert('success', 'Force HTTPs was successfully changed.');
+			$this->redirect();
 		}
 	}
 
@@ -378,6 +370,7 @@ class Wcms
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'forceLogout' => false,
+				'forceHttps' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'defaultRepos' => [
@@ -855,7 +848,7 @@ EOT;
 
 		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		if (count(get_object_vars($allMenuItems)) === 1) {
-			$this->alert('danger','Last page cannot be deleted. At least one page must exist.');
+			$this->alert('danger', 'Last page cannot be deleted. At least one page must exist.');
 			$this->redirect();
 		}
 
@@ -1125,6 +1118,16 @@ EOT;
 	}
 
 	/**
+	 * Forces http to https
+	 */
+	private function forceSSL(): void
+	{
+		if ($this->isHttpsForced() && !$this->isCurrentlyOnSSL()) {
+			$this->redirect();
+		}
+	}
+
+	/**
 	 * Method checks for new repos and caches them
 	 */
 	private function updateAndCacheThemePluginRepos(): void
@@ -1245,7 +1248,7 @@ EOT;
 		$repoFilesUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
 		$headers = @get_headers($repoFilesUrl);
 		return empty(array_filter($headers, static function ($header) {
-			return(strpos($header, '404 Not Found'));
+			return (strpos($header, '404 Not Found'));
 		}));
 	}
 
@@ -2099,13 +2102,13 @@ EOT;
 								</form>
 							 </div>
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
-							 <p class="subTitle">Improved security (Apache only)</p>
-							 <p class="change small">HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
+							 <p class="subTitle">Force HTTPS (SSL)</p>
+							 <p class="change small">The WCMS automatically checks for SSL, but here you can force to always use HTTPS.</p>
 							 <div class="change">
 								<form method="post">
 									<div class="wbtn-group wbtn-group-justified w-100">
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="betterSecurity" value="on">ON (warning: may break your website)</button></div>
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="forceHttps" value="true">ON</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="forceHttps" value="false">OFF</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -2573,9 +2576,9 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-		return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
-			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
-			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ? 's' : '')
+		$wcms = (new Wcms);
+
+		return ($wcms->isHttpsForced() || $wcms->isCurrentlyOnSSL() ? 'https' : 'http')
 			. '://' . $_SERVER['SERVER_NAME']
 			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
 			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
@@ -2652,5 +2655,25 @@ EOT;
 			$index++;
 		}
 		return $reindexObject;
+	}
+
+	/**
+	 * Check if user has forced https
+	 * @return bool
+	 */
+	private function isHttpsForced(): bool
+	{
+		return (new Wcms)->get('config', 'forceHttps');
+	}
+
+	/**
+	 * Check if currently user is on https
+	 * @return bool
+	 */
+	private function isCurrentlyOnSSL(): bool
+	{
+		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
 	}
 }
