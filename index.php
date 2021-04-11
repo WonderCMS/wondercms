@@ -314,7 +314,7 @@ class Wcms
 	 */
 	public function changePasswordAction(): void
 	{
-		if (isset($_POST['old_password'], $_POST['new_password'])
+		if (isset($_POST['old_password'], $_POST['new_password'], $_POST['repeat_password'])
 			&& $_SESSION['token'] === $_POST['token']
 			&& $this->loggedIn
 			&& $this->hashVerify($_POST['token'])) {
@@ -331,14 +331,21 @@ class Wcms
 				$this->redirect();
 				return;
 			}
+			if ($_POST['new_password'] !== $_POST['repeat_password']) {
+				$this->alert('danger',
+					'New passwords do not match. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>');
+				$this->redirect();
+				return;
+			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
 			$this->set('config', 'forceLogout', true);
 			$this->logoutAction(true);
+			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
 	}
 
 	/**
-	 * Check if we can run WonderCMS properly
+	 * Check if folders are writable
 	 * Executed once before creating the database file
 	 *
 	 * @param string $folder the relative path of the folder to check/create
@@ -356,7 +363,7 @@ class Wcms
 	}
 
 	/**
-	 * Initialize the JSON database if doesn't exist
+	 * Initialize the JSON database if it doesn't exist
 	 * @return void
 	 */
 	public function createDb(): void
@@ -367,7 +374,7 @@ class Wcms
 		$this->db = (object)[
 			self::DB_CONFIG => [
 				'siteTitle' => 'Website title',
-				'theme' => 'essence',
+				'theme' => 'sky',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'forceLogout' => false,
@@ -409,9 +416,9 @@ class Wcms
 					'title' => 'Home',
 					'keywords' => 'Enter, page, keywords, for, search, engines',
 					'description' => 'A page description is also good for search engines.',
-					'content' => '<h1>It\'s alive!</h1>
+					'content' => '<h1>Welcome to your website</h1>
 
-<p>Your password for editing your website is: <b>' . $password . '</b></p>
+<p>Your password for editing everything is: <b>' . $password . '</b></p>
 
 <p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>
 
@@ -423,17 +430,17 @@ class Wcms
 					'keywords' => 'Enter, keywords, for, this page',
 					'description' => 'A page description is also good for search engines.',
 					'content' => '<h2>Easy editing</h2>
-<p>Click anywhere to edit, click outside the area to save. Changes are live and shown immediately.</p>
+<p>After logging in, click anywhere to edit and click outside to save. Changes are live and shown immediately.</p>
 
 <h2>Create new page</h2>
-<p>Pages can be created in the Menu above.</p>
+<p>Pages can be created in the Settings.</p>
 
-<h2>Install themes and plugins</h2>
+<h2>Start a blog or change your theme</h2>
 <p>To install, update or remove themes/plugins, visit the Settings.</p>
 
-<h2><b>Please support WonderCMS</b></h2>
-<p>WonderCMS has been free for over 12 years<br>
-<a href="https://swag.wondercms.com"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>',
+<h2><b>Support WonderCMS</b></h2>
+<p>WonderCMS is free for over 12 years.<br>
+<a href="https://swag.wondercms.com" target="_blank"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate" target="_blank"><u>with a donation</u></a>.</p>',
 					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				]
 			],
@@ -611,7 +618,7 @@ class Wcms
 		}
 
 		if ($pageExists) {
-			$this->alert('danger', 'Can not create page with existing slug.');
+			$this->alert('danger', 'Cannot create page with existing slug.');
 			return;
 		}
 
@@ -626,7 +633,7 @@ class Wcms
 					$menuKey = $this->findAndUpdateMenuKey($menuKey, $childSlug);
 				}
 
-				// Create new parent page if it does not exist
+				// Create new parent page if it doesn't exist
 				if (!$selectedPage->{$childSlug}) {
 					$parentTitle = mb_convert_case(str_replace('-', ' ', $childSlug), MB_CASE_TITLE);
 					$selectedPage->{$childSlug}->title = $parentTitle;
@@ -738,7 +745,7 @@ class Wcms
 	{
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.0/wcms-admin.min.css" integrity="sha384-/NVs/Bv65kKsmmBcoBvW2ZaxIjHtNffpV17gGDivO2CQaFW1vY6ndJFKOiB1rH7m" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.24/wcms-admin.min.css" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -861,7 +868,7 @@ EOT;
 
 		$slug = array_pop($slugTree);
 		if ($this->get(self::DB_CONFIG, 'defaultPage') === $slug) {
-			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems{0}->slug);
+			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems[0]->slug);
 		}
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
 
@@ -1368,7 +1375,7 @@ EOT;
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.9/wcms-admin.min.js" integrity="sha384-B/dbUkTl9vm3Ffs337h+/oupFbxzbYk8vArcqFH7lAss0QwL4oqfas8puhE/dgj5" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.1/wcms-admin.min.js" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1483,13 +1490,14 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per day.</p></div>
+		    <style>.ShowUpdate{display: block !important}</style>
+				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per week.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
-					<div class="input-group text-center">
-						<input type="password" class="form-control" id="password" name="password" placeholder="Password" autofocus>
-						<br><br>
-						<span class="input-group-btn input-group-append">
-							<button type="submit" class="btn btn-info" onclick="$(\'#login\').show();">Login</button>
+					<div class="winput-group text-center">
+						<h1>Login to your website</h1>
+						<input type="password" class="wform-control" id="password" name="password" placeholder="Password" autofocus><br><br>
+						<span class="winput-group-btn">
+							<button type="submit" class="wbtn wbtn-info" onclick="document.getElementsByClassName(\'wUpdate\')[0].classList.toggle(\'ShowUpdate\');">Login</button>
 						</span>
 					</div>
 				</form>'
@@ -1524,9 +1532,6 @@ EOT;
 				continue;
 			}
 			$output .= $this->renderPageNavMenuItem($item);
-		}
-		if ($this->loggedIn) {
-			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
 		}
 		return $this->hook('menu', $output)[0];
 	}
@@ -1573,17 +1578,17 @@ EOT;
 		if (!$this->currentPageExists) {
 			$this->alert(
 				'info',
-				'<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.'
+				'<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Editing the content below will create it.'
 			);
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
 			$this->alert('danger',
-				'Change your default password and login URL. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
+				'Change your login URL and save it for later use. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
 		}
 
 		$db = $this->getDb();
 		$lastSync = $db->config->defaultRepos->lastSync;
-		if (strtotime($lastSync) < strtotime('-1 days')) {
+		if (strtotime($lastSync) < strtotime('-7 days')) {
 			$this->checkWcmsCoreUpdate();
 		}
 	}
@@ -1598,12 +1603,12 @@ EOT;
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
-				<p>&nbsp;- Backup your website and
-				<a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.</p>
+				<a href="https://wondercms.com/whatsnew" target="_blank"><u><b>Check what\'s new</b></u></a>
+				and <b>backup your website</b> before updating.
 				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
-					<button type="submit" class="btn btn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
+					<button type="submit" class="wbtn wbtn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
 					<div class="clear"></div>
-					<button class="btn btn-info marginTop5" name="update"><i class="refreshIcon"></i>Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
+					<button class="wbtn wbtn-info marginTop5" name="update"><i class="refreshIcon"></i>Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
 					<input type="hidden" name="token" value="' . $this->getToken() . '">
 				</form>'
 			);
@@ -1950,7 +1955,7 @@ EOT;
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
-			<a data-toggle="wcms-modal" class="btn btn-secondary btn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="btn btn-danger btn-sm button logout" title="Logout"><i class="logoutIcon"></i></a>
+			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
 			<div class="wcms-modal modal" id="settingsModal">
 				<div class="modal-dialog modal-xl">
 				 <div class="modal-content">
@@ -1981,7 +1986,7 @@ EOT;
 									<div data-target="pages" id="description" class="editText">' . ($currentPageData->description ?: '') . '</div>
 								</div>
 								<a href="' . self::url('?delete=' . implode('/',
-						$this->currentPageTree) . '&token=' . $this->getToken()) . '" class="btn btn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page</a>';
+						$this->currentPageTree) . '&token=' . $this->getToken()) . '" class="wbtn wbtn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page (' . $this->currentPage . ')</a>';
 		} else {
 			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
 		}
@@ -1994,28 +1999,28 @@ EOT;
 		end($items);
 		$end = key($items);
 		$output .= '
+							 <p class="subTitle">Website title</p>
+							 <div class="change">
+								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
+				'siteTitle') . '</div>
+							 </div>
 							 <p class="subTitle">Menu</p>
 							 <div>
-								<div id="menuSettings" class="container-fluid">';
+								<div id="menuSettings" class="container-fluid">
+								<a class="menu-item-add wbtn wbtn-info cursorPointer" data-toggle="tooltip" id="menuItemAdd" title="Add new page"><i class="addNewIcon"></i> Add page</a><br><br>';
 		foreach ($items as $key => $value) {
-			$output .= '<div class="row marginTop20">';
+			$output .= '<div class="row">';
 			$output .= $this->renderSettingsMenuItem($key, $value, ($key === $first), ($key === $end), $value->slug);
 			if (property_exists($value, 'subpages')) {
 				$output .= $this->renderSettingsSubMenuItem($value->subpages, $key, $value->slug);
 			}
 			$output .= '</div>';
 		}
-		$output .= '<a class="menu-item-add btn btn-info marginTop20 cursorPointer" data-toggle="tooltip" id="menuItemAdd" title="Add new page"><i class="addNewIcon"></i> Add page</a>
-								</div>
-							 </div>
-							 <p class="subTitle">Website title</p>
-							 <div class="change">
-								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
-				'siteTitle') . '</div>
+		$output .= '			</div>
 							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
-								<select id="changeDefaultPage" class="form-control" name="defaultPage">';
+								<select id="changeDefaultPage" class="wform-control" name="defaultPage">';
 		$items = $this->get('config', 'menuItems');
 		$defaultPage = $this->get('config', 'defaultPage');
 		foreach ($items as $item) {
@@ -2029,8 +2034,8 @@ EOT;
 							 <p class="subTitle">Upload</p>
 							 <div class="change">
 								<form action="' . $this->getCurrentPageUrl() . '" method="post" enctype="multipart/form-data">
-									<div class="input-group"><input type="file" name="uploadFile" class="form-control">
-										<span class="input-group-btn"><button type="submit" class="btn btn-info input-group-append"><i class="uploadIcon"></i>Upload</button></span>
+									<div class="winput-group"><input type="file" name="uploadFile" class="wform-control">
+										<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="uploadIcon"></i>Upload</button></span>
 										<input type="hidden" name="token" value="' . $this->getToken() . '">
 									</div>
 								</form>
@@ -2039,7 +2044,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="btn btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
+									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -2052,7 +2057,7 @@ EOT;
 		$output .= $this->renderThemePluginTab('plugins');
 		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
-								<p class="change marginTop5 small"><b class="danger">Important save your login link/url to log in to your website next time:</b><br/> <span class="normalFont">' . self::url($this->get('config',
+								<p class="change marginTop5 small danger">Important: save your login URL to log in to your website next time:<br/><b><span class="normalFont">' . self::url($this->get('config',
 				'login')) . '</b></span>
 							 <div class="change">
 								<div data-target="config" id="login" class="editText">' . $this->get('config',
@@ -2061,10 +2066,11 @@ EOT;
 							 <p class="subTitle">Password</p>
 							 <div class="change">
 								<form action="' . $this->getCurrentPageUrl() . '" method="post">
-									<div class="input-group">
-										<input type="password" name="old_password" class="form-control normalFont" placeholder="Old password">
-										<span class="input-group-btn"></span><input type="password" name="new_password" class="form-control normalFont" placeholder="New password">
-										<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="lockIcon"></i> Change password</button></span>
+									<input type="password" name="old_password" class="wform-control normalFont" placeholder="Old password"><br>
+									<div class="winput-group">
+										<input type="password" name="new_password" class="wform-control normalFont" placeholder="New password"><span class="winput-group-btn"></span>
+										<input type="password" name="repeat_password" class="wform-control normalFont" placeholder="Repeat new password">
+										<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="lockIcon"></i> Change password</button></span>
 									</div>
 									<input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -2072,7 +2078,7 @@ EOT;
 <p class="subTitle">Backup</p>
 							 <div class="change">
 								<form action="' . $this->getCurrentPageUrl() . '" method="post">
-									<button type="submit" class="btn btn-block btn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
+									<button type="submit" class="wbtn wbtn-block wbtn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
@@ -2080,9 +2086,9 @@ EOT;
 							 <p class="change small">HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
 							 <div class="change">
 								<form method="post">
-									<div class="btn-group btn-group-justified w-100">
-										<div class="btn-group w-50"><button type="submit" class="btn btn-info" name="betterSecurity" value="on">ON (warning: may break your website)</button></div>
-										<div class="btn-group w-50"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div>
+									<div class="wbtn-group wbtn-group-justified w-100">
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="betterSecurity" value="on">ON (warning: may break your website)</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -2152,11 +2158,11 @@ EOT;
 
 		$parentSlug .= $item->slug . '/';
 		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav ' : '') . '">
-				  	  <a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
+						<a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
 
 		// Recursive method for rendering infinite subpages
 		if ($subpages) {
-			$output .= '<ul>';
+			$output .= '<ul class="subPageDropdown">';
 			foreach ($subpages as $subpage) {
 				if ($subpage->visibility === 'hide') {
 					continue;
@@ -2193,10 +2199,10 @@ EOT;
 		array_shift($arraySlugTree);
 		$subMenuLevel = count($arraySlugTree);
 		$output = '<div class="coll-xs-2 coll-sm-1">
-					   <i class="menu-toggle eyeIcon' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
+						<i class="menu-toggle eyeIcon' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
 					</div>
 					<div class="coll-xs-5 coll-md-8">
-					   <div data-target="menuItemUpdate" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText" style="margin-right: ' . (13 * $subMenuLevel) . 'px;">' . $value->name . '</div>
+						<div data-target="menuItemUpdate" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText" style="margin-right: ' . (13 * $subMenuLevel) . 'px;">' . $value->name . '</div>
 					</div>
 					<div class="coll-xs-5 coll-md-3 text-right">';
 
@@ -2206,11 +2212,11 @@ EOT;
 		if (!$isLastEl) {
 			$output .= '<a class="arrowIcon downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
 		}
-		$output .= '   <a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page">visit</a>
+		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page">visit</a>
 					</div>
 					<div class="coll-xs-12 text-right marginTop5 marginBottom20">
-					   <a class="menu-item-add btn btn-sm btn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
-					   <a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-sm btn-danger" data-menu="' . $menuKeyTree . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
+						<a class="menu-item-add wbtn wbtn-sm wbtn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
+						<a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="wbtn wbtn-sm wbtn-danger" data-menu="' . $menuKeyTree . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
 					</div>';
 
 		return $output;
@@ -2279,7 +2285,7 @@ EOT;
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
-					<a class="btn btn-info btn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
+					<a class="wbtn wbtn-info wbtn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
@@ -2295,11 +2301,11 @@ EOT;
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="btn btn-success btn-block btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm btn-block marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="btn btn-primary btn-sm btn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
-				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="btn btn-primary btn-sm btn-block" disabled>Active</a>' : '';
+				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
 				$html = "<div class='coll-sm-4'>
 							<div>
@@ -2333,9 +2339,9 @@ EOT;
 		$output .= '</div>
 					<p class="subTitle">Custom repository</p>
 					<form action="' . $this->getCurrentPageUrl() . '" method="post">
-						<div class="form-group">
-							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
-								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="addNewIcon"></i> Add</button></span>
+						<div class="wform-group">
+							<div class="change winput-group marginTop5"><input type="text" name="pluginThemeUrl" class="wform-control normalFont" placeholder="Enter URL to custom repository">
+								<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="addNewIcon"></i> Add</button></span>
 							</div>
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
@@ -2611,7 +2617,7 @@ EOT;
 		if (!empty($missingExtensions)) {
 			die('<p>The following extensions are required: '
 				. implode(', ', $missingExtensions)
-				. '. Please contact your host or configure your server to enable them.</p>');
+				. '. Contact your host or configure your server to enable them with correct permissions.</p>');
 		}
 	}
 }
