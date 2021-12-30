@@ -225,15 +225,41 @@ class Wcms
 					. $alert['class']
 					. (!$alert['sticky'] ? ' alert-dismissible' : '')
 					. '">'
-					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove()">&times;</button>' : '')
+					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove();">&times;</button>' : '')
 					. $alert['message']
-					. '</div>';
+					. $this->hideAlerts();
 			}
 		}
 		$output .= '</div>';
 		unset($_SESSION['alert']);
 		return $output;
 	}
+
+	/**
+	 * Allow admin to dismiss alerts
+	 * @return string
+	 */
+	public function hideAlerts(): string
+	{
+		if (!$this->loggedIn) {
+			return '';
+		}
+		$output = '';
+		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'false\');"><small>Hide all alerts until next login</small></a></div>
+					<script>
+						window.onload = function () {
+							var displayAlerts = localStorage.getItem("displayAlerts");
+							if (displayAlerts == "false") {
+								var alerts = document.getElementsByClassName("alert");
+								for(var i = 0; i < alerts.length; i++) {
+									alerts[i].style.display = "none";
+								}
+							}
+						}
+					</script>';
+		return $output;
+	}
+
 
 	/**
 	 * Get an asset (returns URL of the asset)
@@ -402,7 +428,7 @@ class Wcms
 					'title' => '404',
 					'keywords' => '404',
 					'description' => '404',
-					'content' => '<h1>Sorry, page not found. :(</h1>',
+					'content' => '<center><h1>404 - Page not found</h1></center>',
 					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'home' => [
@@ -415,7 +441,7 @@ class Wcms
 
 <p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>
 
-<p>To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>',
+<p>To install an awesome editor, open Settings/Plugins and click Install Summernote.</p>',
 					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'how-to' => [
@@ -739,7 +765,7 @@ class Wcms
 	{
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.24/wcms-admin.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.25/wcms-admin.min.css" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -848,7 +874,7 @@ EOT;
 
 		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		if (count(get_object_vars($allMenuItems)) === 1) {
-			$this->alert('danger', 'Last page cannot be deleted. At least one page must exist.');
+			$this->alert('danger', 'Last page cannot be deleted - at least one page must exist.');
 			$this->redirect();
 		}
 
@@ -1464,7 +1490,7 @@ EOT;
 			$this->saveAdminLoginIP();
 			$this->redirect();
 		}
-		$this->alert('danger', '<center><b>Wrong password</b></center>', 1);
+		$this->alert('test', '<script>alert("Wrong password")</script>', 1);
 		$this->redirect($this->get('config', 'login'));
 	}
 
@@ -1510,14 +1536,14 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-		    <style>.ShowUpdate{display: block !important}</style>
+			<style>.showUpdate{display: block !important}</style>
 				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per week.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="winput-group text-center">
 						<h1>Login to your website</h1>
 						<input type="password" class="wform-control" id="password" name="password" placeholder="Password" autofocus><br><br>
 						<span class="winput-group-btn">
-							<button type="submit" class="wbtn wbtn-info" onclick="document.getElementsByClassName(\'wUpdate\')[0].classList.toggle(\'ShowUpdate\');">Login</button>
+							<button type="submit" class="wbtn wbtn-info" onclick="document.getElementsByClassName(\'wUpdate\')[0].classList.toggle(\'showUpdate\'); localStorage.clear();">Login</button>
 						</span>
 					</div>
 				</form>'
@@ -1896,7 +1922,7 @@ EOT;
 			$newUrl = $_SESSION['redirect_to'];
 			$newPageName = $_SESSION['redirect_to_name'];
 			unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
-			$this->alert('success', "Page <b>$newPageName</b> created.");
+			$this->alert('success', "Page <b>$newPageName</b> created. Click <a href=" . $newUrl . ">here</a> to open it.");
 			$this->redirect($newUrl);
 		}
 		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
@@ -2102,8 +2128,8 @@ EOT;
 								</form>
 							 </div>
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
-							 <p class="subTitle">Force HTTPS (SSL)</p>
-							 <p class="change small">The WCMS automatically checks for SSL, but here you can force to always use HTTPS.</p>
+							 <p class="subTitle">Force HTTPS</p>
+							 <p class="change small">WonderCMS automatically checks for SSL, this will force to always use HTTPS.</p>
 							 <div class="change">
 								<form method="post">
 									<div class="wbtn-group wbtn-group-justified w-100">
@@ -2177,7 +2203,7 @@ EOT;
 		}
 
 		$parentSlug .= $item->slug . '/';
-		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav ' : '') . '">
+		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav' : '') . '">
 						<a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
 
 		// Recursive method for rendering infinite subpages
@@ -2288,11 +2314,11 @@ EOT;
 		$getIPs = $this->get('config', 'lastLogins') ?? [];
 		$renderIPs = '';
 		foreach ($getIPs as $time => $adminIP) {
-			$renderIPs .= sprintf('<li>%s - %s</li>', date('M d, Y H:i:s', strtotime($time)), $adminIP);
+			$renderIPs .= sprintf('%s - %s<br />', date('M d, Y H:i:s', strtotime($time)), $adminIP);
 		}
 		return '<p class="subTitle">Last 5 logins</p>
 				<div class="change">
-					<ul>' . $renderIPs . '</ul>
+					' . $renderIPs . '
 				</div>';
 	}
 
@@ -2305,7 +2331,7 @@ EOT;
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
-					<a class="wbtn wbtn-info wbtn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
+					<a class="wbtn wbtn-info wbtn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates" onclick="localStorage.clear();"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
@@ -2576,9 +2602,8 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-		$wcms = (new Wcms);
-
-		return ($wcms->isHttpsForced() || $wcms->isCurrentlyOnSSL() ? 'https' : 'http')
+		// missing isHttpsForced
+		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on' ? 'https' : 'http')
 			. '://' . $_SERVER['SERVER_NAME']
 			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
 			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
@@ -2656,7 +2681,7 @@ EOT;
 		}
 		return $reindexObject;
 	}
-
+	
 	/**
 	 * Check if user has forced https
 	 * @return bool
@@ -2675,5 +2700,5 @@ EOT;
 		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
 			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
 			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-	}
+	}	
 }
