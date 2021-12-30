@@ -67,6 +67,9 @@ class Wcms
 	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
 	protected $themesPluginsCachePath;
 
+    /** @var string $securityCachePath path to security json file with force https caching data */
+    protected $securityCachePath;
+
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
 
@@ -82,7 +85,7 @@ class Wcms
 	/** @var string $headerResponse header status */
 	public $headerResponse = 'HTTP/1.0 200 OK';
 
-	/**
+    /**
 	 * Constructor
 	 *
 	 * @param string $dataFolder
@@ -118,6 +121,7 @@ class Wcms
 		$this->dbPath = sprintf('%s/%s', $this->dataPath, $dbName);
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
 		$this->themesPluginsCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
+		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
 	}
 
 	/**
@@ -144,6 +148,7 @@ class Wcms
 			$this->changePageThemeAction();
 			$this->backupAction();
 			$this->forceHttpsAction();
+			$this->saveChangesPopupAction();
 			$this->deletePageAction();
 			$this->saveAction();
 			$this->updateAction();
@@ -218,7 +223,16 @@ class Wcms
 			return '';
 		}
 		$output = '';
-		$output .= '<div class="alertWrapper">';
+		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
+        $output .= '<script>
+                        const displayAlerts = localStorage.getItem("displayAlerts");
+                        if (displayAlerts === "false") {
+                            const alertWrapper = document.getElementById("alertWrapperId");
+                            if (alertWrapper) {
+                                alertWrapper.style.display = "none";
+                            }
+                        }
+					</script>';
 		foreach ($_SESSION['alert'] as $alertClass) {
 			foreach ($alertClass as $alert) {
 				$output .= '<div class="alert alert-'
@@ -245,21 +259,9 @@ class Wcms
 			return '';
 		}
 		$output = '';
-		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'false\');"><small>Hide all alerts until next login</small></a></div>
-					<script>
-						window.onload = function () {
-							var displayAlerts = localStorage.getItem("displayAlerts");
-							if (displayAlerts == "false") {
-								var alerts = document.getElementsByClassName("alert");
-								for(var i = 0; i < alerts.length; i++) {
-									alerts[i].style.display = "none";
-								}
-							}
-						}
-					</script>';
+		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'false\');"><small>Hide all alerts until next login</small></a></div>';
 		return $output;
 	}
-
 
 	/**
 	 * Get an asset (returns URL of the asset)
@@ -302,10 +304,37 @@ class Wcms
 	{
 		if (isset($_POST['forceHttps']) && $this->verifyFormActions()) {
 			$this->set('config', 'forceHttps', $_POST['forceHttps'] === 'true');
+            $this->updateSecurityCache();
+
 			$this->alert('success', 'Force HTTPs was successfully changed.');
 			$this->redirect();
 		}
 	}
+
+	/**
+	 * Save if WCMS should show the popup before saving the page content changes
+	 * @return void
+	 * @throws Exception
+	 */
+	public function saveChangesPopupAction(): void
+	{
+		if (isset($_POST['saveChangesPopup']) && $this->verifyFormActions()) {
+			$this->set('config', 'saveChangesPopup', $_POST['saveChangesPopup'] === 'true');
+			$this->alert('success', 'Saving the confirmation popup settings changed.');
+			$this->redirect();
+		}
+	}
+
+    /**
+     * Update cache for security settings.
+     * @return void
+     */
+    public function updateSecurityCache(): void
+    {
+        $content = ['forceHttps' => $this->isHttpsForced()];
+        $json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        file_put_contents($this->securityCachePath, $json, LOCK_EX);
+    }
 
 	/**
 	 * Get a static block
@@ -397,6 +426,7 @@ class Wcms
 				'login' => 'loginURL',
 				'forceLogout' => false,
 				'forceHttps' => false,
+				'saveChangesPopup' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'defaultRepos' => [
@@ -572,10 +602,10 @@ class Wcms
 		$menuSelectionObject->{$menuKey}->name = $name;
 		$menuSelectionObject->{$menuKey}->slug = $slug;
 		$menuSelectionObject->{$menuKey}->visibility = $visibility;
-		$menuSelectionObject->{$menuKey}->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+		$menuSelectionObject->{$menuKey}->{self::DB_MENU_ITEMS_SUBPAGE} = $menuSelectionObject->{$menuKey}->{self::DB_MENU_ITEMS_SUBPAGE} ?? new StdClass;
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 
-		$this->deletePageFromDb($slugTree);
+		$this->updatePageSlug($slugTree, $slug);
 		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
 			// Change old slug with new one
 			array_pop($slugTree);
@@ -755,6 +785,28 @@ class Wcms
 		}
 
 		unset($selectedPage->{$slug});
+	}
+
+	/**
+	 * Update existing page slug
+	 *
+	 * @param array $slugTree
+	 * @param string $newSlugName
+	 */
+	public function updatePageSlug(array $slugTree, string $newSlugName): void
+	{
+		$slug = array_pop($slugTree);
+
+		$selectedPage = $this->db->{self::DB_PAGES_KEY};
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				$selectedPage = $selectedPage->{$childSlug}->subpages;
+			}
+		}
+
+        $selectedPage->{$newSlugName} = $selectedPage->{$slug};
+        unset($selectedPage->{$slug});
+        $this->save();
 	}
 
 	/**
@@ -1148,7 +1200,8 @@ EOT;
 	 */
 	private function forceSSL(): void
 	{
-		if ($this->isHttpsForced() && !$this->isCurrentlyOnSSL()) {
+		if ($this->isHttpsForced() && !Wcms::isCurrentlyOnSSL()) {
+            $this->updateSecurityCache();
 			$this->redirect();
 		}
 	}
@@ -1421,7 +1474,7 @@ EOT;
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.1/wcms-admin.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.26/wcms-admin.min.js" integrity="sha384-lwdbkm/17hWy+Y4iBnY0iEp0FlaKvjdeTBZaRYM1DGPshGgxKoPaB87Xue26Wv1W" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1779,7 +1832,7 @@ EOT;
 		$pageData = null;
 		foreach ($arraySlugTree as $slug) {
 			if ($pageData === null) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$slug};
+				$pageData = $this->get(self::DB_PAGES_KEY)->{$slug} ?? null;
 				continue;
 			}
 
@@ -1998,6 +2051,7 @@ EOT;
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
+        <script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
@@ -2128,6 +2182,19 @@ EOT;
 								</form>
 							 </div>
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
+							 
+							 <p class="subTitle">Save confirmation popup</p>
+							 <p class="change small">If this is turned on, WonderCMS will always ask you to confirm any changes you make.</p>
+							 <div class="change">
+								<form method="post">
+									<div class="wbtn-group wbtn-group-justified w-100">
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="saveChangesPopup" value="true">ON</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="saveChangesPopup" value="false">OFF</button></div>
+									</div>
+									<input type="hidden" name="token" value="' . $this->getToken() . '">
+								</form>
+							 </div>
+							 
 							 <p class="subTitle">Force HTTPS</p>
 							 <p class="change small">WonderCMS automatically checks for SSL, this will force to always use HTTPS.</p>
 							 <div class="change">
@@ -2198,7 +2265,7 @@ EOT;
 	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
 	{
 		$subpages = false;
-		if (property_exists($item, 'subpages')) {
+		if (property_exists($item, 'subpages') && !empty((array) $item->subpages)) {
 			$subpages = $item->subpages;
 		}
 
@@ -2247,10 +2314,10 @@ EOT;
 		$output = '<div class="coll-xs-2 coll-sm-1">
 						<i class="menu-toggle eyeIcon' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
 					</div>
-					<div class="coll-xs-5 coll-md-8">
-						<div data-target="menuItemUpdate" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText" style="margin-right: ' . (13 * $subMenuLevel) . 'px;">' . $value->name . '</div>
+					<div class="coll-xs-4 coll-md-7">
+						<div data-target="menuItemUpdate" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText" style="margin-right: ' . (13.1 * $subMenuLevel) . 'px;">' . $value->name . '</div>
 					</div>
-					<div class="coll-xs-5 coll-md-3 text-right">';
+					<div class="coll-xs-6 coll-md-4 text-right">';
 
 		if (!$isFirstEl) {
 			$output .= '<a class="arrowIcon upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move up"></a>';
@@ -2258,7 +2325,7 @@ EOT;
 		if (!$isLastEl) {
 			$output .= '<a class="arrowIcon downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
 		}
-		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page">visit</a>
+		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page" style="display: inline;">visit</a>
 					</div>
 					<div class="coll-xs-12 text-right marginTop5 marginBottom20">
 						<a class="menu-item-add wbtn wbtn-sm wbtn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
@@ -2602,12 +2669,20 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-		// missing isHttpsForced
-		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on' ? 'https' : 'http')
-			. '://' . $_SERVER['SERVER_NAME']
-			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
-			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
-			. '/' . $location;
+        $showHttps = Wcms::isCurrentlyOnSSL();
+        $dataPath = sprintf('%s/%s', __DIR__, 'data');
+        $securityCachePath = sprintf('%s/%s', $dataPath, 'security.json');
+
+        if (is_file($securityCachePath) && file_exists($securityCachePath)) {
+            $securityCache = json_decode(file_get_contents($securityCachePath), true);
+            $showHttps = $securityCache['forceHttps'] ?? false;
+        }
+
+        return ($showHttps ? 'https' : 'http')
+            . '://' . $_SERVER['SERVER_NAME']
+            . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+            . ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
+            . '/' . $location;
 	}
 
 	/**
@@ -2643,6 +2718,17 @@ EOT;
 		$zip->close();
 		$this->redirect('data/files/' . $zipName);
 	}
+
+    /**
+     * Check if currently user is on https
+     * @return bool
+     */
+    public static function isCurrentlyOnSSL(): bool
+    {
+        return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
+            || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
+            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+    }
 
 	/**
 	 * Check compatibility
@@ -2681,7 +2767,7 @@ EOT;
 		}
 		return $reindexObject;
 	}
-	
+
 	/**
 	 * Check if user has forced https
 	 * @return bool
@@ -2692,13 +2778,11 @@ EOT;
 	}
 
 	/**
-	 * Check if currently user is on https
+	 * Check if user has confirmation dialog enabled
 	 * @return bool
 	 */
-	private function isCurrentlyOnSSL(): bool
+	private function isSaveChangesPopupEnabled(): bool
 	{
-		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
-			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
-			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-	}	
+		return $this->get('config', 'saveChangesPopup') ?? false;
+	}
 }
