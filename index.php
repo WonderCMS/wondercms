@@ -2071,7 +2071,7 @@ EOT;
 						</ul>
 						<div class="tab-content coll-md-8 coll-md-offset-2 offset-md-2">
 							<div role="tabpanel" class="tab-pane active" id="currentPage">';
-		if ($this->currentPageExists) {
+		if ($this->currentPageExists && $currentPageData) {
 			$output .= '
 								<p class="subTitle">Page title</p>
 								<div class="change">
