@@ -284,7 +284,8 @@ input::-moz-focus-inner {
 			border: 0;
 			outline: 0;
 			padding: 15px;
-			border-radius: 10px
+			border-radius: 10px;
+			width: 300px
 		}
 
 /* Wrapper */
@@ -400,10 +401,6 @@ input::-moz-focus-inner {
 				line-height: inherit;
 				padding: 0
 			}
-			#topMenu nav a:after {
-				background-image: none;
-				background-color: #b74e91
-			}
 			#topMenu nav > ul > li {
 				margin: 0 1em 0 1em;
 				opacity: 1;
@@ -483,59 +480,74 @@ input::-moz-focus-inner {
 	}
 
 /* Submenus */
-.subPageDropdown a {
-	border: 0 !important
-}
+	.subPageDropdown a {
+		border: 0 !important
+	}
+			
+	.subPageDropdown ul {
+		margin: 0;
+		padding-left: 0
+	}
+
+	.subPageDropdown li {
+		color: #fff;
+		display: block;
+		float: left;
+		position: relative;
+		padding: 0 1em 0 1em;
+		text-decoration: none;
+		transition-duration: 0.5s
+	}
 		
-.subPageDropdown ul {
-	margin: 0;
-	padding-left: 0
-}
+	#topMenu li a {
+		color: rgba(255, 255, 255, 0.8)
+	}
 
-.subPageDropdown li {
-	color: #fff;
-	display: block;
-	float: left;
-	position: relative;
-	padding: 0 1em 0 1em;
-	text-decoration: none;
-	transition-duration: 0.5s
-}
-	
-#topMenu li a {
-	color: rgba(255, 255, 255, 0.8)
-}
+	#topMenu li:hover,
+	#topMenu li:focus-within {
+		cursor: pointer
+	}
 
-#topMenu li:hover,
-#topMenu li:focus-within {
-	cursor: pointer
-}
+	#topMenu li:focus-within a {
+		outline: none
+	}
 
-#topMenu li:focus-within a {
-	outline: none
-}
+	ul.subPageDropdown {
+		visibility: hidden;
+		opacity: 0;
+		position: absolute;
+		margin-top: 10px;
+		display: none;
+		padding-left: 10px !important
+	}
 
-ul.subPageDropdown {
-	visibility: hidden;
-	opacity: 0;
-	position: absolute;
-	margin-top: 10px;
-	display: none;
-	padding-left: 10px !important
-}
+	#topMenu ul li:hover > ul,
+	#topMenu ul li:focus-within > ul,
+	#topMenu ul li ul:hover,
+	#topMenu ul li ul:focus {
+		visibility: visible;
+		opacity: 1;
+		display: block
+	}
 
-#topMenu ul li:hover > ul,
-#topMenu ul li:focus-within > ul,
-#topMenu ul li ul:hover,
-#topMenu ul li ul:focus {
-	visibility: visible;
-	opacity: 1;
-	display: block
-}
+	#topMenu ul li ul li {
+		clear: both;
+		text-align: left;
+		background-color: rgba(0, 0, 0, 0.30);
+		white-space: nowrap
+	}
 
-#topMenu ul li ul li {
-	clear: both;
-	text-align: left;
-	background-color: rgba(0, 0, 0, 0.30);
-	white-space: nowrap
-}
+	/* Submenus dropdown arrow */
+	.menu li > a:after {
+		content: ' ▼';
+		font-weight: bold;
+	}
+
+	.menu > li > a:after {
+		content: ' ▼';
+		font-weight: bold
+	}
+
+	.menu li > a:only-child:after {
+		content: ''
+	}
