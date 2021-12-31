@@ -21,17 +21,16 @@
 		<meta name="twitter:description" content="<?= $Wcms->page('description') ?>" />
 
 		<!-- Website and page title -->
-			<title>
+		<title>
 			<?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?>
 
-			</title>
-
-		<!-- Theme CSS -->
-		<link rel="stylesheet" rel="preload" as="style" href="<?= $Wcms->asset('css/style.css') ?>">
+		</title>
 
 		<!-- Admin CSS -->
 		<?= $Wcms->css() ?>
-
+		
+		<!-- Theme CSS -->
+		<link rel="stylesheet" rel="preload" as="style" href="<?= $Wcms->asset('css/style.css') ?>">
 	</head>
 	
 	<body>
