@@ -13,11 +13,11 @@
 	src: url('fonts/catamaran-v7-latin-ext_latin-700.woff2') format('woff2')
 }
 @font-face {
-		font-family: 'Catamaran';
-		font-style: normal;
-		font-weight: 900;
-		font-display: swap;
-		src: url('fonts/catamaran-v7-latin-ext_latin-900.woff2') format('woff2')
+	font-family: 'Catamaran';
+	font-style: normal;
+	font-weight: 900;
+	font-display: swap;
+	src: url('fonts/catamaran-v7-latin-ext_latin-900.woff2') format('woff2')
 }
 
 html, body, div, span, applet, object,
