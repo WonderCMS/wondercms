@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.1.4');
+define('VERSION', '3.2.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -27,6 +27,13 @@ class Wcms
 		'exists' => 'exist',
 	];
 
+	/** Database main keys */
+	public const DB_CONFIG = 'config';
+	public const DB_MENU_ITEMS = 'menuItems';
+	public const DB_MENU_ITEMS_SUBPAGE = 'subpages';
+	public const DB_PAGES_KEY = 'pages';
+	public const DB_PAGES_SUBPAGE_KEY = 'subpages';
+
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters */
 	public const MIN_PASSWORD_LENGTH = 8;
 
@@ -38,6 +45,9 @@ class Wcms
 
 	/** @var string $currentPage - current page */
 	public $currentPage = '';
+
+	/** @var array $currentPageTree - Tree hierarchy of the current page */
+	public $currentPageTree = [];
 
 	/** @var bool $currentPageExists - check if current page exists */
 	public $currentPageExists = false;
@@ -57,6 +67,9 @@ class Wcms
 	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
 	protected $themesPluginsCachePath;
 
+    /** @var string $securityCachePath path to security json file with force https caching data */
+    protected $securityCachePath;
+
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
 
@@ -72,7 +85,7 @@ class Wcms
 	/** @var string $headerResponse header status */
 	public $headerResponse = 'HTTP/1.0 200 OK';
 
-	/**
+    /**
 	 * Constructor
 	 *
 	 * @param string $dataFolder
@@ -108,6 +121,7 @@ class Wcms
 		$this->dbPath = sprintf('%s/%s', $this->dataPath, $dbName);
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
 		$this->themesPluginsCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
+		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
 	}
 
 	/**
@@ -118,8 +132,9 @@ class Wcms
 	 */
 	public function init(): void
 	{
-		$this->pageStatus();
+		$this->forceSSL();
 		$this->loginStatus();
+		$this->pageStatus();
 		$this->logoutAction();
 		$this->loginAction();
 		$this->notFoundResponse();
@@ -132,7 +147,8 @@ class Wcms
 			$this->deleteFileThemePluginAction();
 			$this->changePageThemeAction();
 			$this->backupAction();
-			$this->betterSecurityAction();
+			$this->forceHttpsAction();
+			$this->saveChangesPopupAction();
 			$this->deletePageAction();
 			$this->saveAction();
 			$this->updateAction();
@@ -207,20 +223,43 @@ class Wcms
 			return '';
 		}
 		$output = '';
-		$output .= '<div class="alertWrapper">';
+		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
+        $output .= '<script>
+                        const displayAlerts = localStorage.getItem("displayAlerts");
+                        if (displayAlerts === "false") {
+                            const alertWrapper = document.getElementById("alertWrapperId");
+                            if (alertWrapper) {
+                                alertWrapper.style.display = "none";
+                            }
+                        }
+					</script>';
 		foreach ($_SESSION['alert'] as $alertClass) {
 			foreach ($alertClass as $alert) {
 				$output .= '<div class="alert alert-'
 					. $alert['class']
 					. (!$alert['sticky'] ? ' alert-dismissible' : '')
 					. '">'
-					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '')
+					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove();">&times;</button>' : '')
 					. $alert['message']
-					. '</div>';
+					. $this->hideAlerts();
 			}
 		}
 		$output .= '</div>';
 		unset($_SESSION['alert']);
+		return $output;
+	}
+
+	/**
+	 * Allow admin to dismiss alerts
+	 * @return string
+	 */
+	public function hideAlerts(): string
+	{
+		if (!$this->loggedIn) {
+			return '';
+		}
+		$output = '';
+		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'false\');"><small>Hide all alerts until next login</small></a></div>';
 		return $output;
 	}
 
@@ -257,27 +296,45 @@ class Wcms
 	}
 
 	/**
-	 * Replace the .htaccess with one adding security settings
+	 * Save if WCMS should force https
 	 * @return void
+	 * @throws Exception
 	 */
-	public function betterSecurityAction(): void
+	public function forceHttpsAction(): void
 	{
-		if (isset($_POST['betterSecurity']) && $this->verifyFormActions()) {
-			if ($_POST['betterSecurity'] === 'on') {
-				if ($contents = $this->getFileFromRepo('htaccess-ultimate', self::WCMS_CDN_REPO)) {
-					file_put_contents('.htaccess', trim($contents));
-				}
-				$this->alert('success', 'Improved security turned ON.');
-				$this->redirect();
-			} elseif ($_POST['betterSecurity'] === 'off') {
-				if ($contents = $this->getFileFromRepo('htaccess', self::WCMS_CDN_REPO)) {
-					file_put_contents('.htaccess', trim($contents));
-				}
-				$this->alert('success', 'Improved security turned OFF.');
-				$this->redirect();
-			}
+		if (isset($_POST['forceHttps']) && $this->verifyFormActions()) {
+			$this->set('config', 'forceHttps', $_POST['forceHttps'] === 'true');
+            $this->updateSecurityCache();
+
+			$this->alert('success', 'Force HTTPs was successfully changed.');
+			$this->redirect();
 		}
 	}
+
+	/**
+	 * Save if WCMS should show the popup before saving the page content changes
+	 * @return void
+	 * @throws Exception
+	 */
+	public function saveChangesPopupAction(): void
+	{
+		if (isset($_POST['saveChangesPopup']) && $this->verifyFormActions()) {
+			$this->set('config', 'saveChangesPopup', $_POST['saveChangesPopup'] === 'true');
+			$this->alert('success', 'Saving the confirmation popup settings changed.');
+			$this->redirect();
+		}
+	}
+
+    /**
+     * Update cache for security settings.
+     * @return void
+     */
+    public function updateSecurityCache(): void
+    {
+        $content = ['forceHttps' => $this->isHttpsForced()];
+        $json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        file_put_contents($this->securityCachePath, $json, LOCK_EX);
+    }
 
 	/**
 	 * Get a static block
@@ -304,7 +361,7 @@ class Wcms
 	 */
 	public function changePasswordAction(): void
 	{
-		if (isset($_POST['old_password'], $_POST['new_password'])
+		if (isset($_POST['old_password'], $_POST['new_password'], $_POST['repeat_password'])
 			&& $_SESSION['token'] === $_POST['token']
 			&& $this->loggedIn
 			&& $this->hashVerify($_POST['token'])) {
@@ -321,14 +378,21 @@ class Wcms
 				$this->redirect();
 				return;
 			}
+			if ($_POST['new_password'] !== $_POST['repeat_password']) {
+				$this->alert('danger',
+					'New passwords do not match. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Re-open security settings</b></a>');
+				$this->redirect();
+				return;
+			}
 			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
 			$this->set('config', 'forceLogout', true);
 			$this->logoutAction(true);
+			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
 	}
 
 	/**
-	 * Check if we can run WonderCMS properly
+	 * Check if folders are writable
 	 * Executed once before creating the database file
 	 *
 	 * @param string $folder the relative path of the folder to check/create
@@ -346,7 +410,7 @@ class Wcms
 	}
 
 	/**
-	 * Initialize the JSON database if doesn't exist
+	 * Initialize the JSON database if it doesn't exist
 	 * @return void
 	 */
 	public function createDb(): void
@@ -355,12 +419,14 @@ class Wcms
 		$this->checkMinimumRequirements();
 		$password = $this->generatePassword();
 		$this->db = (object)[
-			'config' => [
+			self::DB_CONFIG => [
 				'siteTitle' => 'Website title',
-				'theme' => 'essence',
+				'theme' => 'sky',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'forceLogout' => false,
+				'forceHttps' => false,
+				'saveChangesPopup' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'defaultRepos' => [
@@ -376,12 +442,14 @@ class Wcms
 					'0' => [
 						'name' => 'Home',
 						'slug' => 'home',
-						'visibility' => 'show'
+						'visibility' => 'show',
+						self::DB_MENU_ITEMS_SUBPAGE => new stdClass()
 					],
 					'1' => [
-						'name' => 'Example',
-						'slug' => 'example',
-						'visibility' => 'show'
+						'name' => 'How to',
+						'slug' => 'how-to',
+						'visibility' => 'show',
+						self::DB_MENU_ITEMS_SUBPAGE => new stdClass()
 					]
 				]
 			],
@@ -390,34 +458,39 @@ class Wcms
 					'title' => '404',
 					'keywords' => '404',
 					'description' => '404',
-					'content' => '<h1>Sorry, page not found. :(</h1>'
+					'content' => '<center><h1>404 - Page not found</h1></center>',
+					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'home' => [
 					'title' => 'Home',
-					'keywords' => 'Keywords, are, good, for, search, engines',
-					'description' => 'A short description is also good.',
-					'content' => '<h1>It\'s alive!</h1>
+					'keywords' => 'Enter, page, keywords, for, search, engines',
+					'description' => 'A page description is also good for search engines.',
+					'content' => '<h1>Welcome to your website</h1>
 
-<h4><a href="' . self::url('loginURL') . '">Click here to login.</a> Your password is: <b>' . $password . '</b></a></h4>
+<p>Your password for editing everything is: <b>' . $password . '</b></p>
 
-<p class="mt-4">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>'
+<p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>
+
+<p>To install an awesome editor, open Settings/Plugins and click Install Summernote.</p>',
+					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
-				'example' => [
-					'title' => 'Example',
-					'keywords' => 'Keywords, are, good, for, search, engines',
-					'description' => 'A short description is also good.',
-					'content' => '<h1 class="mb-3">Easy editing</h1>
-<p>Click anywhere to edit, click outside the area to save. Changes are live and shown immediately.</p>
+				'how-to' => [
+					'title' => 'How to',
+					'keywords' => 'Enter, keywords, for, this page',
+					'description' => 'A page description is also good for search engines.',
+					'content' => '<h2>Easy editing</h2>
+<p>After logging in, click anywhere to edit and click outside to save. Changes are live and shown immediately.</p>
 
-<h2 class="mt-5 mb-3">Create new page</h2>
-<p>Pages can be created in the Menu above.</p>
+<h2>Create new page</h2>
+<p>Pages can be created in the Settings.</p>
 
-<h2 class="mt-5 mb-3">Install themes and plugins</h2>
+<h2>Start a blog or change your theme</h2>
 <p>To install, update or remove themes/plugins, visit the Settings.</p>
 
-<h2 class="mt-5 mb-3"><b>Please support WonderCMS</b></h2>
-<p>WonderCMS has been free for over 10 years.</p>
-<p><a href="https://swag.wondercms.com"><u>Click here to support us by getting a t-shirt</u></a> or <a href="https://www.wondercms.com/donate"><u>here to donate</u></a>.</p>'
+<h2><b>Support WonderCMS</b></h2>
+<p>WonderCMS is free for over 12 years.<br>
+<a href="https://swag.wondercms.com" target="_blank"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate" target="_blank"><u>with a donation</u></a>.</p>',
+					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				]
 			],
 			'blocks' => [
@@ -439,76 +512,301 @@ class Wcms
 	/**
 	 * Create menu item
 	 *
-	 * @param string $content
+	 * @param string $name
+	 * @param string|null $menu
+	 * @param bool $createPage
+	 * @param string $visibility show or hide
+	 * @return void
+	 * @throws Exception
+	 */
+	public function createMenuItem(
+		string $name,
+		string $menu = null,
+		string $visibility = 'hide',
+		bool $createPage = false
+	): void {
+		if (!in_array($visibility, ['show', 'hide'], true)) {
+			return;
+		}
+		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
+		$slug = $this->createUniqueSlug($name, $menu);
+
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
+		$slugTree = [];
+		if (count($menuTree)) {
+			foreach ($menuTree as $childMenuKey) {
+				$childMenu = $menuSelectionObject->{$childMenuKey};
+
+				if (!property_exists($childMenu, self::DB_MENU_ITEMS_SUBPAGE)) {
+					$childMenu->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+				}
+
+				$menuSelectionObject = $childMenu->{self::DB_MENU_ITEMS_SUBPAGE};
+				$slugTree[] = $childMenu->slug;
+			}
+		}
+		$slugTree[] = $slug;
+
+		$menuCount = count(get_object_vars($menuSelectionObject));
+
+		$menuSelectionObject->{$menuCount} = new stdClass;
+		$menuSelectionObject->{$menuCount}->name = $name;
+		$menuSelectionObject->{$menuCount}->slug = $slug;
+		$menuSelectionObject->{$menuCount}->visibility = $visibility;
+		$menuSelectionObject->{$menuCount}->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+
+		if ($createPage) {
+			$this->createPage($slugTree);
+			$_SESSION['redirect_to_name'] = $name;
+			$_SESSION['redirect_to'] = implode('/', $slugTree);
+		}
+	}
+
+	/**
+	 * Update menu item
+	 *
+	 * @param string $name
 	 * @param string $menu
 	 * @param string $visibility show or hide
 	 * @return void
 	 * @throws Exception
 	 */
-	public function createMenuItem(string $content, string $menu, string $visibility = 'hide'): void
+	public function updateMenuItem(string $name, string $menu, string $visibility = 'hide'): void
 	{
-		$conf = 'config';
-		$field = 'menuItems';
-		$exist = is_numeric($menu);
-		$content = empty($content) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $content);
-		$slug = $this->slugify($content);
-		$menuCount = count(get_object_vars($this->get($conf, $field)));
+		if (!in_array($visibility, ['show', 'hide'], true)) {
+			return;
+		}
+		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
+		$slug = $this->createUniqueSlug($name, $menu);
 
-		$db = $this->getDb();
-		foreach ($db->config->{$field} as $value) {
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$menuTree = explode('-', $menu);
+		$slugTree = [];
+		$menuKey = array_pop($menuTree);
+		if (count($menuTree) > 0) {
+			foreach ($menuTree as $childMenuKey) {
+				$childMenu = $menuSelectionObject->{$childMenuKey};
+
+				if (!property_exists($childMenu, self::DB_MENU_ITEMS_SUBPAGE)) {
+					$childMenu->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
+				}
+
+				$menuSelectionObject = $childMenu->{self::DB_MENU_ITEMS_SUBPAGE};
+				$slugTree[] = $childMenu->slug;
+			}
+		}
+
+		$slugTree[] = $menuSelectionObject->{$menuKey}->slug;
+		$menuSelectionObject->{$menuKey}->name = $name;
+		$menuSelectionObject->{$menuKey}->slug = $slug;
+		$menuSelectionObject->{$menuKey}->visibility = $visibility;
+		$menuSelectionObject->{$menuKey}->{self::DB_MENU_ITEMS_SUBPAGE} = $menuSelectionObject->{$menuKey}->{self::DB_MENU_ITEMS_SUBPAGE} ?? new StdClass;
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+
+		$this->updatePageSlug($slugTree, $slug);
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
+			// Change old slug with new one
+			array_pop($slugTree);
+			$slugTree[] = $slug;
+			$this->set(self::DB_CONFIG, 'defaultPage', implode('/', $slugTree));
+		}
+	}
+
+	/**
+	 * Check if slug already exists and creates unique one
+	 *
+	 * @param string $slug
+	 * @param string|null $menu
+	 * @return string
+	 */
+	public function createUniqueSlug(string $slug, string $menu = null): string
+	{
+		$slug = $this->slugify($slug);
+		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$menuCount = count(get_object_vars($allMenuItems));
+
+		// Check if it is subpage
+		$menuTree = $menu ? explode('-', $menu) : [];
+		if (count($menuTree)) {
+			foreach ($menuTree as $childMenuKey) {
+				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages;
+			}
+		}
+
+		foreach ($allMenuItems as $value) {
 			if ($value->slug === $slug) {
 				$slug .= '-' . $menuCount;
 				break;
 			}
 		}
-		if (!$exist) {
-			$this->set($conf, $field, $menuCount, new StdClass);
-			$this->set($conf, $field, $menuCount, 'name', str_replace('-', ' ', $content));
-			$this->set($conf, $field, $menuCount, 'slug', $slug);
-			$this->set($conf, $field, $menuCount, 'visibility', $visibility);
-			if ($menu) {
-				$this->createPage($slug);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $slug;
-			}
-		} else {
-			$oldSlug = $this->get($conf, $field, $menu, 'slug');
-			$this->set($conf, $field, $menu, 'name', $content);
-			$this->set($conf, $field, $menu, 'slug', $slug);
-			$this->set($conf, $field, $menu, 'visibility', $visibility);
 
-			$oldPageContent = $this->get('pages', $oldSlug);
-			$this->unset('pages', $oldSlug);
-			$this->set('pages', $slug, $oldPageContent);
-			$this->set('pages', $slug, 'title', $content);
-			if ($this->get('config', 'defaultPage') === $oldSlug) {
-				$this->set('config', 'defaultPage', $slug);
-			}
-		}
+		return $slug;
 	}
 
 	/**
 	 * Create new page
 	 *
-	 * @param string $slug the name of the page in URL
+	 * @param array|null $slugTree
+	 * @param bool $createMenuItem
 	 * @return void
 	 * @throws Exception
 	 */
-	public function createPage($slug = ''): void
+	public function createPage(array $slugTree = null, bool $createMenuItem = false): void
 	{
-		$this->db->pages->{$slug ?: $this->currentPage} = new stdClass;
-		$this->save();
-		$pageName = $slug ?: $this->slugify($this->currentPage);
-		$this->set('pages', $pageName, 'title', (!$slug)
-			? mb_convert_case(str_replace('-', ' ', $this->currentPage), MB_CASE_TITLE)
-			: mb_convert_case(str_replace('-', ' ', $slug), MB_CASE_TITLE));
-		$this->set('pages', $pageName, 'keywords',
-			'Keywords, are, good, for, search, engines');
-		$this->set('pages', $pageName, 'description',
-			'A short description is also good.');
-		if (!$slug) {
-			$this->createMenuItem($this->slugify($this->currentPage), '');
+		$pageExists = false;
+		$pageData = null;
+		foreach ($slugTree as $parentPage) {
+			if (!$pageData) {
+				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage};
+				continue;
+			}
+
+			$pageData = $pageData->subpages->{$parentPage} ?? null;
+			$pageExists = !empty($pageData);
 		}
+
+		if ($pageExists) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
+
+		$slug = array_pop($slugTree);
+		$pageSlug = $slug ?: $this->slugify($this->currentPage);
+		$allPages = $selectedPage = clone $this->get(self::DB_PAGES_KEY);
+		$menuKey = null;
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				// Find menu key tree
+				if ($createMenuItem) {
+					$menuKey = $this->findAndUpdateMenuKey($menuKey, $childSlug);
+				}
+
+				// Create new parent page if it doesn't exist
+				if (!$selectedPage->{$childSlug}) {
+					$parentTitle = mb_convert_case(str_replace('-', ' ', $childSlug), MB_CASE_TITLE);
+					$selectedPage->{$childSlug}->title = $parentTitle;
+					$selectedPage->{$childSlug}->keywords = 'Keywords, are, good, for, search, engines';
+					$selectedPage->{$childSlug}->description = 'A short description is also good.';
+
+					if ($createMenuItem) {
+						$this->createMenuItem($parentTitle, $menuKey);
+						$menuKey = $this->findAndUpdateMenuKey($menuKey, $childSlug); // Add newly added menu key
+					}
+				}
+
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+			}
+		}
+
+		$pageTitle = !$slug ? str_replace('-', ' ', $pageSlug) : $pageSlug;
+
+		$selectedPage->{$slug} = new stdClass;
+		$selectedPage->{$slug}->title = mb_convert_case($pageTitle, MB_CASE_TITLE);
+		$selectedPage->{$slug}->keywords = 'Keywords, are, good, for, search, engines';
+		$selectedPage->{$slug}->description = 'A short description is also good.';
+		$selectedPage->{$slug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+		$this->set(self::DB_PAGES_KEY, $allPages);
+
+		if ($createMenuItem) {
+			$this->createMenuItem($pageTitle, $menuKey);
+		}
+	}
+
+	/**
+	 * Find and update menu key tree based on newly requested slug
+	 * @param string|null $menuKey
+	 * @param string $slug
+	 * @return string
+	 */
+	private function findAndUpdateMenuKey(?string $menuKey, string $slug): string
+	{
+		$menuKeys = $menuKey !== null ? explode('-', $menuKey) : $menuKey;
+		$menuItems = json_decode(json_encode($this->get(self::DB_CONFIG, self::DB_MENU_ITEMS)), true);
+		foreach ($menuKeys as $key) {
+			$menuItems = $menuItems[$key][self::DB_MENU_ITEMS_SUBPAGE] ?? [];
+		}
+
+		if (false !== ($index = array_search($slug, array_column($menuItems, 'slug'), true))) {
+			$menuKey = $menuKey === null ? $index : $menuKey . '-' . $index;
+		} elseif ($menuKey === null) {
+			$menuKey = count($menuItems);
+		}
+
+		return $menuKey;
+	}
+
+	/**
+	 * Update page data
+	 *
+	 * @param array $slugTree
+	 * @param string $fieldname
+	 * @param string $content
+	 * @return void
+	 * @throws Exception
+	 */
+	public function updatePage(array $slugTree, string $fieldname, string $content): void
+	{
+		$slug = array_pop($slugTree);
+		$allPages = $selectedPage = clone $this->get(self::DB_PAGES_KEY);
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+			}
+		}
+
+		$selectedPage->{$slug}->{$fieldname} = $content;
+		$this->set(self::DB_PAGES_KEY, $allPages);
+	}
+
+	/**
+	 * Delete existing page by slug
+	 *
+	 * @param array|null $slugTree
+	 */
+	public function deletePageFromDb(array $slugTree = null): void
+	{
+		$slug = array_pop($slugTree);
+
+		$selectedPage = $this->db->{self::DB_PAGES_KEY};
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				$selectedPage = $selectedPage->{$childSlug}->subpages;
+			}
+		}
+
+		unset($selectedPage->{$slug});
+	}
+
+	/**
+	 * Update existing page slug
+	 *
+	 * @param array $slugTree
+	 * @param string $newSlugName
+	 */
+	public function updatePageSlug(array $slugTree, string $newSlugName): void
+	{
+		$slug = array_pop($slugTree);
+
+		$selectedPage = $this->db->{self::DB_PAGES_KEY};
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				$selectedPage = $selectedPage->{$childSlug}->subpages;
+			}
+		}
+
+        $selectedPage->{$newSlugName} = $selectedPage->{$slug};
+        unset($selectedPage->{$slug});
+        $this->save();
 	}
 
 	/**
@@ -519,7 +817,7 @@ class Wcms
 	{
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.0/wcms-admin.min.css" integrity="sha384-/NVs/Bv65kKsmmBcoBvW2ZaxIjHtNffpV17gGDivO2CQaFW1vY6ndJFKOiB1rH7m" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.25/wcms-admin.min.css" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -616,27 +914,44 @@ EOT;
 	/**
 	 * Delete page
 	 * @return void
+	 * @throws Exception
 	 */
 	public function deletePageAction(): void
 	{
 		if (!isset($_GET['delete']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-		$slug = $_GET['delete'];
-		if (isset($this->get('pages')->{$slug})) {
-			$this->unset('pages', $slug);
+		$slugTree = explode('/', $_GET['delete']);
+		$this->deletePageFromDb($slugTree);
+
+		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		if (count(get_object_vars($allMenuItems)) === 1) {
+			$this->alert('danger', 'Last page cannot be deleted - at least one page must exist.');
+			$this->redirect();
 		}
-		$menuItems = json_decode(json_encode($this->get('config', 'menuItems')), true);
-		if (false !== ($index = array_search($slug, array_column($menuItems, 'slug'), true))) {
-			unset($menuItems[$index]);
-			$newMenu = array_values($menuItems);
-			$this->set('config', 'menuItems', json_decode(json_encode($newMenu), false));
-			if ($this->get('config', 'defaultPage') === $slug) {
-				$allMenuItems = $this->get('config', 'menuItems') ?? [];
-				$firstMenuItem = reset($allMenuItems);
-				$this->set('config', 'defaultPage', $firstMenuItem->slug ?? $slug);
+
+		$selectedMenuItemParent = $selectedMenuItemKey = null;
+		foreach ($slugTree as $slug) {
+			$selectedMenuItemParent = $selectedMenuItem->{self::DB_MENU_ITEMS_SUBPAGE} ?? $selectedMenuItem;
+			foreach ($selectedMenuItemParent as $menuItemKey => $menuItem) {
+				if ($menuItem->slug === $slug) {
+					$selectedMenuItem = $menuItem;
+					$selectedMenuItemKey = $menuItemKey;
+					break;
+				}
 			}
 		}
+		unset($selectedMenuItemParent->{$selectedMenuItemKey});
+		$allMenuItems = $this->reindexObject($allMenuItems);
+
+		$defaultPage = $this->get(self::DB_CONFIG, 'defaultPage');
+		$defaultPageArray = explode('/', $defaultPage);
+		$treeIntersect = array_intersect_assoc($defaultPageArray, $slugTree);
+		if ($treeIntersect === $slugTree) {
+			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems->{0}->slug);
+		}
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
+
 		$this->alert('success', 'Page <b>' . $slug . '</b> deleted.');
 		$this->redirect();
 	}
@@ -881,6 +1196,17 @@ EOT;
 	}
 
 	/**
+	 * Forces http to https
+	 */
+	private function forceSSL(): void
+	{
+		if ($this->isHttpsForced() && !Wcms::isCurrentlyOnSSL()) {
+            $this->updateSecurityCache();
+			$this->redirect();
+		}
+	}
+
+	/**
 	 * Method checks for new repos and caches them
 	 */
 	private function updateAndCacheThemePluginRepos(): void
@@ -902,6 +1228,7 @@ EOT;
 
 	/**
 	 * Cache themes and plugins data
+	 * @throws Exception
 	 */
 	private function cacheThemesPluginsData(): void
 	{
@@ -934,6 +1261,7 @@ EOT;
 	 * Cache single theme or plugin data
 	 * @param string $repo
 	 * @param string $type
+	 * @throws Exception
 	 */
 	private function cacheSingleCacheThemePluginData(string $repo, string $type): void
 	{
@@ -952,7 +1280,7 @@ EOT;
 	 * Gathers single theme/plugin data from repository
 	 * @param string $repo
 	 * @param string $type
-	 * @param array $savedData
+	 * @param array|null $savedData
 	 * @return array|null
 	 */
 	private function downloadThemePluginsData(string $repo, string $type, ?array $savedData = []): ?array
@@ -990,16 +1318,22 @@ EOT;
 
 	/**
 	 * Check if branch is master or main
+	 * @param string $repo
+	 * @param string $branch
 	 * @return bool
 	 */
 	private function checkBranch(string $repo, string $branch): bool
 	{
-		$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
-		return $this->getOfficialVersion($repoFilesUrl) !== null;
+		$repoFilesUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
+		$headers = @get_headers($repoFilesUrl);
+		return empty(array_filter($headers, static function ($header) {
+			return (strpos($header, '404 Not Found'));
+		}));
 	}
 
 	/**
 	 * Add custom repository links for themes and plugins
+	 * @throws Exception
 	 */
 	public function addCustomThemePluginRepository(): void
 	{
@@ -1018,7 +1352,8 @@ EOT;
 			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
 				$errorMessage = 'Repository already exists.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null && $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
+			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null
+				&& $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
 				$errorMessage = 'Repository not added - missing version file.';
 				break;
 		}
@@ -1063,14 +1398,14 @@ EOT;
 			return;
 		}
 		$url = $_REQUEST['installThemePlugin'];
-		if(!$this->isValidGitURL($url)) {
+		if (!$this->isValidGitURL($url)) {
 			$this->alert('danger', 'Invalid repository URL. Only GitHub and GitLab are supported.');
 			$this->redirect();
 		}
 
 		$type = $_REQUEST['type'];
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
-		$folders = explode('/', str_replace(['/archive/master.zip','/archive/main.zip'], '', $url));
+		$folders = explode('/', str_replace(['/archive/master.zip', '/archive/main.zip'], '', $url));
 		$folderName = array_pop($folders);
 
 		if (in_array($type, self::VALID_DIRS, true)) {
@@ -1139,7 +1474,7 @@ EOT;
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.1.9/wcms-admin.min.js" integrity="sha384-B/dbUkTl9vm3Ffs337h+/oupFbxzbYk8vArcqFH7lAss0QwL4oqfas8puhE/dgj5" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/robiso/wondercms-cdn-files@3.2.26/wcms-admin.min.js" integrity="sha384-lwdbkm/17hWy+Y4iBnY0iEp0FlaKvjdeTBZaRYM1DGPshGgxKoPaB87Xue26Wv1W" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1179,7 +1514,9 @@ EOT;
 		if (file_exists($location . '/functions.php')) {
 			require_once $location . '/functions.php';
 		}
-		require_once $location . '/theme.php';
+
+		$customPageTemplate = sprintf('%s/%s.php', $location, $this->currentPage);
+		require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
 	}
 
 	/**
@@ -1206,7 +1543,7 @@ EOT;
 			$this->saveAdminLoginIP();
 			$this->redirect();
 		}
-		$this->alert('danger', 'Wrong password.');
+		$this->alert('test', '<script>alert("Wrong password")</script>', 1);
 		$this->redirect($this->get('config', 'login'));
 	}
 
@@ -1252,12 +1589,14 @@ EOT;
 			'description' => '',
 			'keywords' => '',
 			'content' => '
-				<div id="login" style="color:#ccc;left:0;top:0;width:100%;height:100%;display:none;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per day.</p></div>
+			<style>.showUpdate{display: block !important}</style>
+				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per week.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
-					<div class="input-group">
-						<input type="password" class="form-control" id="password" name="password" placeholder="Password" autofocus>
-						<span class="input-group-btn input-group-append">
-							<button type="submit" class="btn btn-info" onclick="$(\'#login\').show();">Login</button>
+					<div class="winput-group text-center">
+						<h1>Login to your website</h1>
+						<input type="password" class="wform-control" id="password" name="password" placeholder="Password" autofocus><br><br>
+						<span class="winput-group-btn">
+							<button type="submit" class="wbtn wbtn-info" onclick="document.getElementsByClassName(\'wUpdate\')[0].classList.toggle(\'showUpdate\'); localStorage.clear();">Login</button>
 						</span>
 					</div>
 				</form>'
@@ -1291,13 +1630,7 @@ EOT;
 			if ($item->visibility === 'hide') {
 				continue;
 			}
-			$output .=
-				'<li class="' . ($this->currentPage === $item->slug ? 'active ' : '') . 'nav-item">
-					<a class="nav-link" href="' . self::url($item->slug) . '">' . $item->name . '</a>
-				</li>';
-		}
-		if ($this->loggedIn) {
-			$output .= "<a data-toggle='wcms-modal' href='#settingsModal' data-target-tab='#menu'><i class='editIcon'></i></a>";
+			$output .= $this->renderPageNavMenuItem($item);
 		}
 		return $this->hook('menu', $output)[0];
 	}
@@ -1344,17 +1677,17 @@ EOT;
 		if (!$this->currentPageExists) {
 			$this->alert(
 				'info',
-				'<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Click inside the content below to create it.'
+				'<b>This page (' . $this->currentPage . ') doesn\'t exist.</b> Editing the content below will create it.'
 			);
 		}
 		if ($this->get('config', 'login') === 'loginURL') {
 			$this->alert('danger',
-				'Change both your default password and login URL. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
+				'Change your login URL and save it for later use. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
 		}
 
 		$db = $this->getDb();
 		$lastSync = $db->config->defaultRepos->lastSync;
-		if (strtotime($lastSync) < strtotime('-1 days')) {
+		if (strtotime($lastSync) < strtotime('-7 days')) {
 			$this->checkWcmsCoreUpdate();
 		}
 	}
@@ -1369,12 +1702,12 @@ EOT;
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
-				<p>&nbsp;- Backup your website and
-				<a href="https://wondercms.com/whatsnew" target="_blank"><u>check what\'s new</u></a> before updating.</p>
-				 <form action="' . self::url($this->currentPage) . '" method="post" class="marginTop5">
-					<button type="submit" class="btn btn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
+				<a href="https://wondercms.com/whatsnew" target="_blank"><u><b>Check what\'s new</b></u></a>
+				and <b>backup your website</b> before updating.
+				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
+					<button type="submit" class="wbtn wbtn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
 					<div class="clear"></div>
-					<button class="btn btn-info marginTop5" name="update"><i class="refreshIcon"></i>Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
+					<button class="wbtn wbtn-info marginTop5" name="update"><i class="refreshIcon"></i>Update WonderCMS ' . VERSION . ' to ' . $onlineVersion . '</button>
 					<input type="hidden" name="token" value="' . $this->getToken() . '">
 				</form>'
 			);
@@ -1382,33 +1715,70 @@ EOT;
 	}
 
 	/**
+	 * Update menu visibility state
+	 *
+	 * @param string $visibility - "show" for visible, "hide" for invisible
+	 * @param string $menu
+	 * @throws Exception
+	 */
+	public function updateMenuItemVisibility(string $visibility, string $menu): void
+	{
+		if (!in_array($visibility, ['show', 'hide'], true)) {
+			return;
+		}
+
+		$menuTree = explode('-', $menu);
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+
+		// Find sub menu item
+		if ($menuTree) {
+			$mainParentMenu = array_shift($menuTree);
+			$menuSelectionObject = $menuItems->{$mainParentMenu};
+			foreach ($menuTree as $childMenuKey) {
+				$menuSelectionObject = $menuSelectionObject->subpages->{$childMenuKey};
+			}
+		}
+
+		$menuSelectionObject->visibility = $visibility;
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+	}
+
+	/**
 	 * Reorder the pages
 	 *
 	 * @param int $content 1 for down arrow or -1 for up arrow
-	 * @param int $menu
+	 * @param string $menu
 	 * @return void
+	 * @throws Exception
 	 */
-	public function orderMenuItem(int $content, int $menu): void
+	public function orderMenuItem(int $content, string $menu): void
 	{
 		// check if content is 1 or -1 as only those values are acceptable
-		if (!in_array($content, [1, -1])) {
+		if (!in_array($content, [1, -1], true)) {
 			return;
 		}
-		$conf = 'config';
-		$field = 'menuItems';
-		$targetPosition = $menu + $content;
-		// save the target to avoid overwrite
-		// use clone to copy the object entirely
-		$tmp = clone $this->get($conf, $field, $targetPosition);
-		$move = $this->get($conf, $field, $menu);
-		// move the menu item to new position
-		$this->set($conf, $field, $targetPosition, 'name', $move->name);
-		$this->set($conf, $field, $targetPosition, 'slug', $move->slug);
-		$this->set($conf, $field, $targetPosition, 'visibility', $move->visibility);
-		// write the other menu item to the previous position
-		$this->set($conf, $field, $menu, 'name', $tmp->name);
-		$this->set($conf, $field, $menu, 'slug', $tmp->slug);
-		$this->set($conf, $field, $menu, 'visibility', $tmp->visibility);
+		$menuTree = $menu ? explode('-', $menu) : null;
+		$mainParentMenu = $selectedMenuKey = array_shift($menuTree);
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+
+		// Sorting of subpages in menu
+		if ($menuTree) {
+			$selectedMenuKey = array_pop($menuTree);
+			$menuSelectionObject = $menuItems->{$mainParentMenu}->subpages;
+			foreach ($menuTree as $childMenuKey) {
+				$menuSelectionObject = $menuSelectionObject->{$childMenuKey}->subpages;
+			}
+		}
+
+		$targetPosition = $selectedMenuKey + $content;
+
+		// Find and switch target and selected menu position in DB
+		$selectedMenu = $menuSelectionObject->{$selectedMenuKey};
+		$targetMenu = $menuSelectionObject->{$targetPosition};
+		$menuSelectionObject->{$selectedMenuKey} = $targetMenu;
+		$menuSelectionObject->{$targetPosition} = $selectedMenu;
+
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 	}
 
 	/**
@@ -1420,11 +1790,13 @@ EOT;
 	 */
 	public function page(string $key): string
 	{
-		$segments = $this->currentPageExists
-			? $this->get('pages', $this->currentPage)
-			: ($this->get('config', 'login') === $this->currentPage
+		$segments = $this->getCurrentPageData();
+		if (!$this->currentPageExists || !$segments) {
+			$segments = $this->get('config', 'login') === $this->currentPage
 				? (object)$this->loginView()
-				: (object)$this->notFoundView());
+				: (object)$this->notFoundView();
+		}
+
 		$segments->content = $segments->content ?? '<h2>Click here add content</h2>';
 		$keys = [
 			'title' => $segments->title,
@@ -1439,20 +1811,63 @@ EOT;
 	}
 
 	/**
+	 * Return database data of current page
+	 *
+	 * @return object|null
+	 */
+	public function getCurrentPageData(): ?object
+	{
+		return $this->getPageData(implode('/', $this->currentPageTree));
+	}
+
+	/**
+	 * Return database data of any page
+	 *
+	 * @param string $slugTree
+	 * @return object|null
+	 */
+	public function getPageData(string $slugTree): ?object
+	{
+		$arraySlugTree = explode('/', $slugTree);
+		$pageData = null;
+		foreach ($arraySlugTree as $slug) {
+			if ($pageData === null) {
+				$pageData = $this->get(self::DB_PAGES_KEY)->{$slug} ?? null;
+				continue;
+			}
+
+			$pageData = $pageData->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
+			if (!$pageData) {
+				return null;
+			}
+		}
+
+		return $pageData;
+	}
+
+	/**
+	 * Get current page url
+	 *
+	 * @return string
+	 */
+	public function getCurrentPageUrl(): string
+	{
+		$path = '';
+		foreach ($this->currentPageTree as $parentPage) {
+			$path .= $parentPage . '/';
+		}
+
+		return self::url($path);
+	}
+
+	/**
 	 * Page status (exists or doesn't exist)
 	 * @return void
 	 */
 	public function pageStatus(): void
 	{
-		$this->currentPage = empty($this->parseUrl()) ? $this->get('config', 'defaultPage') : $this->parseUrl();
-		if (isset($this->get('pages')->{$this->currentPage})) {
-			$this->currentPageExists = true;
-		}
-		if (isset($_GET['page'])
-			&& !$this->loggedIn
-			&& $this->currentPage !== $this->slugify($_GET['page'])) {
-			$this->currentPageExists = false;
-		}
+		$this->currentPage = $this->parseUrl() ?: $this->get('config', 'defaultPage');
+		$this->currentPageExists = !empty($this->getCurrentPageData());
 	}
 
 	/**
@@ -1461,10 +1876,19 @@ EOT;
 	 */
 	public function parseUrl(): string
 	{
-		if (isset($_GET['page']) && $_GET['page'] === $this->get('config', 'login')) {
+		if (!isset($_GET['page'])) {
+			$defaultPage = $this->get('config', 'defaultPage');
+			$this->currentPageTree = explode('/', $defaultPage);
+			return $defaultPage;
+		}
+
+		$this->currentPageTree = explode('/', rtrim($_GET['page'], '/'));
+		if ($_GET['page'] === $this->get('config', 'login')) {
 			return htmlspecialchars($_GET['page'], ENT_QUOTES);
 		}
-		return isset($_GET['page']) ? $this->slugify($_GET['page']) : '';
+
+		$currentPage = end($this->currentPageTree);
+		return $this->slugify($currentPage);
 	}
 
 	/**
@@ -1551,28 +1975,31 @@ EOT;
 			$newUrl = $_SESSION['redirect_to'];
 			$newPageName = $_SESSION['redirect_to_name'];
 			unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
-			$this->alert('success', "Page <b>$newPageName</b> created.");
+			$this->alert('success', "Page <b>$newPageName</b> created. Click <a href=" . $newUrl . ">here</a> to open it.");
 			$this->redirect($newUrl);
 		}
 		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
 			&& $this->hashVerify($_POST['token'])) {
 			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
 				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
-			if ($target === 'menuItem') {
-				$this->createMenuItem($content, $menu, $visibility);
+			if ($target === 'menuItemUpdate') {
+				$this->updateMenuItem($content, $menu, $visibility);
 				$_SESSION['redirect_to_name'] = $content;
 				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
+			if ($target === 'menuItemCreate') {
+				$this->createMenuItem($content, $menu, $visibility, true);
+			}
 			if ($target === 'menuItemVsbl') {
-				$this->set('config', $fieldname, $menu, 'visibility', $visibility);
+				$this->updateMenuItemVisibility($visibility, $menu);
 			}
 			if ($target === 'menuItemOrder') {
 				$this->orderMenuItem($content, $menu);
 			}
-			if ($fieldname === 'defaultPage' && !isset($this->get('pages')->$content)) {
+			if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
 				return;
 			}
-			if ($fieldname === 'login' && (empty($content) || isset($this->get('pages')->$content))) {
+			if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
 				return;
 			}
 			if ($fieldname === 'theme' && !is_dir($this->rootDir . '/themes/' . $content)) {
@@ -1583,10 +2010,10 @@ EOT;
 			} elseif ($target === 'blocks') {
 				$this->set('blocks', $fieldname, 'content', $content);
 			} elseif ($target === 'pages') {
-				if (!isset($this->get('pages')->{$this->currentPage})) {
-					$this->createPage();
+				if (!$this->currentPageExists) {
+					$this->createPage($this->currentPageTree, true);
 				}
-				$this->set('pages', $this->currentPage, $fieldname, $content);
+				$this->updatePage($this->currentPageTree, $fieldname, $content);
 			}
 		}
 	}
@@ -1594,25 +2021,20 @@ EOT;
 	/**
 	 * Set something to database
 	 * @return void
+	 * @throws Exception
 	 */
 	public function set(): void
 	{
-		$numArgs = func_num_args();
 		$args = func_get_args();
-		switch ($numArgs) {
-			case 2:
-				$this->db->{$args[0]} = $args[1];
-				break;
-			case 3:
-				$this->db->{$args[0]}->{$args[1]} = $args[2];
-				break;
-			case 4:
-				$this->db->{$args[0]}->{$args[1]}->{$args[2]} = $args[3];
-				break;
-			case 5:
-				$this->db->{$args[0]}->{$args[1]}->{$args[2]}->{$args[3]} = $args[4];
-				break;
+
+		$value = array_pop($args);
+		$lastKey = array_pop($args);
+		$data = $this->db;
+		foreach ($args as $arg) {
+			$data = $data->{$arg};
 		}
+		$data->{$lastKey} = $value;
+
 		$this->save();
 	}
 
@@ -1626,17 +2048,19 @@ EOT;
 		if (!$this->loggedIn) {
 			return '';
 		}
+		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
+        <script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
-			<a data-toggle="wcms-modal" class="btn btn-secondary btn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="btn btn-danger btn-sm button logout" title="Logout"><i class="logoutIcon"></i></a>
+			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
 			<div class="wcms-modal modal" id="settingsModal">
 				<div class="modal-dialog modal-xl">
 				 <div class="modal-content">
 					<div class="modal-header"><button type="button" class="close" data-dismiss="wcms-modal" aria-hidden="true">&times;</button></div>
-					<div class="modal-body col-xs-12 col-12">
+					<div class="modal-body coll-xs-12 coll-12">
 						<ul class="nav nav-tabs justify-content-center text-center" role="tablist">
 							<li role="presentation" class="nav-item"><a href="#currentPage" aria-controls="currentPage" role="tab" data-toggle="tab" class="nav-link active">Current page</a></li>
 							<li role="presentation" class="nav-item"><a href="#menu" aria-controls="menu" role="tab" data-toggle="tab" class="nav-link">Menu</a></li>
@@ -1645,27 +2069,24 @@ EOT;
 							<li role="presentation" class="nav-item"><a href="#plugins" aria-controls="plugins" role="tab" data-toggle="tab" class="nav-link">Plugins</a></li>
 							<li role="presentation" class="nav-item"><a href="#security" aria-controls="security" role="tab" data-toggle="tab" class="nav-link">Security</a></li>
 						</ul>
-						<div class="tab-content col-md-8 col-md-offset-2 offset-md-2">
+						<div class="tab-content coll-md-8 coll-md-offset-2 offset-md-2">
 							<div role="tabpanel" class="tab-pane active" id="currentPage">';
-		if ($this->currentPageExists) {
+		if ($this->currentPageExists && $currentPageData) {
 			$output .= '
-									<p class="subTitle">Page title</p>
-									<div class="change">
-										<div data-target="pages" id="title" class="editText">' . ($this->get('pages',
-					$this->currentPage)->title != '' ? $this->get('pages', $this->currentPage)->title : '') . '</div>
-									</div>
-									<p class="subTitle">Page keywords</p>
-									<div class="change">
-										<div data-target="pages" id="keywords" class="editText">' . ($this->get('pages',
-					$this->currentPage)->keywords != '' ? $this->get('pages', $this->currentPage)->keywords : '') . '</div>
-									</div>
-									<p class="subTitle">Page description</p>
-									<div class="change">
-										<div data-target="pages" id="description" class="editText">' . ($this->get('pages',
-					$this->currentPage)->description != '' ? $this->get('pages',
-					$this->currentPage)->description : '') . '</div>
-									</div>
-									<a href="' . self::url('?delete=' . $this->currentPage . '&token=' . $this->getToken()) . '" class="btn btn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page</a>';
+								<p class="subTitle">Page title</p>
+								<div class="change">
+									<div data-target="pages" id="title" class="editText">' . ($currentPageData->title ?: '') . '</div>
+								</div>
+								<p class="subTitle">Page keywords</p>
+								<div class="change">
+									<div data-target="pages" id="keywords" class="editText">' . ($currentPageData->keywords ?: '') . '</div>
+								</div>
+								<p class="subTitle">Page description</p>
+								<div class="change">
+									<div data-target="pages" id="description" class="editText">' . ($currentPageData->description ?: '') . '</div>
+								</div>
+								<a href="' . self::url('?delete=' . implode('/',
+						$this->currentPageTree) . '&token=' . $this->getToken()) . '" class="wbtn wbtn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page (' . $this->currentPage . ')</a>';
 		} else {
 			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
 		}
@@ -1678,46 +2099,32 @@ EOT;
 		end($items);
 		$end = key($items);
 		$output .= '
-							 <p class="subTitle">Menu</p>
-							 <div>
-								<div id="menuSettings" class="container-fluid">';
-		foreach ($items as $key => $value) {
-			$output .= '
-										<div class="row marginTop5">
-											<div class="col-xs-1 col-sm-1 col-1 text-right">
-											 <i class="btn menu-toggle ' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $key . '"></i>
-											</div>
-											<div class="col-xs-4 col-4 col-sm-8">
-											 <div data-target="menuItem" data-menu="' . $key . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $key . '" class="editText">' . $value->name . '</div>
-											</div>
-											<div class="col-xs-2 col-2 col-sm-1 text-left">';
-			$output .= ($key === $first) ? '' : '<a class="upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move up"></a>';
-			$output .= ($key === $end) ? '' : ' <a class="downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $key . '" title="Move down"></a>';
-			$output .= '
-											</div>
-											<div class="col-xs-2 col-2 col-sm-1 text-left">
-											 <a class="linkIcon" href="' . self::url($value->slug) . '" title="Visit page">visit</a>
-											</div>
-											<div class="col-xs-2 col-2 col-sm-1 text-right">
-											 <a href="' . self::url('?delete=' . $value->slug . '&token=' . $this->getToken()) . '" title="Delete page" class="btn btn-sm btn-danger" data-menu="' . $key . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
-											</div>
-										</div>';
-		}
-		$output .= '<a class="menu-item-add btn btn-info marginTop20 cursorPointer" data-toggle="tooltip" id="menuItemAdd" title="Add new page"><i class="addNewIcon"></i> Add page</a>
-								</div>
-							 </div>
 							 <p class="subTitle">Website title</p>
 							 <div class="change">
 								<div data-target="config" id="siteTitle" class="editText">' . $this->get('config',
 				'siteTitle') . '</div>
 							 </div>
+							 <p class="subTitle">Menu</p>
+							 <div>
+								<div id="menuSettings" class="container-fluid">
+								<a class="menu-item-add wbtn wbtn-info cursorPointer" data-toggle="tooltip" id="menuItemAdd" title="Add new page"><i class="addNewIcon"></i> Add page</a><br><br>';
+		foreach ($items as $key => $value) {
+			$output .= '<div class="row">';
+			$output .= $this->renderSettingsMenuItem($key, $value, ($key === $first), ($key === $end), $value->slug);
+			if (property_exists($value, 'subpages')) {
+				$output .= $this->renderSettingsSubMenuItem($value->subpages, $key, $value->slug);
+			}
+			$output .= '</div>';
+		}
+		$output .= '			</div>
+							 </div>
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
-								<select id="changeDefaultPage" class="form-control" name="defaultPage">';
+								<select id="changeDefaultPage" class="wform-control" name="defaultPage">';
 		$items = $this->get('config', 'menuItems');
-		foreach ($items as $key => $value) {
-			$output .= '<option value="' . $value->slug . '"' . ($value->slug === $this->get('config',
-					'defaultPage') ? ' selected' : '') . '>' . $value->name . '</option>';
+		$defaultPage = $this->get('config', 'defaultPage');
+		foreach ($items as $item) {
+			$output .= $this->renderDefaultPageOptions($item, $defaultPage);
 		}
 		$output .= '
 								</select>
@@ -1726,9 +2133,9 @@ EOT;
 							<div role="tabpanel" class="tab-pane" id="files">
 							 <p class="subTitle">Upload</p>
 							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post" enctype="multipart/form-data">
-									<div class="input-group"><input type="file" name="uploadFile" class="form-control">
-										<span class="input-group-btn"><button type="submit" class="btn btn-info input-group-append"><i class="uploadIcon"></i>Upload</button></span>
+								<form action="' . $this->getCurrentPageUrl() . '" method="post" enctype="multipart/form-data">
+									<div class="winput-group"><input type="file" name="uploadFile" class="wform-control">
+										<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="uploadIcon"></i>Upload</button></span>
 										<input type="hidden" name="token" value="' . $this->getToken() . '">
 									</div>
 								</form>
@@ -1737,7 +2144,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="btn btn-sm btn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
+									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -1750,30 +2157,51 @@ EOT;
 		$output .= $this->renderThemePluginTab('plugins');
 		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
+								<p class="change marginTop5 small danger">Important: save your login URL to log in to your website next time:<br/><b><span class="normalFont">' . self::url($this->get('config',
+				'login')) . '</b></span>
 							 <div class="change">
 								<div data-target="config" id="login" class="editText">' . $this->get('config',
 				'login') . '</div>
-								<p class="marginTop5 small"><b>Save your login URL to log in to your website next time:<br/> <span class="normalFont">' . self::url($this->get('config',
-				'login')) . '</b></span>
 							 </div>
 							 <p class="subTitle">Password</p>
 							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post">
-									<div class="input-group">
-										<input type="password" name="old_password" class="form-control normalFont" placeholder="Old password">
-										<span class="input-group-btn"></span><input type="password" name="new_password" class="form-control normalFont" placeholder="New password">
-										<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="lockIcon"></i> Change password</button></span>
+								<form action="' . $this->getCurrentPageUrl() . '" method="post">
+									<input type="password" name="old_password" class="wform-control normalFont" placeholder="Old password"><br>
+									<div class="winput-group">
+										<input type="password" name="new_password" class="wform-control normalFont" placeholder="New password"><span class="winput-group-btn"></span>
+										<input type="password" name="repeat_password" class="wform-control normalFont" placeholder="Repeat new password">
+										<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="lockIcon"></i> Change password</button></span>
 									</div>
 									<input type="hidden" name="fieldname" value="password"><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="subTitle">Improved security (Apache only)</p>
-							 <p class="change small">HTTPS redirect, 30 day caching, iframes allowed only from same origin, mime type sniffing prevention, stricter cookie and refferer policy.</p>
+<p class="subTitle">Backup</p>
+							 <div class="change">
+								<form action="' . $this->getCurrentPageUrl() . '" method="post">
+									<button type="submit" class="wbtn wbtn-block wbtn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
+								</form>
+							 </div>
+							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
+							 
+							 <p class="subTitle">Save confirmation popup</p>
+							 <p class="change small">If this is turned on, WonderCMS will always ask you to confirm any changes you make.</p>
 							 <div class="change">
 								<form method="post">
-									<div class="btn-group btn-group-justified w-100">
-										<div class="btn-group w-50"><button type="submit" class="btn btn-info" name="betterSecurity" value="on">ON (warning: may break your website)</button></div>
-										<div class="btn-group w-50"><button type="submit" class="btn btn-danger" name="betterSecurity" value="off">OFF (reset htaccess to default)</button></div>
+									<div class="wbtn-group wbtn-group-justified w-100">
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="saveChangesPopup" value="true">ON</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="saveChangesPopup" value="false">OFF</button></div>
+									</div>
+									<input type="hidden" name="token" value="' . $this->getToken() . '">
+								</form>
+							 </div>
+							 
+							 <p class="subTitle">Force HTTPS</p>
+							 <p class="change small">WonderCMS automatically checks for SSL, this will force to always use HTTPS.</p>
+							 <div class="change">
+								<form method="post">
+									<div class="wbtn-group wbtn-group-justified w-100">
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="forceHttps" value="true" onclick="return confirm(\'Are you sure? This might break your website if you do not have SSL configured correctly.\')">ON</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="forceHttps" value="false">OFF</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -1781,13 +2209,6 @@ EOT;
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)#important-read-before-turning-this-feature-on" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
 		$output .= $this->renderAdminLoginIPs();
 		$output .= '
-							 <p class="subTitle">Backup</p>
-							 <div class="change">
-								<form action="' . self::url($this->currentPage) . '" method="post">
-									<button type="submit" class="btn btn-block btn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
-								</form>
-							 </div>
-							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 				 		 </div>
 						</div>
 					</div>
@@ -1809,6 +2230,149 @@ EOT;
 	}
 
 	/**
+	 * Render options for default page selection
+	 *
+	 * @param object $menuItem
+	 * @param string $defaultPage
+	 * @param string $parentSlug
+	 * @param string $parentName
+	 * @return string
+	 */
+	private function renderDefaultPageOptions(
+		object $menuItem,
+		string $defaultPage,
+		string $parentSlug = '',
+		string $parentName = ''
+	): string {
+		$slug = $parentSlug ? sprintf('%s/%s', $parentSlug, $menuItem->slug) : $menuItem->slug;
+		$name = $parentName ? sprintf('%s | %s', $parentName, $menuItem->name) : $menuItem->name;
+		$output = '<option value="' . $slug . '" ' . ($slug === $defaultPage ? 'selected' : '') . '>' . $name . '</option>';
+
+		foreach ($menuItem->subpages ?? [] as $subpage) {
+			$output .= $this->renderDefaultPageOptions($subpage, $defaultPage, $slug, $name);
+		}
+
+		return $output;
+	}
+
+	/**
+	 * Render page navigation items
+	 *
+	 * @param object $item
+	 * @param string $parentSlug
+	 * @return string
+	 */
+	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
+	{
+		$subpages = false;
+		if (property_exists($item, 'subpages') && !empty((array) $item->subpages)) {
+			$subpages = $item->subpages;
+		}
+
+		$parentSlug .= $item->slug . '/';
+		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav' : '') . '">
+						<a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
+
+		// Recursive method for rendering infinite subpages
+		if ($subpages) {
+			$output .= '<ul class="subPageDropdown">';
+			foreach ($subpages as $subpage) {
+				if ($subpage->visibility === 'hide') {
+					continue;
+				}
+				$output .= $this->renderPageNavMenuItem($subpage, $parentSlug);
+			}
+			$output .= '</ul>';
+		}
+
+		$output .= '</li>';
+
+		return $output;
+	}
+
+	/**
+	 * Render menu item for settings
+	 *
+	 * @param string $menuKeyTree
+	 * @param object $value
+	 * @param bool $isFirstEl
+	 * @param bool $isLastEl
+	 * @param string $slugTree
+	 * @return string
+	 * @throws Exception
+	 */
+	private function renderSettingsMenuItem(
+		string $menuKeyTree,
+		object $value,
+		bool $isFirstEl,
+		bool $isLastEl,
+		string $slugTree
+	): string {
+		$arraySlugTree = explode('/', $slugTree);
+		array_shift($arraySlugTree);
+		$subMenuLevel = count($arraySlugTree);
+		$output = '<div class="coll-xs-2 coll-sm-1">
+						<i class="menu-toggle eyeIcon' . ($value->visibility === 'show' ? ' eyeShowIcon menu-item-hide' : ' eyeHideIcon menu-item-show') . '" data-toggle="tooltip" title="' . ($value->visibility === 'show' ? 'Hide page from menu' : 'Show page in menu') . '" data-menu="' . $menuKeyTree . '"></i>
+					</div>
+					<div class="coll-xs-4 coll-md-7">
+						<div data-target="menuItemUpdate" data-menu="' . $menuKeyTree . '" data-visibility="' . $value->visibility . '" id="menuItems-' . $menuKeyTree . '" class="editText" style="margin-right: ' . (13.1 * $subMenuLevel) . 'px;">' . $value->name . '</div>
+					</div>
+					<div class="coll-xs-6 coll-md-4 text-right">';
+
+		if (!$isFirstEl) {
+			$output .= '<a class="arrowIcon upArrowIcon toolbar menu-item-up cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move up"></a>';
+		}
+		if (!$isLastEl) {
+			$output .= '<a class="arrowIcon downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
+		}
+		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page" style="display: inline;">visit</a>
+					</div>
+					<div class="coll-xs-12 text-right marginTop5 marginBottom20">
+						<a class="menu-item-add wbtn wbtn-sm wbtn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
+						<a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="wbtn wbtn-sm wbtn-danger" data-menu="' . $menuKeyTree . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
+					</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Render sub menu item for settings
+	 *
+	 * @param object $subpages
+	 * @param string $parentKeyTree
+	 * @param string $parentSlugTree
+	 * @return string
+	 * @throws Exception
+	 */
+	private function renderSettingsSubMenuItem(object $subpages, string $parentKeyTree, string $parentSlugTree): string
+	{
+		reset($subpages);
+		$firstSubpage = key($subpages);
+		end($subpages);
+		$endSubpage = key($subpages);
+		$output = '';
+
+		foreach ($subpages as $subpageKey => $subpage) {
+			$keyTree = $parentKeyTree . '-' . $subpageKey;
+			$slugTree = $parentSlugTree . '/' . $subpage->slug;
+			$output .= '<div class="coll-xs-offset-1 coll-xs-11">
+							<div class="row marginTop5">';
+			$firstElement = ($subpageKey === $firstSubpage);
+			$lastElement = ($subpageKey === $endSubpage);
+			$output .= $this->renderSettingsMenuItem($keyTree, $subpage, $firstElement, $lastElement, $slugTree);
+
+			// Recursive method for rendering infinite subpages
+			if (property_exists($subpage, 'subpages')) {
+				$output .= $this->renderSettingsSubMenuItem($subpage->subpages, $keyTree, $slugTree);
+			}
+			$output .= '	</div>
+						</div>';
+		}
+
+		return $output;
+	}
+
+	/**
 	 * Render last login IPs
 	 * @return string
 	 */
@@ -1817,11 +2381,11 @@ EOT;
 		$getIPs = $this->get('config', 'lastLogins') ?? [];
 		$renderIPs = '';
 		foreach ($getIPs as $time => $adminIP) {
-			$renderIPs .= sprintf('<li>%s - %s</li>', date('M d, Y H:i:s', strtotime($time)), $adminIP);
+			$renderIPs .= sprintf('%s - %s<br />', date('M d, Y H:i:s', strtotime($time)), $adminIP);
 		}
 		return '<p class="subTitle">Last 5 logins</p>
 				<div class="change">
-					<ul>' . $renderIPs . '</ul>
+					' . $renderIPs . '
 				</div>';
 	}
 
@@ -1834,7 +2398,7 @@ EOT;
 	private function renderThemePluginTab(string $type = 'themes'): string
 	{
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
-					<a class="btn btn-info btn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
+					<a class="wbtn wbtn-info wbtn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates" onclick="localStorage.clear();"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
 					<div class="clear"></div>
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
@@ -1850,13 +2414,13 @@ EOT;
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="btn btn-success btn-block btn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="btn btn-info btn-sm btn-block marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="btn btn-danger btn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="btn btn-primary btn-sm btn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
-				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="btn btn-primary btn-sm btn-block" disabled>Active</a>' : '';
+				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
-				$html = "<div class='col-sm-4'>
+				$html = "<div class='coll-sm-4'>
 							<div>
 								$image
 								<h4>$name</h4>
@@ -1887,10 +2451,10 @@ EOT;
 		$output .= $installs;
 		$output .= '</div>
 					<p class="subTitle">Custom repository</p>
-					<form action="' . self::url($this->currentPage) . '" method="post">
-						<div class="form-group">
-							<div class="change input-group marginTop5"><input type="text" name="pluginThemeUrl" class="form-control normalFont" placeholder="Enter URL to custom repository">
-								<span class="input-group-btn input-group-append"><button type="submit" class="btn btn-info"><i class="addNewIcon"></i> Add</button></span>
+					<form action="' . $this->getCurrentPageUrl() . '" method="post">
+						<div class="wform-group">
+							<div class="change winput-group marginTop5"><input type="text" name="pluginThemeUrl" class="wform-control normalFont" placeholder="Enter URL to custom repository">
+								<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="addNewIcon"></i> Add</button></span>
 							</div>
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
@@ -2105,13 +2669,20 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-		return 'http' . ((isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
-			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
-			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ? 's' : '')
-			. '://' . $_SERVER['SERVER_NAME']
-			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
-			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
-			. '/' . $location;
+        $showHttps = Wcms::isCurrentlyOnSSL();
+        $dataPath = sprintf('%s/%s', __DIR__, 'data');
+        $securityCachePath = sprintf('%s/%s', $dataPath, 'security.json');
+
+        if (is_file($securityCachePath) && file_exists($securityCachePath)) {
+            $securityCache = json_decode(file_get_contents($securityCachePath), true);
+            $showHttps = $securityCache['forceHttps'] ?? false;
+        }
+
+        return ($showHttps ? 'https' : 'http')
+            . '://' . $_SERVER['SERVER_NAME']
+            . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+            . ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
+            . '/' . $location;
 	}
 
 	/**
@@ -2148,6 +2719,17 @@ EOT;
 		$this->redirect('data/files/' . $zipName);
 	}
 
+    /**
+     * Check if currently user is on https
+     * @return bool
+     */
+    public static function isCurrentlyOnSSL(): bool
+    {
+        return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
+            || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
+            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+    }
+
 	/**
 	 * Check compatibility
 	 */
@@ -2166,7 +2748,41 @@ EOT;
 		if (!empty($missingExtensions)) {
 			die('<p>The following extensions are required: '
 				. implode(', ', $missingExtensions)
-				. '. Please contact your host or configure your server to enable them.</p>');
+				. '. Contact your host or configure your server to enable them with correct permissions.</p>');
 		}
+	}
+
+	/**
+	 * Helper for reseting the index key of the object
+	 * @param stdClass $object
+	 * @return stdClass
+	 */
+	private function reindexObject(stdClass $object): stdClass
+	{
+		$reindexObject = new stdClass;
+		$index = 0;
+		foreach ($object as $value) {
+			$reindexObject->{$index} = $value;
+			$index++;
+		}
+		return $reindexObject;
+	}
+
+	/**
+	 * Check if user has forced https
+	 * @return bool
+	 */
+	private function isHttpsForced(): bool
+	{
+		return $this->get('config', 'forceHttps') ?? false;
+	}
+
+	/**
+	 * Check if user has confirmation dialog enabled
+	 * @return bool
+	 */
+	private function isSaveChangesPopupEnabled(): bool
+	{
+		return $this->get('config', 'saveChangesPopup') ?? false;
 	}
 }
