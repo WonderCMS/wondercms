@@ -63,12 +63,10 @@
 
 <br>
 
-## Libraries used (7)
-Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#3-steps-for-more-security).
-- 4 libraries located in theme.php, **always included**:
-  - <sup>`jquery.min.js (3.1.4)`, `bootstrap.min.js (4.4.1)`, `bootstrap.min.css (4.4.1)`, `popper.min.js (1.16.0)`</sup>
-- 3 libraries located in index.php, **included only when logged in**:
+## Libraries used (3)
+- 3 libraries located in index.php, **included only when admin is logged in**:
   - <sup>`wcms-admin.min.js`, `autosize.min.js (4.0.2)`, `taboverride.min.js (4.0.3)`.</sup>
+Note: Some plugins also include other libraries such as jQuery, default WonderCMS out-of-the box includes only the above libraries through CDNs.
 
 <br>
 
@@ -92,6 +90,7 @@ Libraries are loaded from Content Delivery Networks (CDNs) and include [SRI tags
 ## Other features
  - no configuration required, unzip and upload
  - extremely fast
+ - subpages
  - simple inline click and edit functionality
  - theme and plugin installer/updater
  - 1 click updates
