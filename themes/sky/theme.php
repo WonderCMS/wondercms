@@ -42,7 +42,7 @@
 		<section id="topMenu">
 			<div class="inner">
 				<nav>
-					<ul>
+					<ul class="menu">
 						<!-- Menu -->
 						<?= $Wcms->menu() ?>
 
