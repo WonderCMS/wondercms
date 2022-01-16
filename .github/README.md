@@ -66,6 +66,7 @@
 ## Libraries used (3)
 - 3 libraries located in index.php, **included only when admin is logged in**:
   - <sup>`wcms-admin.min.js`, `autosize.min.js (4.0.2)`, `taboverride.min.js (4.0.3)`.</sup>
+
 Note: Some plugins also include other libraries such as jQuery, default WonderCMS out-of-the box includes only the above libraries through CDNs.
 
 <br>
