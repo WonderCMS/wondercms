@@ -225,13 +225,13 @@ class Wcms
 		$output = '';
 		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
 		$output .= '<script>
-                        const displayAlerts = localStorage.getItem("displayAlerts");
-                        if (displayAlerts === "false") {
-                            const alertWrapper = document.getElementById("alertWrapperId");
-                            if (alertWrapper) {
-                                alertWrapper.style.display = "none";
-                            }
-                        }
+						const displayAlerts = localStorage.getItem("displayAlerts");
+						if (displayAlerts === "false") {
+							const alertWrapper = document.getElementById("alertWrapperId");
+							if (alertWrapper) {
+								alertWrapper.style.display = "none";
+							}
+						}
 					</script>';
 		foreach ($_SESSION['alert'] as $alertClass) {
 			foreach ($alertClass as $alert) {
@@ -1616,7 +1616,7 @@ EOT;
 			'keywords' => '',
 			'content' => '
 			<style>.showUpdate{display: block !important}</style>
-				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per week.</p></div>
+				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a moment.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="winput-group text-center">
 						<h1>Login to your website</h1>
@@ -1713,7 +1713,7 @@ EOT;
 
 		$db = $this->getDb();
 		$lastSync = $db->config->defaultRepos->lastSync;
-		if (strtotime($lastSync) < strtotime('-7 days')) {
+		if (strtotime($lastSync) < strtotime('-1 days')) {
 			$this->checkWcmsCoreUpdate();
 		}
 	}
@@ -1728,7 +1728,7 @@ EOT;
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
-				<a href="https://wondercms.com/whatsnew" target="_blank"><u><b>Check what\'s new</b></u></a>
+				<a href="https://wondercms.com/news" target="_blank"><u><b>Check what\'s new</b></u></a>
 				and <b>backup your website</b> before updating.
 				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
 					<button type="submit" class="wbtn wbtn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
@@ -2077,7 +2077,7 @@ EOT;
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
-        <script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
+		<script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
@@ -2289,12 +2289,12 @@ EOT;
 	 * @return string
 	 */
 	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
-    {
-        $subpages = $visibleSubpage = false;
-        if (property_exists($item, 'subpages') && !empty((array)$item->subpages)) {
-            $subpages = $item->subpages;
-            $visibleSubpage = $subpages && in_array('show', array_column((array)$subpages, 'visibility'));
-        }
+	{
+		$subpages = $visibleSubpage = false;
+		if (property_exists($item, 'subpages') && !empty((array)$item->subpages)) {
+			$subpages = $item->subpages;
+			$visibleSubpage = $subpages && in_array('show', array_column((array)$subpages, 'visibility'));
+		}
 
 		$parentSlug .= $item->slug . '/';
 		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($visibleSubpage ? 'subpage-nav' : '') . '">
