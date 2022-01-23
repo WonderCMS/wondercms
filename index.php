@@ -225,13 +225,13 @@ class Wcms
 		$output = '';
 		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
 		$output .= '<script>
-						const displayAlerts = localStorage.getItem("displayAlerts");
-						if (displayAlerts === "false") {
-							const alertWrapper = document.getElementById("alertWrapperId");
-							if (alertWrapper) {
-								alertWrapper.style.display = "none";
-							}
+					const displayAlerts = localStorage.getItem("displayAlerts");
+					if (displayAlerts === "false") {
+						const alertWrapper = document.getElementById("alertWrapperId");
+						if (alertWrapper) {
+							alertWrapper.style.display = "none";
 						}
+					}
 					</script>';
 		foreach ($_SESSION['alert'] as $alertClass) {
 			foreach ($alertClass as $alert) {
