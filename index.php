@@ -67,8 +67,8 @@ class Wcms
 	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
 	protected $themesPluginsCachePath;
 
-    /** @var string $securityCachePath path to security json file with force https caching data */
-    protected $securityCachePath;
+	/** @var string $securityCachePath path to security json file with force https caching data */
+	protected $securityCachePath;
 
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
@@ -85,7 +85,7 @@ class Wcms
 	/** @var string $headerResponse header status */
 	public $headerResponse = 'HTTP/1.0 200 OK';
 
-    /**
+	/**
 	 * Constructor
 	 *
 	 * @param string $dataFolder
@@ -224,7 +224,7 @@ class Wcms
 		}
 		$output = '';
 		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
-        $output .= '<script>
+		$output .= '<script>
                         const displayAlerts = localStorage.getItem("displayAlerts");
                         if (displayAlerts === "false") {
                             const alertWrapper = document.getElementById("alertWrapperId");
@@ -304,7 +304,7 @@ class Wcms
 	{
 		if (isset($_POST['forceHttps']) && $this->verifyFormActions()) {
 			$this->set('config', 'forceHttps', $_POST['forceHttps'] === 'true');
-            $this->updateSecurityCache();
+			$this->updateSecurityCache();
 
 			$this->alert('success', 'Force HTTPs was successfully changed.');
 			$this->redirect();
@@ -325,16 +325,16 @@ class Wcms
 		}
 	}
 
-    /**
-     * Update cache for security settings.
-     * @return void
-     */
-    public function updateSecurityCache(): void
-    {
-        $content = ['forceHttps' => $this->isHttpsForced()];
-        $json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        file_put_contents($this->securityCachePath, $json, LOCK_EX);
-    }
+	/**
+	 * Update cache for security settings.
+	 * @return void
+	 */
+	public function updateSecurityCache(): void
+	{
+		$content = ['forceHttps' => $this->isHttpsForced()];
+		$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+		file_put_contents($this->securityCachePath, $json, LOCK_EX);
+	}
 
 	/**
 	 * Get a static block
@@ -769,6 +769,32 @@ class Wcms
 	}
 
 	/**
+	 * Delete page key
+	 *
+	 * @param array $slugTree
+	 * @param string $fieldname
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deletePageKey(array $slugTree, string $fieldname): void
+	{
+		$slug = array_pop($slugTree);
+		$selectedPage = clone $this->get(self::DB_PAGES_KEY);
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+			}
+		}
+
+		unset($selectedPage->{$slug}->{$fieldname});
+	}
+
+	/**
 	 * Delete existing page by slug
 	 *
 	 * @param array|null $slugTree
@@ -804,9 +830,9 @@ class Wcms
 			}
 		}
 
-        $selectedPage->{$newSlugName} = $selectedPage->{$slug};
-        unset($selectedPage->{$slug});
-        $this->save();
+		$selectedPage->{$newSlugName} = $selectedPage->{$slug};
+		unset($selectedPage->{$slug});
+		$this->save();
 	}
 
 	/**
@@ -1201,7 +1227,7 @@ EOT;
 	private function forceSSL(): void
 	{
 		if ($this->isHttpsForced() && !Wcms::isCurrentlyOnSSL()) {
-            $this->updateSecurityCache();
+			$this->updateSecurityCache();
 			$this->redirect();
 		}
 	}
@@ -2263,18 +2289,19 @@ EOT;
 	 * @return string
 	 */
 	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
-	{
-		$subpages = false;
-		if (property_exists($item, 'subpages') && !empty((array) $item->subpages)) {
-			$subpages = $item->subpages;
-		}
+    {
+        $subpages = $visibleSubpage = false;
+        if (property_exists($item, 'subpages') && !empty((array)$item->subpages)) {
+            $subpages = $item->subpages;
+            $visibleSubpage = $subpages && in_array('show', array_column((array)$subpages, 'visibility'));
+        }
 
 		$parentSlug .= $item->slug . '/';
-		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav' : '') . '">
+		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($visibleSubpage ? 'subpage-nav' : '') . '">
 						<a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
 
 		// Recursive method for rendering infinite subpages
-		if ($subpages) {
+		if ($visibleSubpage) {
 			$output .= '<ul class="subPageDropdown">';
 			foreach ($subpages as $subpage) {
 				if ($subpage->visibility === 'hide') {
@@ -2669,20 +2696,20 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-        $showHttps = Wcms::isCurrentlyOnSSL();
-        $dataPath = sprintf('%s/%s', __DIR__, 'data');
-        $securityCachePath = sprintf('%s/%s', $dataPath, 'security.json');
+		$showHttps = Wcms::isCurrentlyOnSSL();
+		$dataPath = sprintf('%s/%s', __DIR__, 'data');
+		$securityCachePath = sprintf('%s/%s', $dataPath, 'security.json');
 
-        if (is_file($securityCachePath) && file_exists($securityCachePath)) {
-            $securityCache = json_decode(file_get_contents($securityCachePath), true);
-            $showHttps = $securityCache['forceHttps'] ?? false;
-        }
+		if (is_file($securityCachePath) && file_exists($securityCachePath)) {
+			$securityCache = json_decode(file_get_contents($securityCachePath), true);
+			$showHttps = $securityCache['forceHttps'] ?? false;
+		}
 
-        return ($showHttps ? 'https' : 'http')
-            . '://' . $_SERVER['SERVER_NAME']
-            . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
-            . ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
-            . '/' . $location;
+		return ($showHttps ? 'https' : 'http')
+			. '://' . $_SERVER['SERVER_NAME']
+			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
+			. '/' . $location;
 	}
 
 	/**
@@ -2719,16 +2746,16 @@ EOT;
 		$this->redirect('data/files/' . $zipName);
 	}
 
-    /**
-     * Check if currently user is on https
-     * @return bool
-     */
-    public static function isCurrentlyOnSSL(): bool
-    {
-        return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
-            || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
-            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-    }
+	/**
+	 * Check if currently user is on https
+	 * @return bool
+	 */
+	public static function isCurrentlyOnSSL(): bool
+	{
+		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+	}
 
 	/**
 	 * Check compatibility
