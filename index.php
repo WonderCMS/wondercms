@@ -1294,7 +1294,7 @@ EOT;
 		foreach ($wcmsModule as $type => $value) {
 			if ($type === 'version') {
 				if ($value !== self::MODULES_JSON_VERSION) {
-					$this->alert('danger', 'The module-json is not correct');
+					$this->alert('danger', 'The wcms-modules.json version is incorrect');
 					break;
 				}
 
