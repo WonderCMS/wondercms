@@ -18,6 +18,7 @@ if (defined('PHPUNIT_TESTING') === false) {
 
 class Wcms
 {
+	private const MODULES_JSON_VERSION = 1;
 	private const THEMES_DIR = 'themes';
 	private const PLUGINS_DIR = 'plugins';
 	private const VALID_DIRS = [self::THEMES_DIR, self::PLUGINS_DIR];
@@ -64,11 +65,8 @@ class Wcms
 	/** @var string $dataPath path to data folder */
 	public $dataPath;
 
-	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
-	protected $themesPluginsCachePath;
-
-	/** @var string $customThemesPluginsCachePath path to cached json file with custom Themes/Plugins data */
-	protected $customThemesPluginsCachePath;
+	/** @var string $modulesCachePath path to cached json file with Themes/Plugins data */
+	protected $modulesCachePath;
 
 	/** @var string $securityCachePath path to security json file with force https caching data */
 	protected $securityCachePath;
@@ -123,8 +121,7 @@ class Wcms
 		$this->dataPath = sprintf('%s/%s', $this->rootDir, $dataFolder);
 		$this->dbPath = sprintf('%s/%s', $this->dataPath, $dbName);
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
-		$this->themesPluginsCachePath = sprintf('%s/%s', $this->dataPath, 'wcms-modules.json');
-		$this->customThemesPluginsCachePath = sprintf('%s/%s', $this->dataPath, 'custom-modules.json');
+		$this->modulesCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
 		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
 	}
 
@@ -1153,11 +1150,11 @@ EOT;
 	 * @return array
 	 * @throws Exception
 	 */
-	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
+	public function listAllModules(string $type = self::THEMES_DIR): array
 	{
 		$newData = [];
 		if ($this->loggedIn) {
-			$data = $this->getThemePluginCachedData($type);
+			$data = $this->getModulesCachedData($type);
 
 			foreach ($data as $dirName => $addon) {
 				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
@@ -1190,8 +1187,9 @@ EOT;
 	public function checkModulesCache(): void
 	{
 		$db = $this->getDb();
-		$data = $this->getJsonFileData($this->themesPluginsCachePath);
-		$lastSync = $db->config->lastModulesSync;
+		$data = $this->getJsonFileData($this->modulesCachePath);
+		// Recreate cache if lastModulesSync is missing
+		$lastSync = $db->config->lastModulesSync ?? strtotime('-2 days');
 		if (empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
 			$this->updateAndCacheModules();
 		}
@@ -1203,15 +1201,11 @@ EOT;
 	 * @return array|null
 	 * @throws Exception
 	 */
-	public function getThemePluginCachedData(string $type = self::THEMES_DIR): array
+	public function getModulesCachedData(string $type = self::THEMES_DIR): array
 	{
 		$this->checkModulesCache();
-		$data = $this->getJsonFileData($this->themesPluginsCachePath);
-		$customData = $this->getJsonFileData($this->customThemesPluginsCachePath);
-		$default = $data !== null && array_key_exists($type, $data) ? $data[$type] : [];
-		$custom = $customData !== null && array_key_exists($type, $customData) ? $customData[$type] : [];
-
-		return array_merge($default, $custom);
+		$data = $this->getJsonFileData($this->modulesCachePath);
+		return $data !== null && array_key_exists($type, $data) ? $data[$type] : [];
 	}
 
 	/**
@@ -1247,7 +1241,7 @@ EOT;
 	private function updateAndCacheModules(): void
 	{
 		$this->set('config', 'lastModulesSync', date('Y/m/d'));
-		$this->cacheThemesPluginsData();
+		$this->cacheModulesData();
 	}
 
 	/**
@@ -1281,22 +1275,82 @@ EOT;
 	{
 		$wcmsModules = trim($this->getFileFromRepo('wcms-modules.json', self::WCMS_CDN_REPO));
 		$jsonObject = json_decode($wcmsModules);
-		$this->save($this->themesPluginsCachePath, $jsonObject);
+		$parsedCache = $this->moduleCacheMapper($jsonObject);
+		if (empty($parsedCache)) {
+			return;
+		}
+
+		$this->save($this->modulesCachePath, $parsedCache);
+	}
+
+	/**
+	 * Mapper between wcms-modules.json and applications cache.json
+	 * @param object $wcmsModule
+	 * @return object
+	 */
+	private function moduleCacheMapper(object $wcmsModule): object
+	{
+		$mappedModules = new stdClass;
+		foreach ($wcmsModule as $type => $value) {
+			if ($type === 'version') {
+				if ($value !== self::MODULES_JSON_VERSION) {
+					$this->alert('danger', 'The module-json is not correct');
+					break;
+				}
+
+				continue;
+			}
+
+			$mappedModules->{$type} = new stdClass();
+			foreach ($value as $moduleName => $module) {
+				$parsedModule = $this->moduleCacheParser($module, $moduleName);
+				if (empty($parsedModule)) {
+					continue;
+				}
+
+				$mappedModules->{$type}->{$moduleName} = new stdClass();
+				$mappedModules->{$type}->{$moduleName} = $parsedModule;
+			}
+		}
+
+		return $mappedModules;
+	}
+
+	/**
+	 * Parse module cache to
+	 * @param object $module
+	 * @param string $moduleName
+	 * @return object|null
+	 */
+	private function moduleCacheParser(object $module, string $moduleName): ?object {
+		if (!$this->validateWcmsModuleStructure($module)) {
+			return null;
+		}
+
+		return (object)[
+			"name" => $module->name,
+			"dirName" => $moduleName,
+			"repo" => $module->repo,
+			"zip" => $module->zip,
+			"summary" => $module->summary,
+			"version" => $module->version,
+			"image" => $module->image,
+		];
 	}
 
 	/**
 	 * Cache themes and plugins data
 	 * @throws Exception
 	 */
-	private function cacheThemesPluginsData(): void
+	private function cacheModulesData(): void
 	{
-		$returnArray = [];
 		$db = $this->getDb();
 
 		// Download wcms-modules as cache
 		$this->updateModulesCache();
 
 		// Cache custom modules
+		$returnArray = $this->getJsonFileData($this->modulesCachePath);
 		$arrayCustom = (array)$db->config->customModules;
 		foreach ($arrayCustom as $type => $modules) {
 			foreach ($modules as $url) {
@@ -1306,11 +1360,12 @@ EOT;
 				}
 
 				$name = $wcmsModuleData->dirName;
+				$wcmsModuleData = $this->moduleCacheParser($wcmsModuleData, $name);
 				$returnArray[$type][$name] = $wcmsModuleData;
 			}
 		}
 
-		$this->save($this->customThemesPluginsCachePath, (object)$returnArray);
+		$this->save($this->modulesCachePath, (object)$returnArray);
 	}
 
 	/**
@@ -1321,15 +1376,16 @@ EOT;
 	 */
 	private function cacheSingleCacheThemePluginData(string $url, string $type): void
 	{
-		$returnArray = $this->getJsonFileData($this->customThemesPluginsCachePath);
+		$returnArray = $this->getJsonFileData($this->modulesCachePath);
 
 		$wcmsModuleData = $this->fetchModuleConfig($url, $type);
 		if (null === $wcmsModuleData) {
 			return;
 		}
 		$name = $wcmsModuleData->dirName;
+		$wcmsModuleData = $this->moduleCacheParser($wcmsModuleData, $name);
 		$returnArray[$type][$name] = $wcmsModuleData;
-		$this->save($this->customThemesPluginsCachePath, (object)$returnArray);
+		$this->save($this->modulesCachePath, (object)$returnArray);
 	}
 
 	/**
@@ -1341,7 +1397,7 @@ EOT;
 	 */
 	private function checkIfModuleRepoExists(string $repo, string $type): bool
 	{
-		$data = $this->getThemePluginCachedData($type);
+		$data = $this->getModulesCachedData($type);
 		return in_array($repo, array_column($data, 'repo'));
 	}
 
@@ -2444,7 +2500,7 @@ EOT;
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		$updates = $exists = $installs = '';
-		foreach ($this->listAllThemesPlugins($type) as $addonType => $addonModules) {
+		foreach ($this->listAllModules($type) as $addonType => $addonModules) {
 			foreach ($addonModules as $directoryName => $addon) {
 				$name = $addon['name'];
 				$info = $addon['summary'];
