@@ -143,9 +143,9 @@ class Wcms
 		if ($this->loggedIn) {
 			$this->manuallyRefreshCacheData();
 			$this->addCustomModule();
-			$this->installUpdateThemePluginAction();
+			$this->installUpdateModuleAction();
 			$this->changePasswordAction();
-			$this->deleteFileThemePluginAction();
+			$this->deleteFileModuleAction();
 			$this->changePageThemeAction();
 			$this->backupAction();
 			$this->forceHttpsAction();
@@ -884,17 +884,17 @@ EOT;
 	 * Delete theme
 	 * @return void
 	 */
-	public function deleteFileThemePluginAction(): void
+	public function deleteFileModuleAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
 			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
 			$filename = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
 				null,
-				trim($_REQUEST['deleteThemePlugin'])
+				trim($_REQUEST['deleteModule'])
 			);
 			$type = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
@@ -923,8 +923,8 @@ EOT;
 
 	public function changePageThemeAction(): void
 	{
-		if (isset($_REQUEST['selectThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
-			$theme = $_REQUEST['selectThemePlugin'];
+		if (isset($_REQUEST['selectModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+			$theme = $_REQUEST['selectModule'];
 			if (!is_dir($this->rootDir . '/' . $_REQUEST['type'] . '/' . $theme)) {
 				return;
 			}
@@ -1158,7 +1158,7 @@ EOT;
 
 			foreach ($data as $dirName => $addon) {
 				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
-				$currentVersion = $exists ? $this->getThemePluginVersion($type, $dirName) : null;
+				$currentVersion = $exists ? $this->getModuleVersion($type, $dirName) : null;
 				$newVersion = $addon['version'];
 				$update = $newVersion !== null && $currentVersion !== null && $newVersion > $currentVersion;
 				if ($update) {
@@ -1374,7 +1374,7 @@ EOT;
 	 * @param string $type
 	 * @throws Exception
 	 */
-	private function cacheSingleCacheThemePluginData(string $url, string $type): void
+	private function cacheSingleCacheModuleData(string $url, string $type): void
 	{
 		$returnArray = $this->getJsonFileData($this->modulesCachePath);
 
@@ -1447,7 +1447,7 @@ EOT;
 
 		$customModules[] = $url;
 		$this->set('config', 'customModules', $type, $customModules);
-		$this->cacheSingleCacheThemePluginData($url, $type);
+		$this->cacheSingleCacheModuleData($url, $type);
 		$this->alert('success',
 			'Module successfully added to <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
 		$this->redirect();
@@ -1459,7 +1459,7 @@ EOT;
 	 * @param string $name
 	 * @return string|null
 	 */
-	public function getThemePluginVersion(string $type, string $name): ?string
+	public function getModuleVersion(string $type, string $name): ?string
 	{
 		$version = null;
 		$path = sprintf('%s/%s/%s', $this->rootDir, $type, $name);
@@ -1481,12 +1481,12 @@ EOT;
 	 * Install and update theme
 	 * @throws Exception
 	 */
-	public function installUpdateThemePluginAction(): void
+	public function installUpdateModuleAction(): void
 	{
-		if (!isset($_REQUEST['installThemePlugin'], $_REQUEST['directoryName'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
+		if (!isset($_REQUEST['installModule'], $_REQUEST['directoryName'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-		$url = $_REQUEST['installThemePlugin'];
+		$url = $_REQUEST['installModule'];
 		$folderName = $_REQUEST['directoryName'];
 		$type = $_REQUEST['type'];
 
@@ -1516,11 +1516,11 @@ EOT;
 			$zip->extractTo($path);
 			$zip->close();
 			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-			$themePluginFolder = $path . $folderName . '-master';
-			if (!is_dir($themePluginFolder)) {
-				$themePluginFolder = $path . $folderName . '-main';
+			$moduleFolder = $path . $folderName . '-master';
+			if (!is_dir($moduleFolder)) {
+				$moduleFolder = $path . $folderName . '-main';
 			}
-			if (is_dir($themePluginFolder) && !rename($themePluginFolder, $path . $folderName)) {
+			if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
 				throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
 			}
 			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
@@ -2240,7 +2240,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
+									<a href="' . self::url('?deleteModule=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -2249,8 +2249,8 @@ EOT;
 		$output .= '
 							 </div>
 							</div>';
-		$output .= $this->renderThemePluginTab();
-		$output .= $this->renderThemePluginTab('plugins');
+		$output .= $this->renderModuleTab();
+		$output .= $this->renderModuleTab('plugins');
 		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
 								<p class="change marginTop5 small danger">Important: save your login URL to log in to your website next time:<br/><b><span class="normalFont">' . self::url($this->get('config',
@@ -2492,7 +2492,7 @@ EOT;
 	 * @return string
 	 * @throws Exception
 	 */
-	private function renderThemePluginTab(string $type = 'themes'): string
+	private function renderModuleTab(string $type = 'themes'): string
 	{
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
 					<a class="wbtn wbtn-info wbtn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates" onclick="localStorage.clear();"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
@@ -2510,10 +2510,10 @@ EOT;
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
 				$html = "<div class='coll-sm-4'>
