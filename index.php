@@ -1969,7 +1969,7 @@ EOT;
 	 */
 	public function parseUrl(): string
 	{
-		$page = $_GET['page'] ?? ltrim($_SERVER['REQUEST_URI'], '/');
+		$page = $_GET['page'] ?? null;
 
 		if (!isset($page) || !$page) {
 			$defaultPage = $this->get('config', 'defaultPage');
