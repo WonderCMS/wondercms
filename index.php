@@ -1795,7 +1795,7 @@ EOT;
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
-				<a href="https://wondercms.com/news" target="_blank"><u><b>Check what\'s new</b></u></a>
+				<a href="https://wondercms.com/whatsnew" target="_blank"><u><b>Check what\'s new</b></u></a>
 				and <b>backup your website</b> before updating.
 				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
 					<button type="submit" class="wbtn wbtn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
