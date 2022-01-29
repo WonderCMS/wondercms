@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.2.0');
+define('VERSION', '3.3.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -18,6 +18,7 @@ if (defined('PHPUNIT_TESTING') === false) {
 
 class Wcms
 {
+	private const MODULES_JSON_VERSION = 1;
 	private const THEMES_DIR = 'themes';
 	private const PLUGINS_DIR = 'plugins';
 	private const VALID_DIRS = [self::THEMES_DIR, self::PLUGINS_DIR];
@@ -64,11 +65,11 @@ class Wcms
 	/** @var string $dataPath path to data folder */
 	public $dataPath;
 
-	/** @var string $themesPluginsCachePath path to cached json file with Themes/Plugins data */
-	protected $themesPluginsCachePath;
+	/** @var string $modulesCachePath path to cached json file with Themes/Plugins data */
+	protected $modulesCachePath;
 
-    /** @var string $securityCachePath path to security json file with force https caching data */
-    protected $securityCachePath;
+	/** @var string $securityCachePath path to security json file with force https caching data */
+	protected $securityCachePath;
 
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
@@ -85,7 +86,7 @@ class Wcms
 	/** @var string $headerResponse header status */
 	public $headerResponse = 'HTTP/1.0 200 OK';
 
-    /**
+	/**
 	 * Constructor
 	 *
 	 * @param string $dataFolder
@@ -120,7 +121,7 @@ class Wcms
 		$this->dataPath = sprintf('%s/%s', $this->rootDir, $dataFolder);
 		$this->dbPath = sprintf('%s/%s', $this->dataPath, $dbName);
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
-		$this->themesPluginsCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
+		$this->modulesCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
 		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
 	}
 
@@ -141,10 +142,10 @@ class Wcms
 		$this->loadPlugins();
 		if ($this->loggedIn) {
 			$this->manuallyRefreshCacheData();
-			$this->addCustomThemePluginRepository();
-			$this->installUpdateThemePluginAction();
+			$this->addCustomModule();
+			$this->installUpdateModuleAction();
 			$this->changePasswordAction();
-			$this->deleteFileThemePluginAction();
+			$this->deleteFileModuleAction();
 			$this->changePageThemeAction();
 			$this->backupAction();
 			$this->forceHttpsAction();
@@ -224,14 +225,14 @@ class Wcms
 		}
 		$output = '';
 		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
-        $output .= '<script>
-                        const displayAlerts = localStorage.getItem("displayAlerts");
-                        if (displayAlerts === "false") {
-                            const alertWrapper = document.getElementById("alertWrapperId");
-                            if (alertWrapper) {
-                                alertWrapper.style.display = "none";
-                            }
-                        }
+		$output .= '<script>
+					const displayAlerts = localStorage.getItem("displayAlerts");
+					if (displayAlerts === "false") {
+						const alertWrapper = document.getElementById("alertWrapperId");
+						if (alertWrapper) {
+							alertWrapper.style.display = "none";
+						}
+					}
 					</script>';
 		foreach ($_SESSION['alert'] as $alertClass) {
 			foreach ($alertClass as $alert) {
@@ -304,7 +305,7 @@ class Wcms
 	{
 		if (isset($_POST['forceHttps']) && $this->verifyFormActions()) {
 			$this->set('config', 'forceHttps', $_POST['forceHttps'] === 'true');
-            $this->updateSecurityCache();
+			$this->updateSecurityCache();
 
 			$this->alert('success', 'Force HTTPs was successfully changed.');
 			$this->redirect();
@@ -325,16 +326,16 @@ class Wcms
 		}
 	}
 
-    /**
-     * Update cache for security settings.
-     * @return void
-     */
-    public function updateSecurityCache(): void
-    {
-        $content = ['forceHttps' => $this->isHttpsForced()];
-        $json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        file_put_contents($this->securityCachePath, $json, LOCK_EX);
-    }
+	/**
+	 * Update cache for security settings.
+	 * @return void
+	 */
+	public function updateSecurityCache(): void
+	{
+		$content = ['forceHttps' => $this->isHttpsForced()];
+		$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+		file_put_contents($this->securityCachePath, $json, LOCK_EX);
+	}
 
 	/**
 	 * Get a static block
@@ -429,12 +430,8 @@ class Wcms
 				'saveChangesPopup' => false,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
-				'defaultRepos' => [
-					'themes' => [],
-					'plugins' => [],
-					'lastSync' => null,
-				],
-				'customRepos' => [
+				'lastModulesSync' => null,
+				'customModules' => [
 					'themes' => [],
 					'plugins' => []
 				],
@@ -769,6 +766,32 @@ class Wcms
 	}
 
 	/**
+	 * Delete page key
+	 *
+	 * @param array $slugTree
+	 * @param string $fieldname
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deletePageKey(array $slugTree, string $fieldname): void
+	{
+		$slug = array_pop($slugTree);
+		$selectedPage = clone $this->get(self::DB_PAGES_KEY);
+		if (!empty($slugTree)) {
+			foreach ($slugTree as $childSlug) {
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+			}
+		}
+
+		unset($selectedPage->{$slug}->{$fieldname});
+	}
+
+	/**
 	 * Delete existing page by slug
 	 *
 	 * @param array|null $slugTree
@@ -804,9 +827,9 @@ class Wcms
 			}
 		}
 
-        $selectedPage->{$newSlugName} = $selectedPage->{$slug};
-        unset($selectedPage->{$slug});
-        $this->save();
+		$selectedPage->{$newSlugName} = $selectedPage->{$slug};
+		unset($selectedPage->{$slug});
+		$this->save();
 	}
 
 	/**
@@ -861,17 +884,17 @@ EOT;
 	 * Delete theme
 	 * @return void
 	 */
-	public function deleteFileThemePluginAction(): void
+	public function deleteFileModuleAction(): void
 	{
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_REQUEST['deleteThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
 			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
 			$filename = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
 				null,
-				trim($_REQUEST['deleteThemePlugin'])
+				trim($_REQUEST['deleteModule'])
 			);
 			$type = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
@@ -900,8 +923,8 @@ EOT;
 
 	public function changePageThemeAction(): void
 	{
-		if (isset($_REQUEST['selectThemePlugin'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
-			$theme = $_REQUEST['selectThemePlugin'];
+		if (isset($_REQUEST['selectModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+			$theme = $_REQUEST['selectModule'];
 			if (!is_dir($this->rootDir . '/' . $_REQUEST['type'] . '/' . $theme)) {
 				return;
 			}
@@ -1036,6 +1059,25 @@ EOT;
 	}
 
 	/**
+	 * Download file content from url
+	 * @param string $fileUrl
+	 * @return string
+	 */
+	private function downloadFileFromUrl(string $fileUrl): string
+	{
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_URL, $fileUrl);
+		$content = curl_exec($ch);
+		if (false === $content) {
+			$this->alert('danger', 'Cannot get content from url.');
+		}
+		curl_close($ch);
+
+		return (string)$content;
+	}
+
+	/**
 	 * Get content of a file from master branch
 	 *
 	 * @param string $file the file we want
@@ -1045,16 +1087,7 @@ EOT;
 	public function getFileFromRepo(string $file, string $repo = self::WCMS_REPO): string
 	{
 		$repo = str_replace('https://github.com/', 'https://raw.githubusercontent.com/', $repo);
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_URL, $repo . $file);
-		$content = curl_exec($ch);
-		if (false === $content) {
-			$this->alert('danger', 'Cannot get content from repository.');
-		}
-		curl_close($ch);
-
-		return (string)$content;
+		return $this->downloadFileFromUrl($repo . $file);
 	}
 
 	/**
@@ -1117,17 +1150,16 @@ EOT;
 	 * @return array
 	 * @throws Exception
 	 */
-	public function listAllThemesPlugins(string $type = self::THEMES_DIR): array
+	public function listAllModules(string $type = self::THEMES_DIR): array
 	{
 		$newData = [];
 		if ($this->loggedIn) {
-			$data = $this->getThemePluginCachedData($type);
+			$data = $this->getModulesCachedData($type);
 
-			foreach ($data as $repo => $addon) {
-				$dirName = $addon['dirName'];
+			foreach ($data as $dirName => $addon) {
 				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
-				$currentVersion = $exists ? $this->getThemePluginVersion($type, $dirName) : null;
-				$newVersion = $addon['newVersion'];
+				$currentVersion = $exists ? $this->getModuleVersion($type, $dirName) : null;
+				$newVersion = $addon['version'];
 				$update = $newVersion !== null && $currentVersion !== null && $newVersion > $currentVersion;
 				if ($update) {
 					$this->alert('info',
@@ -1137,10 +1169,10 @@ EOT;
 				$addonType = $exists ? self::THEME_PLUGINS_TYPES['exists'] : self::THEME_PLUGINS_TYPES['installs'];
 				$addonType = $update ? self::THEME_PLUGINS_TYPES['updates'] : $addonType;
 
-				$newData[$addonType][$repo] = $addon;
-				$newData[$addonType][$repo]['update'] = $update;
-				$newData[$addonType][$repo]['install'] = !$exists;
-				$newData[$addonType][$repo]['currentVersion'] = $currentVersion;
+				$newData[$addonType][$dirName] = $addon;
+				$newData[$addonType][$dirName]['update'] = $update;
+				$newData[$addonType][$dirName]['install'] = !$exists;
+				$newData[$addonType][$dirName]['currentVersion'] = $currentVersion;
 			}
 		}
 
@@ -1148,24 +1180,19 @@ EOT;
 	}
 
 	/**
-	 * Get all repos from CDN
-	 * @param string $type
-	 * @return array
+	 * Check modules for cache
+	 * @return void
 	 * @throws Exception
 	 */
-	public function getThemePluginRepos(string $type = self::THEMES_DIR): array
+	public function checkModulesCache(): void
 	{
 		$db = $this->getDb();
-		$array = (array)$db->config->defaultRepos->{$type};
-		$arrayCustom = (array)$db->config->customRepos->{$type};
-		$data = $this->getJsonFileData($this->themesPluginsCachePath);
-		$lastSync = $db->config->defaultRepos->lastSync;
-		if (empty($array) || empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
-			$this->updateAndCacheThemePluginRepos();
-			$array = (array)$db->config->defaultRepos->{$type};
+		$data = $this->getJsonFileData($this->modulesCachePath);
+		// Recreate cache if lastModulesSync is missing
+		$lastSync = $db->config->lastModulesSync ?? strtotime('-2 days');
+		if (empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
+			$this->updateAndCacheModules();
 		}
-
-		return array_merge($array, $arrayCustom);
 	}
 
 	/**
@@ -1174,24 +1201,25 @@ EOT;
 	 * @return array|null
 	 * @throws Exception
 	 */
-	public function getThemePluginCachedData(string $type = self::THEMES_DIR): array
+	public function getModulesCachedData(string $type = self::THEMES_DIR): array
 	{
-		$this->getThemePluginRepos($type);
-		$data = $this->getJsonFileData($this->themesPluginsCachePath);
+		$this->checkModulesCache();
+		$data = $this->getJsonFileData($this->modulesCachePath);
 		return $data !== null && array_key_exists($type, $data) ? $data[$type] : [];
 	}
 
 	/**
 	 * Force cache refresh for updates
+	 * @throws Exception
 	 */
 	public function manuallyRefreshCacheData(): void
 	{
 		if (!isset($_REQUEST['manuallyResetCacheData']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-		$this->updateAndCacheThemePluginRepos();
+		$this->updateAndCacheModules();
 		$this->checkWcmsCoreUpdate();
-		$this->set('config', 'defaultRepos', 'lastSync', date('Y/m/d'));
+		$this->set('config', 'lastModulesSync', date('Y/m/d'));
 		$this->redirect();
 	}
 
@@ -1201,160 +1229,215 @@ EOT;
 	private function forceSSL(): void
 	{
 		if ($this->isHttpsForced() && !Wcms::isCurrentlyOnSSL()) {
-            $this->updateSecurityCache();
+			$this->updateSecurityCache();
 			$this->redirect();
 		}
 	}
 
 	/**
-	 * Method checks for new repos and caches them
+	 * Method checks for new modules and caches them
+	 * @throws Exception
 	 */
-	private function updateAndCacheThemePluginRepos(): void
+	private function updateAndCacheModules(): void
 	{
-		$plugins = trim($this->getFileFromRepo('plugins-list.json', self::WCMS_CDN_REPO));
-		$themes = trim($this->getFileFromRepo('themes-list.json', self::WCMS_CDN_REPO));
-		if ($plugins !== '404: Not Found') {
-			$plugins = explode("\n", $plugins);
-			$this->set('config', 'defaultRepos', 'plugins', $plugins);
+		$this->set('config', 'lastModulesSync', date('Y/m/d'));
+		$this->cacheModulesData();
+	}
+
+	/**
+	 * Fetch module config from url
+	 * @param string $url
+	 * @param string $type
+	 * @return object|null
+	 */
+	private function fetchModuleConfig(string $url, string $type): ?object
+	{
+		$wcmsModules = json_decode(trim($this->downloadFileFromUrl($url)));
+		$wcmsModulesData = $wcmsModules && property_exists($wcmsModules, $type)
+			? $wcmsModules->{$type}
+			: null;
+		if (null === $wcmsModulesData) {
+			$this->alert('danger', 'The wcms-modules.json file does not contain all the required information.');
+			return null;
 		}
-		if ($themes !== '404: Not Found') {
-			$themes = explode("\n", $themes);
-			$this->set('config', 'defaultRepos', 'themes', $themes);
+		$returnData = reset($wcmsModulesData);
+		$name = key($wcmsModulesData);
+		$returnData->dirName = $name;
+		return $returnData;
+	}
+
+	/**
+	 * Update cache for default themes/plugins modules.
+	 * @return void
+	 * @throws Exception
+	 */
+	private function updateModulesCache(): void
+	{
+		$wcmsModules = trim($this->getFileFromRepo('wcms-modules.json', self::WCMS_CDN_REPO));
+		$jsonObject = json_decode($wcmsModules);
+		$parsedCache = $this->moduleCacheMapper($jsonObject);
+		if (empty($parsedCache)) {
+			return;
 		}
 
-		$this->set('config', 'defaultRepos', 'lastSync', date('Y/m/d'));
-		$this->cacheThemesPluginsData();
+		$this->save($this->modulesCachePath, $parsedCache);
+	}
+
+	/**
+	 * Mapper between wcms-modules.json and applications cache.json
+	 * @param object $wcmsModule
+	 * @return object
+	 */
+	private function moduleCacheMapper(object $wcmsModule): object
+	{
+		$mappedModules = new stdClass;
+		foreach ($wcmsModule as $type => $value) {
+			if ($type === 'version') {
+				if ($value !== self::MODULES_JSON_VERSION) {
+					$this->alert('danger', 'The wcms-modules.json version is incorrect');
+					break;
+				}
+
+				continue;
+			}
+
+			$mappedModules->{$type} = new stdClass();
+			foreach ($value as $moduleName => $module) {
+				$parsedModule = $this->moduleCacheParser($module, $moduleName);
+				if (empty($parsedModule)) {
+					continue;
+				}
+
+				$mappedModules->{$type}->{$moduleName} = new stdClass();
+				$mappedModules->{$type}->{$moduleName} = $parsedModule;
+			}
+		}
+
+		return $mappedModules;
+	}
+
+	/**
+	 * Parse module cache to
+	 * @param object $module
+	 * @param string $moduleName
+	 * @return object|null
+	 */
+	private function moduleCacheParser(object $module, string $moduleName): ?object {
+		if (!$this->validateWcmsModuleStructure($module)) {
+			return null;
+		}
+
+		return (object)[
+			"name" => $module->name,
+			"dirName" => $moduleName,
+			"repo" => $module->repo,
+			"zip" => $module->zip,
+			"summary" => $module->summary,
+			"version" => $module->version,
+			"image" => $module->image,
+		];
 	}
 
 	/**
 	 * Cache themes and plugins data
 	 * @throws Exception
 	 */
-	private function cacheThemesPluginsData(): void
+	private function cacheModulesData(): void
 	{
-		$returnArray = [];
 		$db = $this->getDb();
-		$array = (array)$db->config->defaultRepos;
-		$arrayCustom = (array)$db->config->customRepos;
-		$savedData = $this->getJsonFileData($this->themesPluginsCachePath);
 
-		foreach ($array as $type => $repos) {
-			if ($type === 'lastSync') {
-				continue;
-			}
-			$concatenatedRepos = array_merge((array)$repos, (array)$arrayCustom[$type]);
+		// Download wcms-modules as cache
+		$this->updateModulesCache();
 
-			foreach ($concatenatedRepos as $repo) {
-				$repoData = $this->downloadThemePluginsData($repo, $type, $savedData);
-				if (null === $repoData) {
+		// Cache custom modules
+		$returnArray = $this->getJsonFileData($this->modulesCachePath);
+		$arrayCustom = (array)$db->config->customModules;
+		foreach ($arrayCustom as $type => $modules) {
+			foreach ($modules as $url) {
+				$wcmsModuleData = $this->fetchModuleConfig($url, $type);
+				if (null === $wcmsModuleData) {
 					continue;
 				}
 
-				$returnArray[$type][$repo] = $repoData;
+				$name = $wcmsModuleData->dirName;
+				$wcmsModuleData = $this->moduleCacheParser($wcmsModuleData, $name);
+				$returnArray[$type][$name] = $wcmsModuleData;
 			}
 		}
 
-		$this->save($this->themesPluginsCachePath, (object)$returnArray);
+		$this->save($this->modulesCachePath, (object)$returnArray);
 	}
 
 	/**
 	 * Cache single theme or plugin data
-	 * @param string $repo
+	 * @param string $url
 	 * @param string $type
 	 * @throws Exception
 	 */
-	private function cacheSingleCacheThemePluginData(string $repo, string $type): void
+	private function cacheSingleCacheModuleData(string $url, string $type): void
 	{
-		$returnArray = $this->getJsonFileData($this->themesPluginsCachePath);
+		$returnArray = $this->getJsonFileData($this->modulesCachePath);
 
-		$repoData = $this->downloadThemePluginsData($repo, $type, $returnArray);
-		if (null === $repoData) {
+		$wcmsModuleData = $this->fetchModuleConfig($url, $type);
+		if (null === $wcmsModuleData) {
 			return;
 		}
-
-		$returnArray[$type][$repo] = $repoData;
-		$this->save($this->themesPluginsCachePath, (object)$returnArray);
+		$name = $wcmsModuleData->dirName;
+		$wcmsModuleData = $this->moduleCacheParser($wcmsModuleData, $name);
+		$returnArray[$type][$name] = $wcmsModuleData;
+		$this->save($this->modulesCachePath, (object)$returnArray);
 	}
 
 	/**
-	 * Gathers single theme/plugin data from repository
+	 * Check if the module url already exists
 	 * @param string $repo
 	 * @param string $type
-	 * @param array|null $savedData
-	 * @return array|null
-	 */
-	private function downloadThemePluginsData(string $repo, string $type, ?array $savedData = []): ?array
-	{
-		$branch = 'master';
-		if (!$this->checkBranch($repo, $branch)) {
-			$branch = 'main';
-		}
-		$repoParts = explode('/', $repo);
-		$name = array_pop($repoParts);
-		$repoReadmeUrl = sprintf('%s/blob/%s/README.md', $repo, $branch);
-		$repoFilesUrl = sprintf('%s/%s/', $repo, $branch);
-		$repoZipUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
-		$newVersion = $this->getOfficialVersion($repoFilesUrl);
-		if (empty($repo) || empty($name) || $newVersion === null) {
-			return null;
-		}
-
-		$image = $savedData[$type][$repo]['image'] ?? $this->getCheckFileFromRepo('preview.jpg', $repoFilesUrl);
-
-		return [
-			'name' => ucfirst(str_replace('-', ' ', $name)),
-			'dirName' => $name,
-			'repo' => $repo,
-			'zip' => $repoZipUrl,
-			'newVersion' => htmlentities($newVersion),
-			'image' => $image !== null
-				? str_replace('https://github.com/', 'https://raw.githubusercontent.com/',
-					$repoFilesUrl) . 'preview.jpg'
-				: null,
-			'readme' => htmlentities($this->getCheckFileFromRepo('summary', $repoFilesUrl)),
-			'readmeUrl' => $repoReadmeUrl,
-		];
-	}
-
-	/**
-	 * Check if branch is master or main
-	 * @param string $repo
-	 * @param string $branch
 	 * @return bool
-	 */
-	private function checkBranch(string $repo, string $branch): bool
-	{
-		$repoFilesUrl = sprintf('%s/archive/%s.zip', $repo, $branch);
-		$headers = @get_headers($repoFilesUrl);
-		return empty(array_filter($headers, static function ($header) {
-			return (strpos($header, '404 Not Found'));
-		}));
-	}
-
-	/**
-	 * Add custom repository links for themes and plugins
 	 * @throws Exception
 	 */
-	public function addCustomThemePluginRepository(): void
+	private function checkIfModuleRepoExists(string $repo, string $type): bool
+	{
+		$data = $this->getModulesCachedData($type);
+		return in_array($repo, array_column($data, 'repo'));
+	}
+
+	/**
+	 * Validate structure of the wcms module json
+	 * @param object $wcmsModule
+	 * @return bool
+	 */
+	private function validateWcmsModuleStructure(object $wcmsModule): bool {
+		return property_exists($wcmsModule, 'name')
+			&& property_exists($wcmsModule, 'repo')
+			&& property_exists($wcmsModule, 'zip')
+			&& property_exists($wcmsModule, 'summary')
+			&& property_exists($wcmsModule, 'version')
+			&& property_exists($wcmsModule, 'image');
+	}
+
+	/**
+	 * Add custom url links for themes and plugins
+	 * @throws Exception
+	 */
+	public function addCustomModule(): void
 	{
 		if (!isset($_POST['pluginThemeUrl'], $_POST['pluginThemeType']) || !$this->verifyFormActions()) {
 			return;
 		}
 		$type = $_POST['pluginThemeType'];
 		$url = rtrim(trim($_POST['pluginThemeUrl']), '/');
-		$defaultRepositories = (array)$this->get('config', 'defaultRepos', $type);
-		$customRepositories = (array)$this->get('config', 'customRepos', $type);
+		$customModules = (array)$this->get('config', 'customModules', $type);
+		$wcmsModuleData = $this->fetchModuleConfig($url, $type);
 		$errorMessage = null;
 		switch (true) {
-			case !$this->isValidGitURL($url):
-				$errorMessage = 'Invalid repository URL. Only GitHub and GitLab are supported.';
+			case null === $wcmsModuleData || !$this->isValidModuleURL($url):
+				$errorMessage = 'Invalid URL. The module URL needs to contain the full path to the raw wcms-modules.json file.';
 				break;
-			case in_array($url, $defaultRepositories, true) || in_array($url, $customRepositories, true):
-				$errorMessage = 'Repository already exists.';
+			case !$this->validateWcmsModuleStructure($wcmsModuleData):
+				$errorMessage = 'Module not added - the wcms-modules.json file does not contain all the required information.';
 				break;
-			case $this->getOfficialVersion(sprintf('%s/master/', $url)) === null
-				&& $this->getOfficialVersion(sprintf('%s/main/', $url)) === null:
-				$errorMessage = 'Repository not added - missing version file.';
+			case $this->checkIfModuleRepoExists($wcmsModuleData->repo, $type):
+				$errorMessage = 'Module already exists.';
 				break;
 		}
 		if ($errorMessage !== null) {
@@ -1362,11 +1445,11 @@ EOT;
 			$this->redirect();
 		}
 
-		$customRepositories[] = $url;
-		$this->set('config', 'customRepos', $type, $customRepositories);
-		$this->cacheSingleCacheThemePluginData($url, $type);
+		$customModules[] = $url;
+		$this->set('config', 'customModules', $type, $customModules);
+		$this->cacheSingleCacheModuleData($url, $type);
 		$this->alert('success',
-			'Repository successfully added to <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
+			'Module successfully added to <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
 		$this->redirect();
 	}
 
@@ -1376,13 +1459,19 @@ EOT;
 	 * @param string $name
 	 * @return string|null
 	 */
-	public function getThemePluginVersion(string $type, string $name): ?string
+	public function getModuleVersion(string $type, string $name): ?string
 	{
 		$version = null;
 		$path = sprintf('%s/%s/%s', $this->rootDir, $type, $name);
+		$wcmsModulesPath = $path . '/wcms-modules.json';
 		$versionPath = $path . '/version';
-		if (is_dir($path) && is_file($versionPath)) {
-			$version = trim(file_get_contents($versionPath));
+		if (is_dir($path) && (is_file($wcmsModulesPath) || is_file($versionPath))) {
+			if (is_file($wcmsModulesPath)) {
+				$wcmsModules = json_decode(trim(file_get_contents($wcmsModulesPath)));
+				$version = $wcmsModules->{$type}->{$name}->version;
+			} else {
+				$version = trim(file_get_contents($versionPath));
+			}
 		}
 
 		return $version;
@@ -1392,21 +1481,16 @@ EOT;
 	 * Install and update theme
 	 * @throws Exception
 	 */
-	public function installUpdateThemePluginAction(): void
+	public function installUpdateModuleAction(): void
 	{
-		if (!isset($_REQUEST['installThemePlugin'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
+		if (!isset($_REQUEST['installModule'], $_REQUEST['directoryName'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-		$url = $_REQUEST['installThemePlugin'];
-		if (!$this->isValidGitURL($url)) {
-			$this->alert('danger', 'Invalid repository URL. Only GitHub and GitLab are supported.');
-			$this->redirect();
-		}
-
+		$url = $_REQUEST['installModule'];
+		$folderName = $_REQUEST['directoryName'];
 		$type = $_REQUEST['type'];
+
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
-		$folders = explode('/', str_replace(['/archive/master.zip', '/archive/main.zip'], '', $url));
-		$folderName = array_pop($folders);
 
 		if (in_array($type, self::VALID_DIRS, true)) {
 			$zipFile = $this->filesPath . '/ZIPFromURL.zip';
@@ -1425,15 +1509,18 @@ EOT;
 					'Error opening ZIP file.' . ($curlError ? ' Error description: ' . $curlError : ''));
 				$this->redirect();
 			}
+			// First delete old plugin folder
+			$this->recursiveDelete($path . $folderName);
+
+			// Then extract new one
 			$zip->extractTo($path);
 			$zip->close();
 			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-			$this->recursiveDelete($path . $folderName);
-			$themePluginFolder = $path . $folderName . '-master';
-			if (!is_dir($themePluginFolder)) {
-				$themePluginFolder = $path . $folderName . '-main';
+			$moduleFolder = $path . $folderName . '-master';
+			if (!is_dir($moduleFolder)) {
+				$moduleFolder = $path . $folderName . '-main';
 			}
-			if (!rename($themePluginFolder, $path . $folderName)) {
+			if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
 				throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
 			}
 			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
@@ -1449,6 +1536,16 @@ EOT;
 	private function isValidGitURL(string $url): bool
 	{
 		return strpos($url, 'https://github.com/') !== false || strpos($url, 'https://gitlab.com/') !== false;
+	}
+
+	/**
+	 * Validate if custom module url has wcms-modules.json
+	 * @param string $url
+	 * @return boolean
+	 */
+	private function isValidModuleURL(string $url): bool
+	{
+		return strpos($url, 'wcms-modules.json') !== false;
 	}
 
 	/**
@@ -1590,7 +1687,7 @@ EOT;
 			'keywords' => '',
 			'content' => '
 			<style>.showUpdate{display: block !important}</style>
-				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a minute, updates are checked once per week.</p></div>
+				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a moment.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
 					<div class="winput-group text-center">
 						<h1>Login to your website</h1>
@@ -1685,11 +1782,7 @@ EOT;
 				'Change your login URL and save it for later use. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Open security settings</b></a>');
 		}
 
-		$db = $this->getDb();
-		$lastSync = $db->config->defaultRepos->lastSync;
-		if (strtotime($lastSync) < strtotime('-7 days')) {
-			$this->checkWcmsCoreUpdate();
-		}
+		$this->checkModulesCache();
 	}
 
 	/**
@@ -1702,7 +1795,7 @@ EOT;
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
-				<a href="https://wondercms.com/whatsnew" target="_blank"><u><b>Check what\'s new</b></u></a>
+				<a href="https://wondercms.com/news" target="_blank"><u><b>Check what\'s new</b></u></a>
 				and <b>backup your website</b> before updating.
 				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
 					<button type="submit" class="wbtn wbtn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
@@ -1876,15 +1969,17 @@ EOT;
 	 */
 	public function parseUrl(): string
 	{
-		if (!isset($_GET['page'])) {
+		$page = $_GET['page'] ?? null;
+
+		if (!isset($page) || !$page) {
 			$defaultPage = $this->get('config', 'defaultPage');
 			$this->currentPageTree = explode('/', $defaultPage);
 			return $defaultPage;
 		}
 
-		$this->currentPageTree = explode('/', rtrim($_GET['page'], '/'));
-		if ($_GET['page'] === $this->get('config', 'login')) {
-			return htmlspecialchars($_GET['page'], ENT_QUOTES);
+		$this->currentPageTree = explode('/', rtrim($page, '/'));
+		if ($page === $this->get('config', 'login')) {
+			return htmlspecialchars($page, ENT_QUOTES);
 		}
 
 		$currentPage = end($this->currentPageTree);
@@ -1975,7 +2070,8 @@ EOT;
 			$newUrl = $_SESSION['redirect_to'];
 			$newPageName = $_SESSION['redirect_to_name'];
 			unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
-			$this->alert('success', "Page <b>$newPageName</b> created. Click <a href=" . $newUrl . ">here</a> to open it.");
+			$this->alert('success',
+				"Page <b>$newPageName</b> created. Click <a href=" . $newUrl . ">here</a> to open it.");
 			$this->redirect($newUrl);
 		}
 		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
@@ -2051,7 +2147,7 @@ EOT;
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_slice(scandir($this->filesPath), 2);
 		$output = '
-        <script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
+		<script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
@@ -2144,7 +2240,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteThemePlugin=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
+									<a href="' . self::url('?deleteModule=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -2153,8 +2249,8 @@ EOT;
 		$output .= '
 							 </div>
 							</div>';
-		$output .= $this->renderThemePluginTab();
-		$output .= $this->renderThemePluginTab('plugins');
+		$output .= $this->renderModuleTab();
+		$output .= $this->renderModuleTab('plugins');
 		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
 								<p class="change marginTop5 small danger">Important: save your login URL to log in to your website next time:<br/><b><span class="normalFont">' . self::url($this->get('config',
@@ -2264,17 +2360,18 @@ EOT;
 	 */
 	private function renderPageNavMenuItem(object $item, string $parentSlug = ''): string
 	{
-		$subpages = false;
-		if (property_exists($item, 'subpages') && !empty((array) $item->subpages)) {
+		$subpages = $visibleSubpage = false;
+		if (property_exists($item, 'subpages') && !empty((array)$item->subpages)) {
 			$subpages = $item->subpages;
+			$visibleSubpage = $subpages && in_array('show', array_column((array)$subpages, 'visibility'));
 		}
 
 		$parentSlug .= $item->slug . '/';
-		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($subpages ? 'subpage-nav' : '') . '">
+		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($visibleSubpage ? 'subpage-nav' : '') . '">
 						<a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
 
 		// Recursive method for rendering infinite subpages
-		if ($subpages) {
+		if ($visibleSubpage) {
 			$output .= '<ul class="subPageDropdown">';
 			foreach ($subpages as $subpage) {
 				if ($subpage->visibility === 'hide') {
@@ -2395,7 +2492,7 @@ EOT;
 	 * @return string
 	 * @throws Exception
 	 */
-	private function renderThemePluginTab(string $type = 'themes'): string
+	private function renderModuleTab(string $type = 'themes'): string
 	{
 		$output = '<div role="tabpanel" class="tab-pane" id="' . $type . '">
 					<a class="wbtn wbtn-info wbtn-sm pull-right float-right marginTop20 marginBottom20" data-loader-id="cache" href="' . self::url('?manuallyResetCacheData=true&token=' . $this->getToken()) . '" title="Check updates" onclick="localStorage.clear();"><i class="refreshIcon" aria-hidden="true"></i> Check for updates</a>
@@ -2403,21 +2500,20 @@ EOT;
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		$updates = $exists = $installs = '';
-		foreach ($this->listAllThemesPlugins($type) as $addonType => $addonRepos) {
-			foreach ($addonRepos as $addon) {
+		foreach ($this->listAllModules($type) as $addonType => $addonModules) {
+			foreach ($addonModules as $directoryName => $addon) {
 				$name = $addon['name'];
-				$info = $addon['readme'];
-				$infoUrl = $addon['readmeUrl'];
+				$info = $addon['summary'];
+				$infoUrl = $addon['repo'];
 				$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s',
 					$addon['currentVersion']) : '';
-				$directoryName = $addon['dirName'];
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installThemePlugin=' . $addon['zip'] . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['newVersion'] . '</a>' : '';
-				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectThemePlugin=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>' : '';
+				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
 				$html = "<div class='coll-sm-4'>
@@ -2450,16 +2546,16 @@ EOT;
 		$output .= $exists;
 		$output .= $installs;
 		$output .= '</div>
-					<p class="subTitle">Custom repository</p>
+					<p class="subTitle">Custom module</p>
 					<form action="' . $this->getCurrentPageUrl() . '" method="post">
 						<div class="wform-group">
-							<div class="change winput-group marginTop5"><input type="text" name="pluginThemeUrl" class="wform-control normalFont" placeholder="Enter URL to custom repository">
-								<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info"><i class="addNewIcon"></i> Add</button></span>
+							<div class="change winput-group marginTop5"><input type="text" name="pluginThemeUrl" class="wform-control normalFont" placeholder="Enter full URL to wcms-modules.json file">
+								<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info" onclick="return confirm(\'Adding unknown modules can be VERY dangerous, are you sure you want to continue?\')"><i class="addNewIcon"></i> Add</button></span>
 							</div>
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
 					</form>
-					<p class="text-right"><a href="https://github.com/robiso/wondercms/wiki/Custom-repositories" target="_blank"><i class="linkIcon"></i> Read more about custom repositories</a></p>
+					<p class="text-right"><a href="https://github.com/robiso/wondercms/wiki/Custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
 		return $output;
 	}
@@ -2669,20 +2765,20 @@ EOT;
 	 */
 	public static function url(string $location = ''): string
 	{
-        $showHttps = Wcms::isCurrentlyOnSSL();
-        $dataPath = sprintf('%s/%s', __DIR__, 'data');
-        $securityCachePath = sprintf('%s/%s', $dataPath, 'security.json');
+		$showHttps = Wcms::isCurrentlyOnSSL();
+		$dataPath = sprintf('%s/%s', __DIR__, 'data');
+		$securityCachePath = sprintf('%s/%s', $dataPath, 'security.json');
 
-        if (is_file($securityCachePath) && file_exists($securityCachePath)) {
-            $securityCache = json_decode(file_get_contents($securityCachePath), true);
-            $showHttps = $securityCache['forceHttps'] ?? false;
-        }
+		if (is_file($securityCachePath) && file_exists($securityCachePath)) {
+			$securityCache = json_decode(file_get_contents($securityCachePath), true);
+			$showHttps = $securityCache['forceHttps'] ?? false;
+		}
 
-        return ($showHttps ? 'https' : 'http')
-            . '://' . $_SERVER['SERVER_NAME']
-            . ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
-            . ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
-            . '/' . $location;
+		return ($showHttps ? 'https' : 'http')
+			. '://' . $_SERVER['SERVER_NAME']
+			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
+			. '/' . $location;
 	}
 
 	/**
@@ -2719,16 +2815,16 @@ EOT;
 		$this->redirect('data/files/' . $zipName);
 	}
 
-    /**
-     * Check if currently user is on https
-     * @return bool
-     */
-    public static function isCurrentlyOnSSL(): bool
-    {
-        return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
-            || (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
-            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-    }
+	/**
+	 * Check if currently user is on https
+	 * @return bool
+	 */
+	public static function isCurrentlyOnSSL(): bool
+	{
+		return (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on')
+			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+	}
 
 	/**
 	 * Check compatibility

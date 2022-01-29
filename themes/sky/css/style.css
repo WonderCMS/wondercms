@@ -456,7 +456,7 @@ input::-moz-focus-inner {
 				float: left;
 				margin: 0 1em 0 2em
 			}
-			#topMenu nav .active a{
+			#topMenu nav .active a {
 				border-bottom: 1px solid #fff
 			}
 			footer {
@@ -512,6 +512,10 @@ input::-moz-focus-inner {
 		outline: none
 	}
 
+	#topMenu .nav-item {
+		margin-top: 5px
+	}
+
 	ul.subPageDropdown {
 		visibility: hidden;
 		opacity: 0;
@@ -540,7 +544,7 @@ input::-moz-focus-inner {
 	/* Submenus dropdown arrow */
 	.menu li > a:after {
 		content: ' ▼';
-		font-weight: bold;
+		font-weight: bold
 	}
 
 	.menu > li > a:after {
