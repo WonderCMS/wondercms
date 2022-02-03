@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.3.0');
+define('VERSION', '3.3.1');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1795,7 +1795,7 @@ EOT;
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
-				<a href="https://wondercms.com/whatsnew" target="_blank"><u><b>Check what\'s new</b></u></a>
+				<a href="https://wondercms.com/news" target="_blank"><u><b>Check what\'s new</b></u></a>
 				and <b>backup your website</b> before updating.
 				 <form action="' . $this->getCurrentPageUrl() . '" method="post" class="marginTop5">
 					<button type="submit" class="wbtn wbtn-info marginTop20" name="backup"><i class="installIcon"></i>Download backup</button>
@@ -2366,7 +2366,7 @@ EOT;
 			$visibleSubpage = $subpages && in_array('show', array_column((array)$subpages, 'visibility'));
 		}
 
-		$parentSlug .= $item->slug . '/';
+		$parentSlug .= $subpages ? $item->slug . '/' : $item->slug;
 		$output = '<li class="nav-item ' . ($this->currentPage === $item->slug ? 'active ' : '') . ($visibleSubpage ? 'subpage-nav' : '') . '">
 						<a class="nav-link" href="' . self::url($parentSlug) . '">' . $item->name . '</a>';
 
