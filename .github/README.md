@@ -22,7 +22,9 @@
 
 ## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://swag.wondercms.com)</div>
 
-<br>
+
+[![What is WonderCMS? Introduction](https://www.wondercms.com/data/files/wondercms-introduction.png)](https://www.youtube.com/watch?v=gtkoi9X1L3g)
+
 
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
