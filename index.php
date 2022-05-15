@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.3.1');
+define('VERSION', '3.3.2');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -789,12 +789,14 @@ class Wcms
 		}
 
 		unset($selectedPage->{$slug}->{$fieldname});
+		$this->save();
 	}
 
 	/**
 	 * Delete existing page by slug
 	 *
 	 * @param array|null $slugTree
+	 * @throws Exception
 	 */
 	public function deletePageFromDb(array $slugTree = null): void
 	{
@@ -808,6 +810,7 @@ class Wcms
 		}
 
 		unset($selectedPage->{$slug});
+		$this->save();
 	}
 
 	/**
@@ -815,6 +818,7 @@ class Wcms
 	 *
 	 * @param array $slugTree
 	 * @param string $newSlugName
+	 * @throws Exception
 	 */
 	public function updatePageSlug(array $slugTree, string $newSlugName): void
 	{
@@ -1275,6 +1279,10 @@ EOT;
 	{
 		$wcmsModules = trim($this->getFileFromRepo('wcms-modules.json', self::WCMS_CDN_REPO));
 		$jsonObject = json_decode($wcmsModules);
+		if (empty($jsonObject)) {
+			return;
+		}
+
 		$parsedCache = $this->moduleCacheMapper($jsonObject);
 		if (empty($parsedCache)) {
 			return;
@@ -2151,7 +2159,7 @@ EOT;
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
-			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
+			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout?token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
 			<div class="wcms-modal modal" id="settingsModal">
 				<div class="modal-dialog modal-xl">
 				 <div class="modal-content">
@@ -2775,7 +2783,7 @@ EOT;
 		}
 
 		return ($showHttps ? 'https' : 'http')
-			. '://' . $_SERVER['SERVER_NAME']
+			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'])
 			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
 			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
 			. '/' . $location;
