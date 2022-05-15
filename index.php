@@ -1279,6 +1279,10 @@ EOT;
 	{
 		$wcmsModules = trim($this->getFileFromRepo('wcms-modules.json', self::WCMS_CDN_REPO));
 		$jsonObject = json_decode($wcmsModules);
+		if (empty($jsonObject)) {
+			return;
+		}
+
 		$parsedCache = $this->moduleCacheMapper($jsonObject);
 		if (empty($parsedCache)) {
 			return;
@@ -2155,7 +2159,7 @@ EOT;
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
-			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout&token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
+			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout?token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
 			<div class="wcms-modal modal" id="settingsModal">
 				<div class="modal-dialog modal-xl">
 				 <div class="modal-content">
