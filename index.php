@@ -789,12 +789,14 @@ class Wcms
 		}
 
 		unset($selectedPage->{$slug}->{$fieldname});
+		$this->save();
 	}
 
 	/**
 	 * Delete existing page by slug
 	 *
 	 * @param array|null $slugTree
+	 * @throws Exception
 	 */
 	public function deletePageFromDb(array $slugTree = null): void
 	{
@@ -808,6 +810,7 @@ class Wcms
 		}
 
 		unset($selectedPage->{$slug});
+		$this->save();
 	}
 
 	/**
@@ -815,6 +818,7 @@ class Wcms
 	 *
 	 * @param array $slugTree
 	 * @param string $newSlugName
+	 * @throws Exception
 	 */
 	public function updatePageSlug(array $slugTree, string $newSlugName): void
 	{
@@ -2775,7 +2779,7 @@ EOT;
 		}
 
 		return ($showHttps ? 'https' : 'http')
-			. '://' . $_SERVER['SERVER_NAME']
+			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'])
 			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
 			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
 			. '/' . $location;
