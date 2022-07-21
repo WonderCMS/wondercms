@@ -2197,7 +2197,7 @@ EOT;
 		$output .= '
 							</div>
 							<div role="tabpanel" class="tab-pane" id="menu">';
-		$items = $this->get('config', 'menuItems');
+		$items = get_mangled_object_vars($this->get('config', 'menuItems'));
 		reset($items);
 		$first = key($items);
 		end($items);
@@ -2225,7 +2225,7 @@ EOT;
 							 <p class="subTitle">Page to display on homepage</p>
 							 <div class="change">
 								<select id="changeDefaultPage" class="wform-control" name="defaultPage">';
-		$items = $this->get('config', 'menuItems');
+		$items = get_mangled_object_vars($this->get('config', 'menuItems'));
 		$defaultPage = $this->get('config', 'defaultPage');
 		foreach ($items as $item) {
 			$output .= $this->renderDefaultPageOptions($item, $defaultPage);
@@ -2451,6 +2451,7 @@ EOT;
 	 */
 	private function renderSettingsSubMenuItem(object $subpages, string $parentKeyTree, string $parentSlugTree): string
 	{
+		$subpages = get_mangled_object_vars($subpages);
 		reset($subpages);
 		$firstSubpage = key($subpages);
 		end($subpages);
