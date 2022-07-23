@@ -1056,7 +1056,7 @@ EOT;
 		$object = $this->db;
 
 		foreach ($args as $key => $arg) {
-			$object = $object->{$arg} ?? $this->set(...array_merge($args, [null]));
+			$object = $object->{$arg} ?? $this->set(...array_merge($args, [new stdClass]));
 		}
 
 		return $object;
