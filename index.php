@@ -2687,6 +2687,7 @@ EOT;
 			'htm',
 			'html',
 			'ico',
+			'jpeg',
 			'jpg',
 			'kdbx',
 			'm4a',
