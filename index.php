@@ -952,7 +952,7 @@ EOT;
 		$this->deletePageFromDb($slugTree);
 
 		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		if (count(get_object_vars($allMenuItems)) === 1) {
+		if (count(get_object_vars($allMenuItems)) === 1 && count($slugTree) === 1) {
 			$this->alert('danger', 'Last page cannot be deleted - at least one page must exist.');
 			$this->redirect();
 		}
