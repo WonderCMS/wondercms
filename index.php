@@ -1858,7 +1858,7 @@ EOT;
 		if (!in_array($content, [1, -1], true)) {
 			return;
 		}
-		$menuTree = $menu ? explode('-', $menu) : null;
+		$menuTree = explode('-', $menu);
 		$mainParentMenu = $selectedMenuKey = array_shift($menuTree);
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 
