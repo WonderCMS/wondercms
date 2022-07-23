@@ -2782,9 +2782,10 @@ EOT;
 			$showHttps = $securityCache['forceHttps'] ?? false;
 		}
 
+		$serverPort = ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']);
 		return ($showHttps ? 'https' : 'http')
 			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'])
-			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+			. ($_SERVER['HTTP_HOST'] ? '' : $serverPort)
 			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
 			. '/' . $location;
 	}
