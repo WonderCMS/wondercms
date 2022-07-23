@@ -2086,18 +2086,18 @@ EOT;
 			&& $this->hashVerify($_POST['token'])) {
 			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
 				$_POST['content'], $_POST['target'], $_POST['menu'] ?? null, ($_POST['visibility'] ?? 'hide'));
-			if ($target === 'menuItemUpdate' && $menu) {
+			if ($target === 'menuItemUpdate' && $menu !== null) {
 				$this->updateMenuItem($content, $menu, $visibility);
 				$_SESSION['redirect_to_name'] = $content;
 				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
-			if ($target === 'menuItemCreate' && $menu) {
+			if ($target === 'menuItemCreate' && $menu !== null) {
 				$this->createMenuItem($content, $menu, $visibility, true);
 			}
-			if ($target === 'menuItemVsbl' && $menu) {
+			if ($target === 'menuItemVsbl' && $menu !== null) {
 				$this->updateMenuItemVisibility($visibility, $menu);
 			}
-			if ($target === 'menuItemOrder' && $menu) {
+			if ($target === 'menuItemOrder' && $menu !== null) {
 				$this->orderMenuItem($content, $menu);
 			}
 			if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
