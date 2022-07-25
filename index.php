@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.3.2');
+define('VERSION', '3.3.3');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -952,7 +952,7 @@ EOT;
 		$this->deletePageFromDb($slugTree);
 
 		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		if (count(get_object_vars($allMenuItems)) === 1) {
+		if (count(get_object_vars($allMenuItems)) === 1 && count($slugTree) === 1) {
 			$this->alert('danger', 'Last page cannot be deleted - at least one page must exist.');
 			$this->redirect();
 		}
@@ -1056,7 +1056,7 @@ EOT;
 		$object = $this->db;
 
 		foreach ($args as $key => $arg) {
-			$object = $object->{$arg} ?? $this->set(...array_merge($args, [null]));
+			$object = $object->{$arg} ?? $this->set(...array_merge($args, [new stdClass]));
 		}
 
 		return $object;
@@ -1858,7 +1858,7 @@ EOT;
 		if (!in_array($content, [1, -1], true)) {
 			return;
 		}
-		$menuTree = $menu ? explode('-', $menu) : null;
+		$menuTree = explode('-', $menu);
 		$mainParentMenu = $selectedMenuKey = array_shift($menuTree);
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 
@@ -2085,19 +2085,19 @@ EOT;
 		if (isset($_POST['fieldname'], $_POST['content'], $_POST['target'], $_POST['token'])
 			&& $this->hashVerify($_POST['token'])) {
 			[$fieldname, $content, $target, $menu, $visibility] = $this->hook('save', $_POST['fieldname'],
-				$_POST['content'], $_POST['target'], $_POST['menu'], ($_POST['visibility'] ?? 'hide'));
-			if ($target === 'menuItemUpdate') {
+				$_POST['content'], $_POST['target'], $_POST['menu'] ?? null, ($_POST['visibility'] ?? 'hide'));
+			if ($target === 'menuItemUpdate' && $menu !== null) {
 				$this->updateMenuItem($content, $menu, $visibility);
 				$_SESSION['redirect_to_name'] = $content;
 				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
-			if ($target === 'menuItemCreate') {
+			if ($target === 'menuItemCreate' && $menu !== null) {
 				$this->createMenuItem($content, $menu, $visibility, true);
 			}
-			if ($target === 'menuItemVsbl') {
+			if ($target === 'menuItemVsbl' && $menu !== null) {
 				$this->updateMenuItemVisibility($visibility, $menu);
 			}
-			if ($target === 'menuItemOrder') {
+			if ($target === 'menuItemOrder' && $menu !== null) {
 				$this->orderMenuItem($content, $menu);
 			}
 			if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
@@ -2687,6 +2687,7 @@ EOT;
 			'htm',
 			'html',
 			'ico',
+			'jpeg',
 			'jpg',
 			'kdbx',
 			'm4a',
@@ -2782,9 +2783,10 @@ EOT;
 			$showHttps = $securityCache['forceHttps'] ?? false;
 		}
 
+		$serverPort = ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']);
 		return ($showHttps ? 'https' : 'http')
 			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'])
-			. ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT'])
+			. ($_SERVER['HTTP_HOST'] ? '' : $serverPort)
 			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
 			. '/' . $location;
 	}
