@@ -6,7 +6,7 @@
             "repo": "https://github.com/robiso/sky/tree/master",
             "zip": "https://github.com/robiso/sky/archive/master.zip",
             "summary": "Default WonderCMS theme (2022). Theme works without Bootstrap and jQuery.",
-            "version": "3.2.1",
+            "version": "3.2.3",
             "image": "https://raw.githubusercontent.com/robiso/sky/master/preview.jpg"
         }
     }

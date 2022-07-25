@@ -12,11 +12,10 @@
 		<meta name="title" content="<?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?>" />
 		<meta name="description" content="<?= $Wcms->page('description') ?>">
 		<meta name="keywords" content="<?= $Wcms->page('keywords') ?>">
-		<meta property="og:url" content="<?= $this->url() ?>" />
+		<meta property="og:url" content="<?= $Wcms->getCurrentPageUrl() ?>" />
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content="<?= $Wcms->get('config', 'siteTitle') ?>" />
 		<meta property="og:title" content="<?= $Wcms->page('title') ?>" />
-		<meta name="twitter:site" content="<?= $this->url() ?>" />
 		<meta name="twitter:title" content="<?= $Wcms->get('config', 'siteTitle') ?> - <?= $Wcms->page('title') ?>" />
 		<meta name="twitter:description" content="<?= $Wcms->page('description') ?>" />
 
