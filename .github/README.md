@@ -176,11 +176,11 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 ## Links
 #### Website links
 - [Official website](https://www.wondercms.com)
-- [News/Changelog](https://www.wondercms.com/whatsnew)
+- [News/Changelog](https://www.wondercms.com/news)
 - [Donate](https://www.wondercms.com/donate)
 - [Get merch](https://www.wondercms.com/shop)
 - [Donors Hall of Fame](https://www.wondercms.com/donors)
-- [List of contributors](https://www.wondercms.com/special-contributors)
+- [List of contributors](https://www.wondercms.com/contributors)
 - [All WonderCMS related links](https://www.wondercms.com/links)
 
 
