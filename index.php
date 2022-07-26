@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.3.3');
+define('VERSION', '3.3.4');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1056,7 +1056,11 @@ EOT;
 		$object = $this->db;
 
 		foreach ($args as $key => $arg) {
-			$object = $object->{$arg} ?? $this->set(...array_merge($args, [new stdClass]));
+			if (!property_exists($object, $arg)) {
+				$this->set(...array_merge($args, [new stdClass]));
+			}
+
+			$object = $object->{$arg};
 		}
 
 		return $object;
@@ -2880,7 +2884,12 @@ EOT;
 	 */
 	private function isHttpsForced(): bool
 	{
-		return $this->get('config', 'forceHttps') ?? false;
+		$value = $this->get('config', 'forceHttps');
+		if (gettype($value) === 'object' && empty(get_object_vars($value))) {
+			return false;
+		}
+
+		return $value ?? false;
 	}
 
 	/**
@@ -2889,6 +2898,11 @@ EOT;
 	 */
 	private function isSaveChangesPopupEnabled(): bool
 	{
-		return $this->get('config', 'saveChangesPopup') ?? false;
+		$value = $this->get('config', 'saveChangesPopup');
+		if (gettype($value) === 'object' && empty(get_object_vars($value))) {
+			return false;
+		}
+
+		return $value ?? false;
 	}
 }
