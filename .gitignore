@@ -4,8 +4,9 @@ SECURITY.md
 license
 version
 phpunit
+plugins
 themes
-!themes/default
+!themes/sky
 .phpunit.result.cache
 data_test
 phpunit.phar
