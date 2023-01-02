@@ -1,16 +1,16 @@
 <h1 align="center">
 <a href="https://wondercms.com" target="_blank" title="Official WonderCMS website">
-    <img src="https://github.com/robiso/wondercms-cdn-files/blob/master/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
+    <img src="https://github.com/WonderCMS/wondercms-cdn-files/blob/main/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
  <br>WonderCMS - Free Website Builder<br>
     <sup>Smallest CMS (5 files • 48KB zip) - 1 step install</sup>
 </h1>
 
-<p align="center"><a href="https://github.com/robiso/wondercms/wiki#wondercms-documentation"><img src="https://camo.githubusercontent.com/45b2b4156eee6b315080fad3c417be62fb10b7d3/68747470733a2f2f696d672e736869656c64732e696f2f72656164746865646f63732f7069702f737461626c652e7376673f6c6f6e6743616368653d7472756526763d313030" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
+<p align="center"><a href="https://github.com/WonderCMS/wondercms/wiki#wondercms-documentation"><img src="https://camo.githubusercontent.com/45b2b4156eee6b315080fad3c417be62fb10b7d3/68747470733a2f2f696d672e736869656c64732e696f2f72656164746865646f63732f7069702f737461626c652e7376673f6c6f6e6743616368653d7472756526763d313030" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
 <a href="https://www.wondercms.com/about" rel="nofollow"><img src="https://camo.githubusercontent.com/9939e040d7c234e669e0f617f0cb2247bf86b71b/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f70726f6a656374253230666f756e6465642532302d253230696e253230323030382d2532353630303f6c6f6e6743616368653d7472756526763d313030" alt="Project " data-canonical-src="https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&amp;v=100" style="max-width:100%;"></a>
 <a target="_blank" rel="noopener noreferrer" href="https://camo.githubusercontent.com/21e44ed76cd7c7d861a97c415edebdc421e8fcee/68747470733a2f2f696d672e736869656c64732e696f2f6d61696e74656e616e63652f7965732f323032302e7376673f6c6f6e6743616368653d74727565"><img src="https://img.shields.io/maintenance/yes/2022.svg?longCache=true" alt="Maintained" data-canonical-src="https://img.shields.io/maintenance/yes/2022.svg?longCache=true" style="max-width:100%;"></a>
-<a href="https://github.com/robiso/wondercms/blob/master/license"><img src="https://camo.githubusercontent.com/5098d9debf116c028641edd6d434f57ce436824c/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f6c6963656e73652f6d6173686170652f6170697374617475732e7376673f6c6f6e6743616368653d74727565" alt="License" data-canonical-src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" style="max-width:100%;"></a>
-<a href="https://github.com/robiso/wondercms/releases"><img src="https://camo.githubusercontent.com/016ebd6f0795dd02d373cfb8689b831e4438cc8b/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f646f776e6c6f6164732f726f6269736f2f776f6e646572636d732f746f74616c2e7376673f6c6162656c3d646f776e6c6f61647325323073696e636525323032303137266c6f6e6743616368653d74727565" alt="Number of downloads since first release on GitHub" data-canonical-src="https://img.shields.io/github/downloads/robiso/wondercms/total.svg?label=downloads%20since%202017&amp;longCache=true" style="max-width:100%;"></a>
+<a href="https://github.com/WonderCMS/wondercms/blob/master/license"><img src="https://camo.githubusercontent.com/5098d9debf116c028641edd6d434f57ce436824c/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f6c6963656e73652f6d6173686170652f6170697374617475732e7376673f6c6f6e6743616368653d74727565" alt="License" data-canonical-src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" style="max-width:100%;"></a>
+<a href="https://github.com/WonderCMS/wondercms/releases"><img src="https://camo.githubusercontent.com/016ebd6f0795dd02d373cfb8689b831e4438cc8b/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f646f776e6c6f6164732f726f6269736f2f776f6e646572636d732f746f74616c2e7376673f6c6162656c3d646f776e6c6f61647325323073696e636525323032303137266c6f6e6743616368653d74727565" alt="Number of downloads since first release on GitHub" data-canonical-src="https://img.shields.io/github/downloads/WonderCMS/wondercms/total.svg?label=downloads%20since%202017&amp;longCache=true" style="max-width:100%;"></a>
 <a href="https://paypal.me/WonderCMS" rel="nofollow"><img src="https://camo.githubusercontent.com/0cdc244481d2dc6524ce8e7a6a58b95a27a39773/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f646f6e6174652d50617950616c2d677265656e2e7376673f6c6f6e6743616368653d74727565" alt="Donate" data-canonical-src="https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true" style="max-width:100%;"></a>
 </p>
 
@@ -28,10 +28,10 @@
 
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
-  - 5 files: [database.js](https://github.com/robiso/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/robiso/wondercms/blob/master/index.php), [theme.php](https://github.com/robiso/wondercms/blob/master/themes/sky/theme.php), [style.css](https://github.com/robiso/wondercms/blob/master/themes/sky/css/style.css) and [htaccess](https://github.com/robiso/wondercms/blob/master/.htaccess).
+  - 5 files: [database.js](https://github.com/WonderCMS/wondercms/wiki/Default-database.js#default-databasejs) (JSON format), [index.php](https://github.com/WonderCMS/wondercms/blob/master/index.php), [theme.php](https://github.com/WonderCMS/wondercms/blob/master/themes/sky/theme.php), [style.css](https://github.com/WonderCMS/wondercms/blob/master/themes/sky/css/style.css) and [htaccess](https://github.com/WonderCMS/wondercms/blob/master/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files (no additional configuration/migration)
  - Privacy oriented: no cookies, tracking or "powered by" links.
- - Includes plugins ([via hooks/listeners](https://github.com/robiso/wondercms/wiki/List-of-hooks)), [themes](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)/plugins installer, [backups](https://github.com/robiso/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/robiso/wondercms/wiki/One-click-update).
+ - Includes plugins ([via hooks/listeners](https://github.com/WonderCMS/wondercms/wiki/List-of-hooks)), [themes](https://github.com/WonderCMS/wondercms/wiki/Create-theme-in-8-easy-steps)/plugins installer, [backups](https://github.com/WonderCMS/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/WonderCMS/wondercms/wiki/One-click-update).
  - Supports most server types (Apache, NGINX, IIS).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
@@ -43,7 +43,7 @@
 <br>
 
 ### Other install options
-  - Option 2: Clone from GitHub: `git clone https://github.com/robiso/wondercms.git`
+  - Option 2: Clone from GitHub: `git clone https://github.com/WonderCMS/wondercms.git`
   - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/latest)
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
@@ -52,14 +52,14 @@
 <br>
 
 ## Requirements
-- PHP 7.2 or greater
+- PHP 7.4 or greater
   - cURL extension
   - mbstring extension
   - Zip extension
 - mod_rewrite module
 - any type of server (Apache, NGINX or IIS)
 
-*For setting up WonderCMS on NGINX or IIS servers, there is one additional step required. Read more: [NGINX setup](https://github.com/robiso/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/robiso/wondercms/wiki/IIS-server-config).*
+*For setting up WonderCMS on NGINX or IIS servers, there is one additional step required. Read more: [NGINX setup](https://github.com/WonderCMS/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/WonderCMS/wondercms/wiki/IIS-server-config).*
 
 **WonderCMS works on most Apache servers/hosts (even free ones) by default.**
 
@@ -76,9 +76,9 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 ## Security features
 - Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie. Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
 - Supports HTTPS out of the box.
-  - [Check how to turn on "improved security" mode](https://github.com/robiso/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)).
+  - [Check how to turn on "improved security" mode](https://github.com/WonderCMS/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)).
 - All CSS and JS libraries include SubResource Integrity (SRI) tags. This prevents any changes to the libraries being loaded. If any changes are made, the libraries won't load for your and your visitors protection.
-  - [Check how to add SRI tags to your custom theme](https://github.com/robiso/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#sri-subresource-integrity---3-steps-for-more-security). This step isn't necessary if you're using a theme from the official website.
+  - [Check how to add SRI tags to your custom theme](https://github.com/WonderCMS/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#sri-subresource-integrity---3-steps-for-more-security). This step isn't necessary if you're using a theme from the official website.
 - WonderCMS encourages you to change your default login URL. **Consider your custom login URL as your private username**.
   - Choosing a good login URL can prevent brute force attacks.
   - Your login page will always return a 404 header response. Search engines do not (and should not) cache your login URL.
@@ -98,8 +98,8 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
  - theme and plugin installer/updater
  - 1 click updates
  - 1 click backups
- - [easy to theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
- - [custom editable blocks](https://github.com/robiso/wondercms/wiki/Create-new-editable-areas-or-editable-blocks#difference-between-editable-blocks-and-editable-areas)
+ - [easy to theme](https://github.com/WonderCMS/wondercms/wiki/Create-theme-in-8-easy-steps)
+ - [custom editable blocks](https://github.com/WonderCMS/wondercms/wiki/Create-new-editable-areas-or-editable-blocks#difference-between-editable-blocks-and-editable-areas)
  - custom theme and plugin repositories
  - log of last 5 logged in IPs
  - file uploader
@@ -185,7 +185,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 
 
 #### Community & Support
-- [GitHub Issues](https://github.com/robiso/wondercms/issues)
+- [GitHub Issues](https://github.com/WonderCMS/wondercms/issues)
 - [Community](https://www.wondercms.com/community)
 - [Slack](https://wondercms.slack.com)
 
@@ -196,11 +196,11 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 
 
 #### Github links
-- [Docs/Wiki](https://github.com/robiso/wondercms/wiki#wondercms-documentation)
-   - [Common questions](https://github.com/robiso/wondercms/wiki#common-questions--help)
-   - [List of common errors](https://github.com/robiso/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
-- [How to create a theme](https://github.com/robiso/wondercms/wiki/Create-theme-in-8-easy-steps)
-- [How to create a plugin](https://github.com/robiso/wondercms/wiki/List-of-hooks)
+- [Docs/Wiki](https://github.com/WonderCMS/wondercms/wiki#wondercms-documentation)
+   - [Common questions](https://github.com/WonderCMS/wondercms/wiki#common-questions--help)
+   - [List of common errors](https://github.com/WonderCMS/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
+- [How to create a theme](https://github.com/WonderCMS/wondercms/wiki/Create-theme-in-8-easy-steps)
+- [How to create a plugin](https://github.com/WonderCMS/wondercms/wiki/List-of-hooks)
 
 
 #### Hosting and install tutorial links
