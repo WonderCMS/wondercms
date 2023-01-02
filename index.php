@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.3.3');
+define('VERSION', '3.4.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -39,10 +39,10 @@ class Wcms
 	public const MIN_PASSWORD_LENGTH = 8;
 
 	/** @var string WCMS_REPO - repo URL */
-	public const WCMS_REPO = 'https://raw.githubusercontent.com/robiso/wondercms/master/';
+	public const WCMS_REPO = 'https://raw.githubusercontent.com/WonderCMS/wondercms/main/';
 
 	/** @var string WCMS_CDN_REPO - CDN repo URL */
-	public const WCMS_CDN_REPO = 'https://raw.githubusercontent.com/robiso/wondercms-cdn-files/master/';
+	public const WCMS_CDN_REPO = 'https://raw.githubusercontent.com/WonderCMS/wondercms-cdn-files/main/';
 
 	/** @var string $currentPage - current page */
 	public $currentPage = '';
@@ -1056,7 +1056,11 @@ EOT;
 		$object = $this->db;
 
 		foreach ($args as $key => $arg) {
-			$object = $object->{$arg} ?? $this->set(...array_merge($args, [new stdClass]));
+			if (!property_exists($object, $arg)) {
+				$this->set(...array_merge($args, [new stdClass]));
+			}
+
+			$object = $object->{$arg};
 		}
 
 		return $object;
@@ -1082,7 +1086,7 @@ EOT;
 	}
 
 	/**
-	 * Get content of a file from master branch
+	 * Get content of a file from main branch
 	 *
 	 * @param string $file the file we want
 	 * @param string $repo
@@ -1095,7 +1099,7 @@ EOT;
 	}
 
 	/**
-	 * Get the latest version from master branch
+	 * Get the latest version from main branch
 	 * @param string $repo
 	 * @return null|string
 	 */
@@ -1105,7 +1109,7 @@ EOT;
 	}
 
 	/**
-	 * Get the files from master branch
+	 * Get the files from main branch
 	 * @param string $fileName
 	 * @param string $repo
 	 * @return null|string
@@ -2197,7 +2201,7 @@ EOT;
 		$output .= '
 							</div>
 							<div role="tabpanel" class="tab-pane" id="menu">';
-		$items = $this->get('config', 'menuItems');
+		$items = get_mangled_object_vars($this->get('config', 'menuItems'));
 		reset($items);
 		$first = key($items);
 		end($items);
@@ -2451,6 +2455,7 @@ EOT;
 	 */
 	private function renderSettingsSubMenuItem(object $subpages, string $parentKeyTree, string $parentSlugTree): string
 	{
+		$subpages = get_mangled_object_vars($subpages);
 		reset($subpages);
 		$firstSubpage = key($subpages);
 		end($subpages);
@@ -2668,6 +2673,8 @@ EOT;
 			'application/rar',
 			'image/svg',
 			'image/svg+xml',
+			'image/avif',
+			'image/webp',
 			'application/svg+xm',
 			'text/plain',
 			'application/vnd.ms-excel',
@@ -2679,6 +2686,7 @@ EOT;
 
 		$allowedExtensions = [
 			'avi',
+			'avif',
 			'css',
 			'doc',
 			'docx',
@@ -2711,6 +2719,7 @@ EOT;
 			'xls',
 			'xlsx',
 			'webm',
+			'webp',
 			'wmv',
 			'zip',
 		];
@@ -2880,7 +2889,12 @@ EOT;
 	 */
 	private function isHttpsForced(): bool
 	{
-		return $this->get('config', 'forceHttps') ?? false;
+		$value = $this->get('config', 'forceHttps');
+		if (gettype($value) === 'object' && empty(get_object_vars($value))) {
+			return false;
+		}
+
+		return $value ?? false;
 	}
 
 	/**
@@ -2889,6 +2903,11 @@ EOT;
 	 */
 	private function isSaveChangesPopupEnabled(): bool
 	{
-		return $this->get('config', 'saveChangesPopup') ?? false;
+		$value = $this->get('config', 'saveChangesPopup');
+		if (gettype($value) === 'object' && empty(get_object_vars($value))) {
+			return false;
+		}
+
+		return $value ?? false;
 	}
 }
