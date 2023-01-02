@@ -2,7 +2,7 @@
 <a href="https://wondercms.com" target="_blank" title="Official WonderCMS website">
     <img src="https://github.com/WonderCMS/wondercms-cdn-files/blob/main/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
- <br>WonderCMS - Free Website Builder<br>
+ <br>WonderCMS - Free website builder<br>
     <sup>Smallest CMS (5 files • 48KB zip) - 1 step install</sup>
 </h1>
 
@@ -20,7 +20,7 @@
     <br />Includes features such as: <b>1-step install</b>, <b>1-click updates</b>, <b>1-click backups</b>, <b>theme/plugin installer</b> and much more.
 </p>
 
-## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/Changelog](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Merch](https://swag.wondercms.com)</div>
+## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Buy merch](https://swag.wondercms.com)</div>
 
 
 [![What is WonderCMS? Introduction](https://www.wondercms.com/data/files/wondercms-introduction.png)](https://www.youtube.com/watch?v=gtkoi9X1L3g)
@@ -47,7 +47,6 @@
   - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/latest)
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-  - Option 6: [Watch video - installing WonderCMS on Microsoft Azure](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)
 
 <br>
 
@@ -57,7 +56,7 @@
   - mbstring extension
   - Zip extension
 - mod_rewrite module
-- any type of server (Apache, NGINX or IIS)
+- any type of server (Apache, NGINX, IIS, Caddy)
 
 *For setting up WonderCMS on NGINX or IIS servers, there is one additional step required. Read more: [NGINX setup](https://github.com/WonderCMS/wondercms/wiki/NGINX-server-config) or [IIS setup](https://github.com/WonderCMS/wondercms/wiki/IIS-server-config).*
 
@@ -74,7 +73,8 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 <br>
 
 ## Security features
-- Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie. Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
+- Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie.
+- Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
 - Supports HTTPS out of the box.
   - [Check how to turn on "improved security" mode](https://github.com/WonderCMS/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)).
 - All CSS and JS libraries include SubResource Integrity (SRI) tags. This prevents any changes to the libraries being loaded. If any changes are made, the libraries won't load for your and your visitors protection.
@@ -121,27 +121,28 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 
 ## List of donors
 Also listed on the official [WonderCMS website](https://www.wondercms.com/donors). Thank you for supporting WonderCMS!
+- Håkon Wium Lie (also the creator of CSS)
+- Tjaša Jelačič (BigSheep)
 - Otis Schmakel
-- Tjaša Jelačič
-- Peter Černuta
+- Mohamad Hegazy
+- Ulf Bro
+- Kim Fajdiga
 - John Greene
-- David Bojanovič
 - Sara Stojanovski
+- Peter Černuta
 - Jasmina Fabiani
 - Primož Cankar
 - Andraž Zvonar
-- Kim Fajdiga
 - Martin Jablonka
 - Martin King
 - Ben Gilbey
 - Darley Wilson
 - Josef Kmínek
 - Mikula Beutl
-- Håkon Wium Lie - creator of CSS
+- David Bojanovič
 - Kenneth Rasmussen
-- David G.
 - Victor Onofrei
-- Matthew
+- Matthev
 - Veselin Kamenarov
 - James Campbell
 - Kirsten Hogan
@@ -150,6 +151,14 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - Bizibul
 - Bikespain
 - Aleksandr
+- Impavid Pty Ltd
+- Mohamad Hegazy
+- Happy Monsters Studios
+- Derek (Random Fandom Media Group)
+- Paweł Krużel
+- Netroid
+- Fabian Winder
+- Václav Piták
 
 <br>
 
@@ -187,7 +196,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 #### Community & Support
 - [GitHub Issues](https://github.com/WonderCMS/wondercms/issues)
 - [Community](https://www.wondercms.com/community)
-- [Slack](https://wondercms.slack.com)
+- [Discord](https://discord.gg/2MVubVBCry)
 
 
 #### Social links
@@ -206,4 +215,3 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 #### Hosting and install tutorial links
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
 - [Install via cPanel - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
-- [Deploy on Microsoft Azure - 2 minute Azure video tutorial](https://channel9.msdn.com/Blogs/Open/A-PHP-CMS-in-the-cloud-no-signup-needed-in-2-minutes)</sup>
