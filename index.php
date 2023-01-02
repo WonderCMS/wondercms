@@ -1086,7 +1086,7 @@ EOT;
 	}
 
 	/**
-	 * Get content of a file from master branch
+	 * Get content of a file from main branch
 	 *
 	 * @param string $file the file we want
 	 * @param string $repo
@@ -1099,7 +1099,7 @@ EOT;
 	}
 
 	/**
-	 * Get the latest version from master branch
+	 * Get the latest version from main branch
 	 * @param string $repo
 	 * @return null|string
 	 */
@@ -1109,7 +1109,7 @@ EOT;
 	}
 
 	/**
-	 * Get the files from master branch
+	 * Get the files from main branch
 	 * @param string $fileName
 	 * @param string $repo
 	 * @return null|string
