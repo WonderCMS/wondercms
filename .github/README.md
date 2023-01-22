@@ -32,7 +32,7 @@
     - Transferring your website to a new host/server is done by only copy/pasting all files (no additional configuration/migration)
  - Privacy oriented: no cookies, tracking or "powered by" links.
  - Includes plugins ([via hooks/listeners](https://github.com/WonderCMS/wondercms/wiki/List-of-hooks)), [themes](https://github.com/WonderCMS/wondercms/wiki/Create-theme-in-8-easy-steps)/plugins installer, [backups](https://github.com/WonderCMS/wondercms/wiki/Backup-all-files), [1 click updates](https://github.com/WonderCMS/wondercms/wiki/One-click-update).
- - Supports most server types (Apache, NGINX, IIS).
+ - Supports most server types (Apache, NGINX, IIS, Caddy).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
 
 <br>
@@ -76,7 +76,7 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 - Track free and transparent - WonderCMS doesn't track users or store any personal cookies, there is only one session state cookie.
 - Your WonderCMS installation is completely detached from WonderCMS servers. One click updates are pushed through GitHub.
 - Supports HTTPS out of the box.
-  - [Check how to turn on "improved security" mode](https://github.com/WonderCMS/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)).
+  - [Check how to further improve security](https://github.com/WonderCMS/wondercms/wiki/Better-security-mode-(HTTPS-and-other-features)).
 - All CSS and JS libraries include SubResource Integrity (SRI) tags. This prevents any changes to the libraries being loaded. If any changes are made, the libraries won't load for your and your visitors protection.
   - [Check how to add SRI tags to your custom theme](https://github.com/WonderCMS/wondercms/wiki/Add-SRI-tags-to-your-theme-libraries#sri-subresource-integrity---3-steps-for-more-security). This step isn't necessary if you're using a theme from the official website.
 - WonderCMS encourages you to change your default login URL. **Consider your custom login URL as your private username**.

@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.4.0');
+define('VERSION', '3.4.1');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -431,10 +431,7 @@ class Wcms
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'lastModulesSync' => null,
-				'customModules' => [
-					'themes' => [],
-					'plugins' => []
-				],
+				'customModules' => $this->defaultCustomModules(),
 				'menuItems' => [
 					'0' => [
 						'name' => 'Home',
@@ -504,6 +501,17 @@ class Wcms
 			]
 		];
 		$this->save();
+	}
+
+	/**
+	 * Default data for the Custom Modules
+	 * @return array[]
+	 */
+	private function defaultCustomModules(): array {
+		return [
+			'themes' => [],
+			'plugins' => []
+		];
 	}
 
 	/**
@@ -1268,6 +1276,7 @@ EOT;
 			$this->alert('danger', 'The wcms-modules.json file does not contain all the required information.');
 			return null;
 		}
+		$wcmsModulesData = get_mangled_object_vars($wcmsModulesData);
 		$returnData = reset($wcmsModulesData);
 		$name = key($wcmsModulesData);
 		$returnData->dirName = $name;
@@ -1363,6 +1372,13 @@ EOT;
 
 		// Cache custom modules
 		$returnArray = $this->getJsonFileData($this->modulesCachePath);
+
+		// If custom modules is missing from the DB, we add it
+		if (!property_exists($db->config, 'customModules')) {
+			$this->set('config', 'customModules', $this->defaultCustomModules());
+			$db = $this->getDb();
+		}
+
 		$arrayCustom = (array)$db->config->customModules;
 		foreach ($arrayCustom as $type => $modules) {
 			foreach ($modules as $url) {
@@ -2749,7 +2765,7 @@ EOT;
 		$fileName = basename(str_replace(
 			['"', "'", '*', '<', '>', '%22', '&#39;', '%', ';', '#', '&', './', '../', '/', '+'],
 			'',
-			filter_var($_FILES['uploadFile']['name'], FILTER_SANITIZE_STRING)
+			htmlspecialchars(strip_tags($_FILES['uploadFile']['name']))
 		));
 		$nameExploded = explode('.', $fileName);
 		$ext = strtolower(array_pop($nameExploded));
