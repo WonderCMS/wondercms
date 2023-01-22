@@ -431,10 +431,7 @@ class Wcms
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'lastModulesSync' => null,
-				'customModules' => [
-					'themes' => [],
-					'plugins' => []
-				],
+				'customModules' => $this->defaultCustomModules(),
 				'menuItems' => [
 					'0' => [
 						'name' => 'Home',
@@ -504,6 +501,17 @@ class Wcms
 			]
 		];
 		$this->save();
+	}
+
+	/**
+	 * Default data for the Custom Modules
+	 * @return array[]
+	 */
+	private function defaultCustomModules(): array {
+		return [
+			'themes' => [],
+			'plugins' => []
+		];
 	}
 
 	/**
@@ -1364,6 +1372,13 @@ EOT;
 
 		// Cache custom modules
 		$returnArray = $this->getJsonFileData($this->modulesCachePath);
+
+		// If custom modules is missing from the DB, we add it
+		if (!property_exists($db->config, 'customModules')) {
+			$this->set('config', 'customModules', $this->defaultCustomModules());
+			$db = $this->getDb();
+		}
+
 		$arrayCustom = (array)$db->config->customModules;
 		foreach ($arrayCustom as $type => $modules) {
 			foreach ($modules as $url) {
