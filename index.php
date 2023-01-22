@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.4.0');
+define('VERSION', '3.4.1');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -1268,6 +1268,7 @@ EOT;
 			$this->alert('danger', 'The wcms-modules.json file does not contain all the required information.');
 			return null;
 		}
+		$wcmsModulesData = get_mangled_object_vars($wcmsModulesData);
 		$returnData = reset($wcmsModulesData);
 		$name = key($wcmsModulesData);
 		$returnData->dirName = $name;
@@ -2749,7 +2750,7 @@ EOT;
 		$fileName = basename(str_replace(
 			['"', "'", '*', '<', '>', '%22', '&#39;', '%', ';', '#', '&', './', '../', '/', '+'],
 			'',
-			filter_var($_FILES['uploadFile']['name'], FILTER_SANITIZE_STRING)
+			htmlspecialchars(strip_tags($_FILES['uploadFile']['name']))
 		));
 		$nameExploded = explode('.', $fileName);
 		$ext = strtolower(array_pop($nameExploded));
