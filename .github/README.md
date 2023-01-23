@@ -2,8 +2,8 @@
 <a href="https://wondercms.com" target="_blank" title="Official WonderCMS website">
     <img src="https://github.com/WonderCMS/wondercms-cdn-files/blob/main/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
- <br>WonderCMS - Free website builder<br>
-    <sup>Smallest CMS (5 files • 48KB zip) - 1 step install</sup>
+ <br>WonderCMS - small flat file CMS<br>
+    <sup>5 files • 48KB zip - 1 step install</sup>
 </h1>
 
 <p align="center"><a href="https://github.com/WonderCMS/wondercms/wiki#wondercms-documentation"><img src="https://camo.githubusercontent.com/45b2b4156eee6b315080fad3c417be62fb10b7d3/68747470733a2f2f696d672e736869656c64732e696f2f72656164746865646f63732f7069702f737461626c652e7376673f6c6f6e6743616368653d7472756526763d313030" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
@@ -20,7 +20,7 @@
     <br />Includes features such as: <b>1-step install</b>, <b>1-click updates</b>, <b>1-click backups</b>, <b>theme/plugin installer</b> and much more.
 </p>
 
-## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News/](https://www.wondercms.com/whatsnew) • [Donate](https://www.wondercms.com/donate)**  • [Buy merch](https://swag.wondercms.com)</div>
+## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News](https://www.wondercms.com/news) • [Donate](https://www.wondercms.com/donate)**  • [Buy merch](https://swag.wondercms.com)</div>
 
 
 [![What is WonderCMS? Introduction](https://www.wondercms.com/data/files/wondercms-introduction.png)](https://www.youtube.com/watch?v=gtkoi9X1L3g)
@@ -183,7 +183,7 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 <br>
 
 ## Links
-#### Website links
+#### Website
 - [Official website](https://www.wondercms.com)
 - [News/Changelog](https://www.wondercms.com/news)
 - [Donate](https://www.wondercms.com/donate)
@@ -193,18 +193,16 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [All WonderCMS related links](https://www.wondercms.com/links)
 
 
-#### Community & Support
-- [GitHub Issues](https://github.com/WonderCMS/wondercms/issues)
+#### Community
 - [Community](https://www.wondercms.com/community)
+
+#### Social
 - [Discord](https://discord.gg/2MVubVBCry)
-
-
-#### Social links
 - [Twitter](https://twitter.com/wondercms)
 - [Reddit](https://reddit.com/r/WonderCMS)
 
 
-#### Github links
+#### Github
 - [Docs/Wiki](https://github.com/WonderCMS/wondercms/wiki#wondercms-documentation)
    - [Common questions](https://github.com/WonderCMS/wondercms/wiki#common-questions--help)
    - [List of common errors](https://github.com/WonderCMS/wondercms/wiki/List-of-common-errors#troubleshooting-common-errors)
@@ -212,6 +210,6 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 - [How to create a plugin](https://github.com/WonderCMS/wondercms/wiki/List-of-hooks)
 
 
-#### Hosting and install tutorial links
+#### Hosting and install tutorial
 - [Hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
 - [Install via cPanel - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
