@@ -211,7 +211,7 @@ class Wcms
 				}
 			}
 		}
-		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
+		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $this->hook('alerts', $message)[0], 'sticky' => $sticky];
 	}
 
 	/**
@@ -261,7 +261,7 @@ class Wcms
 		}
 		$output = '';
 		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'false\');"><small>Hide all alerts until next login</small></a></div>';
-		return $output;
+		return $this->hook('alerts', $output)[0];
 	}
 
 	/**
@@ -1710,10 +1710,10 @@ EOT;
 	public function loginView(): array
 	{
 		return [
-			'title' => 'Login',
+			'title' => $this->hook('loginView', 'Login')[0],
 			'description' => '',
 			'keywords' => '',
-			'content' => '
+			'content' => $this->hook('loginView', '
 			<style>.showUpdate{display: block !important}</style>
 				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a moment.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
@@ -1724,7 +1724,7 @@ EOT;
 							<button type="submit" class="wbtn wbtn-info" onclick="document.getElementsByClassName(\'wUpdate\')[0].classList.toggle(\'showUpdate\'); localStorage.clear();">Login</button>
 						</span>
 					</div>
-				</form>'
+				</form>')[0]
 		];
 	}
 
