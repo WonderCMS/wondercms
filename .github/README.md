@@ -44,7 +44,7 @@
 
 ### Other install options
   - Option 2: Clone from GitHub: `git clone https://github.com/WonderCMS/wondercms.git`
-  - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/latest)
+  - Option 3: [Get hosting with WonderCMS pre-installed](https://www.wondercms.com/hosting)
   - Option 4: [Docker image](https://github.com/robiso/docker-wondercms)
   - Option 5: [Install with cPanel (and Softaculous) - video tutorial](https://www.youtube.com/watch?v=5tykBmKAUkA&feature=youtu.be&t=25)
 
