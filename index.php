@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.4.0');
+define('VERSION', '3.4.2');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -150,6 +150,7 @@ class Wcms
 			$this->backupAction();
 			$this->forceHttpsAction();
 			$this->saveChangesPopupAction();
+			$this->saveLogoutToLoginScreenAction();
 			$this->deletePageAction();
 			$this->saveAction();
 			$this->updateAction();
@@ -211,7 +212,7 @@ class Wcms
 				}
 			}
 		}
-		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
+		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $this->hook('alert', $message)[0], 'sticky' => $sticky];
 	}
 
 	/**
@@ -223,8 +224,7 @@ class Wcms
 		if (!isset($_SESSION['alert'])) {
 			return '';
 		}
-		$output = '';
-		$output .= '<div id="alertWrapperId" class="alertWrapper" style="">';
+		$output = '<div id="alertWrapperId" class="alertWrapper" style="">';
 		$output .= '<script>
 					const displayAlerts = localStorage.getItem("displayAlerts");
 					if (displayAlerts === "false") {
@@ -327,6 +327,24 @@ class Wcms
 	}
 
 	/**
+	 * Save if admin should be redirected to login/last viewed page after logging out.
+	 * @return void
+	 * @throws Exception
+	 */
+	public function saveLogoutToLoginScreenAction(): void
+	{
+		if (isset($_POST['logoutToLoginScreen']) && $this->verifyFormActions()) {
+			$redirectToLogin = $_POST['logoutToLoginScreen'] === 'true';
+			$message = $redirectToLogin
+				? 'You will be redirected to login screen after logging out.'
+				: 'You will be redirected to last viewed screen after logging out.';
+			$this->set('config', 'logoutToLoginScreen', $_POST['logoutToLoginScreen'] === 'true');
+			$this->alert('success', $message);
+			$this->redirect();
+		}
+	}
+
+	/**
 	 * Update cache for security settings.
 	 * @return void
 	 */
@@ -359,6 +377,7 @@ class Wcms
 	/**
 	 * Change password
 	 * @return void
+	 * @throws Exception
 	 */
 	public function changePasswordAction(): void
 	{
@@ -413,6 +432,7 @@ class Wcms
 	/**
 	 * Initialize the JSON database if it doesn't exist
 	 * @return void
+	 * @throws Exception
 	 */
 	public function createDb(): void
 	{
@@ -431,10 +451,7 @@ class Wcms
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'lastModulesSync' => null,
-				'customModules' => [
-					'themes' => [],
-					'plugins' => []
-				],
+				'customModules' => $this->defaultCustomModules(),
 				'menuItems' => [
 					'0' => [
 						'name' => 'Home',
@@ -504,6 +521,17 @@ class Wcms
 			]
 		];
 		$this->save();
+	}
+
+	/**
+	 * Default data for the Custom Modules
+	 * @return array[]
+	 */
+	private function defaultCustomModules(): array {
+		return [
+			'themes' => [],
+			'plugins' => []
+		];
 	}
 
 	/**
@@ -1268,6 +1296,7 @@ EOT;
 			$this->alert('danger', 'The wcms-modules.json file does not contain all the required information.');
 			return null;
 		}
+		$wcmsModulesData = get_mangled_object_vars($wcmsModulesData);
 		$returnData = reset($wcmsModulesData);
 		$name = key($wcmsModulesData);
 		$returnData->dirName = $name;
@@ -1363,6 +1392,13 @@ EOT;
 
 		// Cache custom modules
 		$returnArray = $this->getJsonFileData($this->modulesCachePath);
+
+		// If custom modules is missing from the DB, we add it
+		if (!property_exists($db->config, 'customModules')) {
+			$this->set('config', 'customModules', $this->defaultCustomModules());
+			$db = $this->getDb();
+		}
+
 		$arrayCustom = (array)$db->config->customModules;
 		foreach ($arrayCustom as $type => $modules) {
 			foreach ($modules as $url) {
@@ -1541,16 +1577,6 @@ EOT;
 	}
 
 	/**
-	 * Validate if ZIP URL is from Git
-	 * @param string $url
-	 * @return boolean
-	 */
-	private function isValidGitURL(string $url): bool
-	{
-		return strpos($url, 'https://github.com/') !== false || strpos($url, 'https://gitlab.com/') !== false;
-	}
-
-	/**
 	 * Validate if custom module url has wcms-modules.json
 	 * @param string $url
 	 * @return boolean
@@ -1624,13 +1650,16 @@ EOT;
 			require_once $location . '/functions.php';
 		}
 
-		$customPageTemplate = sprintf('%s/%s.php', $location, $this->currentPage);
+		# If page does not exist for non-logged-in users, then show 404 theme if it exists.
+		$is404 = !$this->loggedIn && !$this->currentPageExists && $this->currentPage !== $this->get('config', 'login');
+		$customPageTemplate = sprintf('%s/%s.php', $location, $is404 ? '404' : $this->currentPage);
 		require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
 	}
 
 	/**
 	 * Admin login verification
 	 * @return void
+	 * @throws Exception
 	 */
 	public function loginAction(): void
 	{
@@ -1694,10 +1723,10 @@ EOT;
 	public function loginView(): array
 	{
 		return [
-			'title' => 'Login',
+			'title' => $this->hook('loginView', 'Login')[0],
 			'description' => '',
 			'keywords' => '',
-			'content' => '
+			'content' => $this->hook('loginView', '
 			<style>.showUpdate{display: block !important}</style>
 				<div class="wUpdate" style="display:none;color:#ccc;left:0;top:0;width:100%;height:100%;position:fixed;text-align:center;padding-top:100px;background:rgba(51,51,51,.8);z-index:2448"><h2>Logging in and checking for updates</h2><p>This might take a moment.</p></div>
 				<form action="' . self::url($this->get('config', 'login')) . '" method="post">
@@ -1708,7 +1737,7 @@ EOT;
 							<button type="submit" class="wbtn wbtn-info" onclick="document.getElementsByClassName(\'wUpdate\')[0].classList.toggle(\'showUpdate\'); localStorage.clear();">Login</button>
 						</span>
 					</div>
-				</form>'
+				</form>')[0]
 		];
 	}
 
@@ -1723,9 +1752,25 @@ EOT;
 			|| ($this->currentPage === 'logout'
 				&& isset($_REQUEST['token'])
 				&& $this->hashVerify($_REQUEST['token']))) {
+			$to = isset($_GET['to']) && !empty($_GET['to']) && !$this->isLogoutToLoginScreenEnabled()
+				? $_GET['to']
+				: $this->get('config', 'login');
 			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
-			$this->redirect($this->get('config', 'login'));
+			$this->redirect($to);
 		}
+	}
+
+	/**
+	 * If admin is logged in and on existing page, this will save previous page and push it to logout action
+	 * @return string|null
+	 */
+	private function logoutToUrl(): ?string
+	{
+		if (!$this->loggedIn || !$this->currentPageExists) {
+			return null;
+		}
+
+		return $this->getCurrentPagePath();
 	}
 
 	/**
@@ -1957,12 +2002,22 @@ EOT;
 	 */
 	public function getCurrentPageUrl(): string
 	{
+		return self::url($this->getCurrentPagePath());
+	}
+
+	/**
+	 * Get current page path
+	 *
+	 * @return string
+	 */
+	public function getCurrentPagePath(): string
+	{
 		$path = '';
 		foreach ($this->currentPageTree as $parentPage) {
 			$path .= $parentPage . '/';
 		}
 
-		return self::url($path);
+		return $path;
 	}
 
 	/**
@@ -2158,12 +2213,16 @@ EOT;
 		}
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_slice(scandir($this->filesPath), 2);
+		$logoutTo = $this->logoutToUrl();
+		$isHttpsForced = $this->isHttpsForced();
+		$isSaveChangesPopupEnabled = $this->isSaveChangesPopupEnabled();
+		$isLogoutToLoginScreenEnabled = $this->isLogoutToLoginScreenEnabled();
 		$output = '
-		<script>var saveChangesPopup = ' . ($this->isSaveChangesPopupEnabled() ? "true" : "false") . '</script>
+		<script>var saveChangesPopup = ' . ($isSaveChangesPopupEnabled ? "true" : "false") . '</script>
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
-			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout?token=' . $this->getToken()) . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
+			<a data-toggle="wcms-modal" class="wbtn wbtn-secondary wbtn-sm settings button" href="#settingsModal"><i class="settingsIcon"></i> Settings </a> <a href="' . self::url('logout?token=' . $this->getToken()) . '&to=' . $logoutTo . '" class="wbtn wbtn-danger wbtn-sm button logout" title="Logout" onclick="return confirm(\'Log out?\')"><i class="logoutIcon"></i></a>
 			<div class="wcms-modal modal" id="settingsModal">
 				<div class="modal-dialog modal-xl">
 				 <div class="modal-content">
@@ -2292,12 +2351,24 @@ EOT;
 							 <p class="text-right marginTop5"><a href="https://github.com/robiso/wondercms/wiki/Restore-backup#how-to-restore-a-backup-in-3-steps" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 							 
 							 <p class="subTitle">Save confirmation popup</p>
-							 <p class="change small">If this is turned on, WonderCMS will always ask you to confirm any changes you make.</p>
+							 <p class="change small">If this is turned "ON", WonderCMS will always ask you to confirm any changes you make.</p>
 							 <div class="change">
 								<form method="post">
 									<div class="wbtn-group wbtn-group-justified w-100">
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="saveChangesPopup" value="true">ON</button></div>
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="saveChangesPopup" value="false">OFF</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="saveChangesPopup" value="true">ON' . ($isSaveChangesPopupEnabled ? " (Selected)" : "") . '</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="saveChangesPopup" value="false">OFF' . (!$isSaveChangesPopupEnabled ? " (Selected)" : "") . '</button></div>
+									</div>
+									<input type="hidden" name="token" value="' . $this->getToken() . '">
+								</form>
+							 </div>
+							 
+							 <p class="subTitle">Login redirect</p>
+							 <p class="change small">If this is set to "ON", when logging out, you will be redirected to the login page. If set to "OFF", you will be redirected to the last viewed page.</p>
+							 <div class="change">
+								<form method="post">
+									<div class="wbtn-group wbtn-group-justified w-100">
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="logoutToLoginScreen" value="true">ON' . ($isLogoutToLoginScreenEnabled ? " (Selected)" : "") . '</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="logoutToLoginScreen" value="false">OFF' . (!$isLogoutToLoginScreenEnabled ? " (Selected)" : "") . '</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -2308,8 +2379,8 @@ EOT;
 							 <div class="change">
 								<form method="post">
 									<div class="wbtn-group wbtn-group-justified w-100">
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="forceHttps" value="true" onclick="return confirm(\'Are you sure? This might break your website if you do not have SSL configured correctly.\')">ON</button></div>
-										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="forceHttps" value="false">OFF</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="forceHttps" value="true" onclick="return confirm(\'Are you sure? This might break your website if you do not have SSL configured correctly.\')">ON' . ($isHttpsForced ? " (Selected)" : "") . '</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="forceHttps" value="false">OFF' . (!$isHttpsForced ? " (Selected)" : "") . '</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -2647,6 +2718,7 @@ EOT;
 			'video/avi',
 			'text/css',
 			'text/x-asm',
+			'application/msword',
 			'application/vnd.ms-word',
 			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 			'video/x-flv',
@@ -2749,7 +2821,7 @@ EOT;
 		$fileName = basename(str_replace(
 			['"', "'", '*', '<', '>', '%22', '&#39;', '%', ';', '#', '&', './', '../', '/', '+'],
 			'',
-			filter_var($_FILES['uploadFile']['name'], FILTER_SANITIZE_STRING)
+			htmlspecialchars(strip_tags($_FILES['uploadFile']['name']))
 		));
 		$nameExploded = explode('.', $fileName);
 		$ext = strtolower(array_pop($nameExploded));
@@ -2909,5 +2981,19 @@ EOT;
 		}
 
 		return $value ?? false;
+	}
+
+	/**
+	 * Check if admin will be redirected to the login screen or current page screen after logout.
+	 * @return bool
+	 */
+	private function isLogoutToLoginScreenEnabled(): bool
+	{
+		$value = $this->get('config', 'logoutToLoginScreen');
+		if (gettype($value) === 'object' && empty(get_object_vars($value))) {
+			return true;
+		}
+
+		return $value ?? true;
 	}
 }
