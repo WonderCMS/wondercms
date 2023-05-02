@@ -1764,7 +1764,7 @@ EOT;
 	 * If admin is logged in and on existing page, this will save previous page and push it to logout action
 	 * @return string|null
 	 */
-	private function logoutToUrl(): string | null
+	private function logoutToUrl(): ?string
 	{
 		if (!$this->loggedIn || !$this->currentPageExists) {
 			return null;
