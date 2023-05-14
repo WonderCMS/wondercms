@@ -18,7 +18,7 @@ if (defined('PHPUNIT_TESTING') === false) {
 
 class Wcms
 {
-	private const MODULES_JSON_VERSION = 1;
+	private const MODULES_JSON_VERSION = 2;
 	private const THEMES_DIR = 'themes';
 	private const PLUGINS_DIR = 'plugins';
 	private const VALID_DIRS = [self::THEMES_DIR, self::PLUGINS_DIR];
