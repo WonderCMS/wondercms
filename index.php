@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.4.2');
+define('VERSION', '3.4.3');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -49,6 +49,9 @@ class Wcms
 
 	/** @var array $currentPageTree - Tree hierarchy of the current page */
 	public $currentPageTree = [];
+
+	/** @var array $installedPlugins - Currently installed plugins */
+	public $installedPlugins = [];
 
 	/** @var bool $currentPageExists - check if current page exists */
 	public $currentPageExists = false;
@@ -157,6 +160,28 @@ class Wcms
 			$this->uploadFileAction();
 			$this->notifyAction();
 		}
+	}
+
+	/**
+	 * Set site language based on logged-in user
+	 * @return string
+	 * @throws Exception
+	 */
+	public function getSiteLanguage(): string
+	{
+		if ($this->loggedIn) {
+			$lang = $this->get('config', 'adminLang');
+		} else {
+			$lang = $this->get('config', 'siteLang');
+		}
+
+		if (gettype($lang) === 'object' && empty(get_object_vars($lang))) {
+			$lang = 'en';
+			$this->set('config', 'siteLang', $lang);
+			$this->set('config', 'adminLang', $lang);
+		}
+
+		return $lang;
 	}
 
 	/**
@@ -442,6 +467,8 @@ class Wcms
 		$this->db = (object)[
 			self::DB_CONFIG => [
 				'siteTitle' => 'Website title',
+				'siteLang' => 'en',
+        		'adminLang' => 'en',
 				'theme' => 'sky',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
@@ -1245,6 +1272,19 @@ EOT;
 	}
 
 	/**
+	 * Retrieve cached single Theme/Plugin data
+	 * @param string $moduleKey
+	 * @param string $type
+	 * @return array|null
+	 * @throws Exception
+	 */
+	public function getSingleModuleCachedData(string $moduleKey, string $type = self::THEMES_DIR): array
+	{
+		$data = $this->getModulesCachedData($type);
+		return $data !== null && array_key_exists($moduleKey, $data) ? $data[$moduleKey] : [];
+	}
+
+	/**
 	 * Force cache refresh for updates
 	 * @throws Exception
 	 */
@@ -1469,9 +1509,15 @@ EOT;
 	 */
 	public function addCustomModule(): void
 	{
-		if (!isset($_POST['pluginThemeUrl'], $_POST['pluginThemeType']) || !$this->verifyFormActions()) {
+		if (!isset($_POST['pluginThemeUrl'], $_POST['pluginThemeType'], $_POST['password_recheck']) || !$this->verifyFormActions()) {
 			return;
 		}
+
+		if (!password_verify($_POST['password_recheck'], $this->get('config', 'password'))) {
+			$this->alert('danger', 'Invalid password.');
+			$this->redirect();
+		}
+
 		$type = $_POST['pluginThemeType'];
 		$url = rtrim(trim($_POST['pluginThemeUrl']), '/');
 		$customModules = (array)$this->get('config', 'customModules', $type);
@@ -1531,12 +1577,19 @@ EOT;
 	 */
 	public function installUpdateModuleAction(): void
 	{
-		if (!isset($_REQUEST['installModule'], $_REQUEST['directoryName'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
+		if (!isset($_REQUEST['installModule'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
 			return;
 		}
-		$url = $_REQUEST['installModule'];
-		$folderName = $_REQUEST['directoryName'];
+
+		$folderName = trim(htmlspecialchars($_REQUEST['installModule']));
 		$type = $_REQUEST['type'];
+		$cached = $this->getSingleModuleCachedData($folderName, $type);
+		$url = !empty($cached) ? $cached['zip'] : null;
+
+		if (empty($url)) {
+			$this->alert('danger', 'Unable to find theme or plugin.');
+			return;
+		}
 
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
 
@@ -1613,6 +1666,10 @@ EOT;
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
+			$scripts .= '<script>function recheckPasswordPrompt(e) {
+							e.target.elements["password_recheck"].value = prompt("Please confirm your admin password.");
+							return true;
+						}</script>';
 
 			return $this->hook('js', $scripts)[0];
 		}
@@ -1625,6 +1682,7 @@ EOT;
 	 */
 	public function loadPlugins(): void
 	{
+		$this->installedPlugins = [];
 		$plugins = $this->rootDir . '/plugins';
 		if (!is_dir($plugins) && !mkdir($plugins) && !is_dir($plugins)) {
 			return;
@@ -1633,14 +1691,16 @@ EOT;
 			return;
 		}
 		foreach (glob($plugins . '/*', GLOB_ONLYDIR) as $dir) {
-			if (file_exists($dir . '/' . basename($dir) . '.php')) {
-				include $dir . '/' . basename($dir) . '.php';
+			$pluginName = basename($dir);
+			if (file_exists($dir . '/' . $pluginName . '.php')) {
+				include $dir . '/' . $pluginName . '.php';
+				$this->installedPlugins[] = $pluginName;
 			}
 		}
 	}
 
 	/**
-	 * Loads theme files and functions.php file (if they exists)
+	 * Loads theme files and functions.php file (if they exist)
 	 * @return void
 	 */
 	public function loadThemeAndFunctions(): void
@@ -2037,6 +2097,7 @@ EOT;
 	public function parseUrl(): string
 	{
 		$page = $_GET['page'] ?? null;
+		$page = !empty($page) ? trim(htmlspecialchars($page, ENT_QUOTES)) : null;
 
 		if (!isset($page) || !$page) {
 			$defaultPage = $this->get('config', 'defaultPage');
@@ -2046,7 +2107,7 @@ EOT;
 
 		$this->currentPageTree = explode('/', rtrim($page, '/'));
 		if ($page === $this->get('config', 'login')) {
-			return htmlspecialchars($page, ENT_QUOTES);
+			return $page;
 		}
 
 		$currentPage = end($this->currentPageTree);
@@ -2324,11 +2385,18 @@ EOT;
 		$output .= $this->renderModuleTab('plugins');
 		$output .= '		<div role="tabpanel" class="tab-pane" id="security">
 							 <p class="subTitle">Admin login URL</p>
-								<p class="change marginTop5 small danger">Important: save your login URL to log in to your website next time:<br/><b><span class="normalFont">' . self::url($this->get('config',
-				'login')) . '</b></span>
+							 <p class="change marginTop5 small danger">Important: save your login URL to log in to your website next time:<br/><b><span class="normalFont">' . self::url($this->get('config', 'login')) . '</b></span></p>
 							 <div class="change">
-								<div data-target="config" id="login" class="editText">' . $this->get('config',
-				'login') . '</div>
+								<div data-target="config" id="login" class="editText">' . $this->get('config', 'login') . '</div>
+							 </div>
+							 <p class="subTitle">Site language config</p>
+							 <p class="change marginTop5 small">HTML lang value for admin.</p>
+							 <div class="change">
+								<div data-target="config" id="adminLang" class="editText">' . $this->get('config', 'adminLang') . '</div>
+							 </div>
+							 <p class="change marginTop5 small">HTML lang value for visitors.</p>
+							 <div class="change">
+								<div data-target="config" id="siteLang" class="editText">' . $this->get('config', 'siteLang') . '</div>
 							 </div>
 							 <p class="subTitle">Password</p>
 							 <div class="change">
@@ -2594,8 +2662,8 @@ EOT;
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $addon['zip'] . '&directoryName=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>' : '';
+				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
+				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>' : '';
 				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
 				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
@@ -2631,13 +2699,13 @@ EOT;
 		$output .= $installs;
 		$output .= '</div>
 					<p class="subTitle">Custom module</p>
-					<form action="' . $this->getCurrentPageUrl() . '" method="post">
+					<form action="' . $this->getCurrentPageUrl() . '" method="post" onsubmit="recheckPasswordPrompt(event)">
 						<div class="wform-group">
 							<div class="change winput-group marginTop5"><input type="text" name="pluginThemeUrl" class="wform-control normalFont" placeholder="Enter full URL to wcms-modules.json file">
 								<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info" onclick="return confirm(\'Adding unknown modules can be VERY dangerous, are you sure you want to continue?\')"><i class="addNewIcon"></i> Add</button></span>
 							</div>
 						</div>
-						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" />
+						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" /><input type="hidden" name="password_recheck" />
 					</form>
 					<p class="text-right"><a href="https://github.com/robiso/wondercms/wiki/Custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
