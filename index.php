@@ -138,6 +138,7 @@ class Wcms
 	{
 		$this->forceSSL();
 		$this->loginStatus();
+		$this->getSiteLanguage();
 		$this->pageStatus();
 		$this->logoutAction();
 		$this->loginAction();
