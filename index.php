@@ -2937,7 +2937,7 @@ EOT;
 		return ($showHttps ? 'https' : 'http')
 			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'])
 			. ($_SERVER['HTTP_HOST'] ? '' : $serverPort)
-			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
+			. ((dirname($_SERVER['SCRIPT_NAME']) === DIRECTORY_SEPARATOR) ? '' : dirname($_SERVER['SCRIPT_NAME']))
 			. '/' . $location;
 	}
 
