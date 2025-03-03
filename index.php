@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.4.3');
+define('VERSION', '3.5.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -138,6 +138,7 @@ class Wcms
 	{
 		$this->forceSSL();
 		$this->loginStatus();
+		$this->searchAction();
 		$this->getSiteLanguage();
 		$this->pageStatus();
 		$this->logoutAction();
@@ -154,12 +155,14 @@ class Wcms
 			$this->backupAction();
 			$this->forceHttpsAction();
 			$this->saveChangesPopupAction();
+			$this->modalPersistence();
 			$this->saveLogoutToLoginScreenAction();
 			$this->deletePageAction();
 			$this->saveAction();
 			$this->updateAction();
 			$this->uploadFileAction();
 			$this->notifyAction();
+			$this->syncPageVisibility();
 		}
 	}
 
@@ -353,6 +356,20 @@ class Wcms
 	}
 
 	/**
+	 * Save if modal should persist/reopen after changes are made on a specific tab
+	 * @return void
+	 * @throws Exception
+	 */
+	public function modalPersistence(): void
+	{
+		if (isset($_POST['modalPersistence']) && $this->verifyFormActions()) {
+			$this->set('config', 'modalPersistence', $_POST['modalPersistence'] === 'true');
+			$this->alert('success', 'Modal settings persitence settings changed.');
+			$this->redirect();
+		}
+	}
+
+	/**
 	 * Save if admin should be redirected to login/last viewed page after logging out.
 	 * @return void
 	 * @throws Exception
@@ -469,13 +486,15 @@ class Wcms
 			self::DB_CONFIG => [
 				'siteTitle' => 'Website title',
 				'siteLang' => 'en',
-        		'adminLang' => 'en',
+				'adminLang' => 'en',
 				'theme' => 'sky',
 				'defaultPage' => 'home',
 				'login' => 'loginURL',
 				'forceLogout' => false,
 				'forceHttps' => false,
 				'saveChangesPopup' => false,
+				'modalPersistence' => false,
+				'logoutToLoginScreen' => true,
 				'password' => password_hash($password, PASSWORD_DEFAULT),
 				'lastLogins' => [],
 				'lastModulesSync' => null,
@@ -497,6 +516,9 @@ class Wcms
 			],
 			'pages' => [
 				'404' => [
+					'created' => date('c'),
+					'modified' => date('c'),
+					'visibility' => 'show',
 					'title' => '404',
 					'keywords' => '404',
 					'description' => '404',
@@ -504,6 +526,9 @@ class Wcms
 					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'home' => [
+					'created' => date('c'),
+					'modified' => date('c'),
+					'visibility' => 'show',
 					'title' => 'Home',
 					'keywords' => 'Enter, page, keywords, for, search, engines',
 					'description' => 'A page description is also good for search engines.',
@@ -517,6 +542,9 @@ class Wcms
 					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				],
 				'how-to' => [
+					'created' => date('c'),
+					'modified' => date('c'),
+					'visibility' => 'show',
 					'title' => 'How to',
 					'keywords' => 'Enter, keywords, for, this page',
 					'description' => 'A page description is also good for search engines.',
@@ -542,6 +570,9 @@ class Wcms
 <br>
 <p>Website description, contact form, mini map or anything else.</p>
 <p>This editable area is visible on all pages.</p>'
+				],
+				'header' => [
+					'content' => '<nav>You can include this in your theme.php edit it.r</nav>'
 				],
 				'footer' => [
 					'content' => '&copy;' . date('Y') . ' Your website'
@@ -612,9 +643,11 @@ class Wcms
 
 		if ($createPage) {
 			$this->createPage($slugTree);
+			$this->syncPageVisibility();
 			$_SESSION['redirect_to_name'] = $name;
 			$_SESSION['redirect_to'] = implode('/', $slugTree);
 		}
+
 	}
 
 	/**
@@ -760,6 +793,8 @@ class Wcms
 		$pageTitle = !$slug ? str_replace('-', ' ', $pageSlug) : $pageSlug;
 
 		$selectedPage->{$slug} = new stdClass;
+		$selectedPage->{$slug}->created = date('c');
+		$selectedPage->{$slug}->modified = date('c');
 		$selectedPage->{$slug}->title = mb_convert_case($pageTitle, MB_CASE_TITLE);
 		$selectedPage->{$slug}->keywords = 'Keywords, are, good, for, search, engines';
 		$selectedPage->{$slug}->description = 'A short description is also good.';
@@ -818,6 +853,7 @@ class Wcms
 		}
 
 		$selectedPage->{$slug}->{$fieldname} = $content;
+		$selectedPage->{$slug}->modified = date('c'); // Update modification time
 		$this->set(self::DB_PAGES_KEY, $allPages);
 	}
 
@@ -888,6 +924,7 @@ class Wcms
 		}
 
 		$selectedPage->{$newSlugName} = $selectedPage->{$slug};
+		$selectedPage->{$newSlugName}->modified = date('c');
 		unset($selectedPage->{$slug});
 		$this->save();
 	}
@@ -905,6 +942,26 @@ EOT;
 			return $this->hook('css', $styles)[0];
 		}
 		return $this->hook('css', '')[0];
+	}
+
+	/**
+	 * Get header content, make it editable and show login link if set to default
+	 * @return string
+	 * @throws Exception
+	 */
+	public function header(): string
+	{
+		if ($this->loggedIn) {
+			$output = '<div data-target="blocks" id="header" class="editText editable">' 
+				. $this->get('blocks', 'header')->content 
+				. '</div>';
+		} else {
+			$output = $this->get('blocks', 'header')->content .
+				(!$this->loggedIn && $this->get('config', 'login') === 'loginURL' 
+					? ' <a href="'.self::url('loginURL').'">Login</a>' 
+					: '');
+		}
+		return $this->hook('header', $output)[0];
 	}
 
 	/**
@@ -1257,6 +1314,39 @@ EOT;
 		if (empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
 			$this->updateAndCacheModules();
 		}
+	}
+
+	/**
+	 * Synchronize the visibility of pages with their corresponding menu items
+	 * @return void
+	*/
+	private function syncPageVisibility(): void
+	{
+		$pages = clone $this->get(self::DB_PAGES_KEY);
+		$menuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+	
+		// Recursive function to sync visibility through hierarchy
+		$syncVisibility = function($menuNode, $pageNode) use (&$syncVisibility) {
+			foreach ($menuNode as $menuItem) {
+				// Find matching page in hierarchy
+				if (property_exists($pageNode, $menuItem->slug)) {
+					$pageNode->{$menuItem->slug}->visibility = $menuItem->visibility;
+					
+					// Recursively sync subpages
+					if (property_exists($menuItem, 'subpages') && 
+						property_exists($pageNode->{$menuItem->slug}, 'subpages')) {
+						$syncVisibility(
+							$menuItem->subpages, 
+							$pageNode->{$menuItem->slug}->subpages
+						);
+					}
+				}
+			}
+		};
+	
+		$syncVisibility($menuItems, $pages);
+		$this->set(self::DB_PAGES_KEY, $pages);
+		$this->save();
 	}
 
 	/**
@@ -1663,7 +1753,7 @@ EOT;
 			$scripts = <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/autosize@4.0.2/dist/autosize.min.js" integrity="sha384-gqYjRLBp7SeF6PCEz2XeqqNyvtxuzI3DuEepcrNHbrO+KG3woVNa/ISn/i8gGtW8" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/taboverride@4.0.3/build/output/taboverride.min.js" integrity="sha384-fYHyZra+saKYZN+7O59tPxgkgfujmYExoI6zUvvvrKVT1b7krdcdEpTLVJoF/ap1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/WonderCMS/wondercms-cdn-files@3.2.26/wcms-admin.min.js" integrity="sha384-lwdbkm/17hWy+Y4iBnY0iEp0FlaKvjdeTBZaRYM1DGPshGgxKoPaB87Xue26Wv1W" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/WonderCMS/wondercms-cdn-files@3.5.0/wcms-admin.min.js" integrity="sha384-VC3jSqSiEaR1g7OQCoTV2NaM4Oo0Rzwbd51by8dZG9JD1/Rbc1PgoH2zxKtGs0Iz" crossorigin="anonymous"></script>
 EOT;
 			$scripts .= '<script>const token = "' . $this->getToken() . '";</script>';
 			$scripts .= '<script>const rootURL = "' . $this->url() . '";</script>';
@@ -1717,8 +1807,9 @@ EOT;
 		require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
 	}
 
+
 	/**
-	 * Admin login verification
+	 * Handle admin login verification with success/failure hooks
 	 * @return void
 	 * @throws Exception
 	 */
@@ -1733,17 +1824,37 @@ EOT;
 		if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 			return;
 		}
+	
 		$password = $_POST['password'] ?? '';
-		if (password_verify($password, $this->get('config', 'password'))) {
+		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+		$timestamp = date('c');
+		$valid = password_verify($password, $this->get('config', 'password'));
+	
+		if ($valid) {
+			// Success hook before any redirects
+			$this->hook('login_success', [
+				'ip' => $ip,
+				'timestamp' => $timestamp,
+				'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
+			]);
+	
 			session_regenerate_id(true);
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
 			$this->saveAdminLoginIP();
 			$this->redirect();
+		} else {
+			// Failure hook before showing error
+			$this->hook('login_failed', [
+				'ip' => $ip,
+				'timestamp' => $timestamp,
+				'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
+			]);
+	
+			$this->alert('danger', 'Invalid login credentials');
+			$this->redirect($this->get('config', 'login'));
 		}
-		$this->alert('test', '<script>alert("Wrong password")</script>', 1);
-		$this->redirect($this->get('config', 'login'));
 	}
 
 	/**
@@ -1952,6 +2063,7 @@ EOT;
 
 		$menuSelectionObject->visibility = $visibility;
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+		$this->syncPageVisibility(); 
 	}
 
 	/**
@@ -2051,6 +2163,11 @@ EOT;
 			if (!$pageData) {
 				return null;
 			}
+		}
+
+		if ($pageData && !property_exists($pageData, 'visibility')) {
+			$pageData->visibility = 'show';
+			$this->set(self::DB_PAGES_KEY, $slugTree, $pageData);
 		}
 
 		return $pageData;
@@ -2221,8 +2338,15 @@ EOT;
 			if ($target === 'menuItemOrder' && $menu !== null) {
 				$this->orderMenuItem($content, $menu);
 			}
-			if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
-				return;
+			if ($target === 'config') {
+				if ($fieldname === 'defaultPage' && $content === 'blog') {
+					$this->set('config', $fieldname, $content);
+				} else {
+					if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
+						return;
+					}
+					$this->set('config', $fieldname, $content);
+				}
 			}
 			if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
 				return;
@@ -2279,8 +2403,13 @@ EOT;
 		$isHttpsForced = $this->isHttpsForced();
 		$isSaveChangesPopupEnabled = $this->isSaveChangesPopupEnabled();
 		$isLogoutToLoginScreenEnabled = $this->isLogoutToLoginScreenEnabled();
+		$isModalPersistenceEnabled = $this->isModalPersistenceEnabled();
+
+		
 		$output = '
 		<script>var saveChangesPopup = ' . ($isSaveChangesPopupEnabled ? "true" : "false") . '</script>
+		<script>var modalPersistence = ' . ($isModalPersistenceEnabled ? "true" : "false") . '</script>
+
 		<div id="save" class="loader-overlay"><h2><i class="animationLoader"></i><br />Saving</h2></div>
 		<div id="cache" class="loader-overlay"><h2><i class="animationLoader"></i><br />Checking for updates</h2></div>
 		<div id="adminPanel">
@@ -2355,6 +2484,10 @@ EOT;
 		foreach ($items as $item) {
 			$output .= $this->renderDefaultPageOptions($item, $defaultPage);
 		}
+		if ($this->blogPluginInstalled()) {
+			$isSelected = $this->get('config', 'defaultPage') === 'blog';
+			$output .= '<option value="blog" ' . ($isSelected ? 'selected' : '') . '>Blog</option>';
+		}
 		$output .= '
 								</select>
 							</div>
@@ -2426,6 +2559,18 @@ EOT;
 									<div class="wbtn-group wbtn-group-justified w-100">
 										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="saveChangesPopup" value="true">ON' . ($isSaveChangesPopupEnabled ? " (Selected)" : "") . '</button></div>
 										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="saveChangesPopup" value="false">OFF' . (!$isSaveChangesPopupEnabled ? " (Selected)" : "") . '</button></div>
+									</div>
+									<input type="hidden" name="token" value="' . $this->getToken() . '">
+								</form>
+							 </div>
+							 
+							 <p class="subTitle">Modal persistence</p>
+							 <p class="change small">If this is turned "ON", this currently opened modal window will re-open to the same tab you last made changes to.</p>
+							 <div class="change">
+								<form method="post">
+									<div class="wbtn-group wbtn-group-justified w-100">
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-info" name="modalPersistence" value="true">ON' . ($isModalPersistenceEnabled ? " (Selected)" : "") . '</button></div>
+										<div class="wbtn-group w-50"><button type="submit" class="wbtn wbtn-danger" name="modalPersistence" value="false">OFF' . (!$isModalPersistenceEnabled ? " (Selected)" : "") . '</button></div>
 									</div>
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
@@ -2535,8 +2680,8 @@ EOT;
 		}
 
 		$output .= '</li>';
-
-		return $output;
+		
+		return $this->hook('renderPageNavMenuItem', $output, $item, $parentSlug, $visibleSubpage)[0];
 	}
 
 	/**
@@ -2711,6 +2856,22 @@ EOT;
 					<p class="text-right"><a href="https://github.com/WonderCMS/wondercms/wiki/Custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
 		return $output;
+	}
+
+	/**
+	 * Check if blog plugin is installed
+	 * 
+	 * Verifies installation through either:
+	 * 1. Presence of "simple-blog" directory in plugins folder
+	 * 2. Existence of "simpleblog.json" in data folder
+	 * @return bool
+	 */
+	public function blogPluginInstalled(): bool
+	{
+		$pluginDir = $this->rootDir . '/plugins/simple-blog';
+		$dataFile = $this->dataPath . '/simpleblog.json';
+		
+		return is_dir($pluginDir) || file_exists($dataFile);
 	}
 
 	/**
@@ -3065,4 +3226,238 @@ EOT;
 
 		return $value ?? true;
 	}
+
+	/**
+	 * Check if admin will be redirected to the login screen or current page screen after logout.
+	 * @return bool
+	 */
+	private function isModalPersistenceEnabled(): bool
+	{
+		$value = $this->get('config', 'modalPersistence');
+		if (gettype($value) === 'object' && empty(get_object_vars($value))) {
+			return false;
+		}
+
+		return $value ?? false;
+	}
+
+	/**
+	 * Generate search interface HTML/JavaScript.
+	 * @return string HTML/JS markup for search component
+	 */
+	public function search(): string
+	{
+		$output = <<<EOT
+		<div class="wondersearch-container">
+			<input type="text" class="wondersearch-input" placeholder="Search..." aria-label="Search">
+			<div class="wondersearch-results"></div>
+		</div>
+		<script>
+		document.addEventListener('DOMContentLoaded', () => {
+			const searchInput = document.querySelector('.wondersearch-input');
+			const resultsContainer = document.querySelector('.wondersearch-results');
+			
+			searchInput.addEventListener('input', async (e) => {
+				const query = e.target.value.trim();
+				resultsContainer.innerHTML = '<div class="wondersearch-loading">Searching...</div>';
+				
+				if (query.length < 2) {
+					resultsContainer.innerHTML = '';
+					return;
+				}
+
+				try {
+					const response = await fetch('{$this->url('search')}', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: new URLSearchParams({ query, token: '{$this->getToken()}' })
+					});
+					
+					const results = await response.json();
+					
+					if (results.error) {
+						resultsContainer.innerHTML = 
+							`<div class="wondersearch-error">\${results.error}</div>`;
+					} else if (results.length > 0) {
+						resultsContainer.innerHTML = results.map(item => `
+							<div class="wondersearch-item">
+								<a href="{$this->url()}\${item.slug}">\${item.title}</a>
+								<p>\${item.excerpt}</p>
+							</div>
+						`).join('');
+					} else {
+						resultsContainer.innerHTML = 
+							'<div class="wondersearch-error">No results found</div>';
+					}
+				} catch (error) {
+					resultsContainer.innerHTML = 
+						'<div class="wondersearch-error">Error fetching results</div>';
+				}
+			});
+		});
+		</script>
+EOT;
+	
+		return $this->hook('search', $output)[0];
+	}
+
+	/**
+	 * Handle search requests and return JSON results.
+	 * Processes POST requests, searches pages/blog posts.
+	 * @return void Outputs JSON response and exits
+	 * @throws Exception If blog data file can't be read/parsed
+	 */
+	private function searchAction(): void
+	{
+		if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['query'], $_POST['token']) 
+			&& $this->hashVerify($_POST['token'])) {
+			
+			$query = trim($_POST['query']);
+			$results = [];
+			
+			// Search main pages
+			$pages = $this->get('pages');
+			foreach ($pages as $slug => $page) {
+				if ($slug === '404' || ($page->visibility ?? 'show') === 'hide') {
+					continue;
+				}
+
+				if ($this->pageMatchesQuery($page, $query)) {
+					$results[] = [
+						'title' => $page->title,
+						'excerpt' => $this->createExcerpt($page->content, $query, 100),
+						'slug' => $slug
+					];
+				}
+			}
+
+			// Search blog posts
+			if ($this->blogPluginInstalled()) {
+				$blogPath = "{$this->dataPath}/simpleblog.json";
+				if (file_exists($blogPath)) {
+					$blogData = json_decode(file_get_contents($blogPath), true);
+					if (json_last_error() === JSON_ERROR_NONE && isset($blogData['posts'])) {
+						foreach ($blogData['posts'] as $slug => $post) { // Get slug and post data
+							if ($this->postMatchesQuery($post, $query)) {
+								$results[] = [
+									'title' => $post['title'],
+									'excerpt' => $this->createExcerpt($post['body'] ?? '', $query, 100), // Use 'body' field
+									'slug' => 'blog/' . $slug // Use slug from array key
+								];
+							}
+						}
+					}
+				}
+			}
+	
+			if (empty($results)) {
+				echo json_encode(['error' => 'No matching content found']);
+			} else {
+				echo json_encode($results);
+			}
+			exit;
+		}
+	}
+
+	/**
+	 * Check if page content matches search query.
+	 * @param object $page Page object from database
+	 * @param string $query Search term
+	 * @return bool True if page matches query
+	 */
+	private function pageMatchesQuery(object $page, string $query): bool
+	{
+		$searchableContent = $page->title . ' ' . strip_tags($page->content);
+		return stripos($searchableContent, $query) !== false;
+	}
+
+	/**
+	 * Check if blog post content matches search query.
+	 * @param array $post Blog post data array
+	 * @param string $query Search term
+	 * @return bool True if post matches query
+	 */
+	private function postMatchesQuery(array $post, string $query): bool
+	{
+		$searchableContent = $post['title'] . ' ' . strip_tags($post['body'] ?? '');
+		return stripos($searchableContent, $query) !== false;
+	}
+
+	/**
+	 * Determine if page should be included in search results.
+	 * @param object $page Page object to check
+	 * @param string $slug Page slug/URL
+	 * @return bool True if page is searchable, false otherwise
+	 */
+	private function isSearchablePage(object $page, string $slug): bool
+	{
+		return $slug !== '404' 
+			&& ($page->visibility ?? 'show') !== 'hide'
+			&& !in_array($slug, ['config', 'blocks']);
+	}
+
+	/**
+	 * Format page data for search results.
+	 * @param object $page Page object from database
+	 * @param string $slug Page slug/URL
+	 * @return array Formatted result with title/excerpt/slug
+	 */
+	private function formatPageResult(object $page, string $slug): array
+	{
+		return [
+			'title' => $page->title,
+			'excerpt' => $this->createExcerpt($page->content, 100),
+			'slug' => $slug
+		];
+	}
+
+	/**
+	 * Search blog posts from simpleblog.json data.
+	 * @param string $query Search term to match
+	 * @return array Array of matching blog posts with title/excerpt/slug
+	 * @throws Exception If blog data file is missing or invalid JSON
+	 */
+	private function searchBlogPosts(string $query): array
+	{
+		$blogData = json_decode(file_get_contents("{$this->dataPath}/simpleblog.json"), true);
+		$results = [];
+		
+		foreach ($blogData['posts'] ?? [] as $post) {
+			if (stripos($post['title'], $query) !== false 
+				|| stripos($post['content'], $query) !== false) {
+				$results[] = [
+					'title' => $post['title'],
+					'excerpt' => $this->createExcerpt($post['content'], 100),
+					'slug' => 'blog/' . $post['slug']
+				];
+			}
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Generate a search result excerpt with highlighted query matches.
+	 * @param string $content Full content to create excerpt from
+	 * @param string $query Search term to highlight
+	 * @param int $length Maximum length of excerpt
+	 * @return string HTML-formatted excerpt with highlighted matches
+	 */
+	private function createExcerpt(string $content, string $query, int $length): string
+	{
+		$stripped = strip_tags($content);
+		$position = stripos($stripped, $query);
+		
+		// Show context around match if found
+		if ($position !== false) {
+			$start = max(0, $position - 20);
+			$excerpt = substr($stripped, $start, $length);
+			$excerpt = preg_replace('/(' . preg_quote($query, '/') . ')/i', '<mark>$1</mark>', $excerpt);
+			return trim($excerpt);
+		}
+
+		// Fallback to first characters
+		return substr($stripped, 0, $length) . '...';
+	}
+
 }
