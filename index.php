@@ -572,7 +572,7 @@ class Wcms
 <p>This editable area is visible on all pages.</p>'
 				],
 				'header' => [
-					'content' => '<nav>You can include this in your theme.php edit it.r</nav>'
+					'content' => '<nav>You can include this in your theme.php and edit it.</nav>'
 				],
 				'footer' => [
 					'content' => '&copy;' . date('Y') . ' Your website'
