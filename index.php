@@ -1852,7 +1852,7 @@ EOT;
 				'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
 			]);
 	
-			$this->alert('danger', 'Invalid login credentials');
+			$this->alert('test', '<script>alert("Wrong password")</script>', 1);
 			$this->redirect($this->get('config', 'login'));
 		}
 	}
