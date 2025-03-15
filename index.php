@@ -745,7 +745,7 @@ class Wcms
 		$pageData = null;
 		foreach ($slugTree as $parentPage) {
 			if (!$pageData) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage};
+				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage} ?? null;
 				continue;
 			}
 
@@ -762,6 +762,7 @@ class Wcms
 		$pageSlug = $slug ?: $this->slugify($this->currentPage);
 		$allPages = $selectedPage = clone $this->get(self::DB_PAGES_KEY);
 		$menuKey = null;
+
 		if (!empty($slugTree)) {
 			foreach ($slugTree as $childSlug) {
 				// Find menu key tree
@@ -770,39 +771,36 @@ class Wcms
 				}
 
 				// Create new parent page if it doesn't exist
-				if (!$selectedPage->{$childSlug}) {
-					$parentTitle = mb_convert_case(str_replace('-', ' ', $childSlug), MB_CASE_TITLE);
-					$selectedPage->{$childSlug}->title = $parentTitle;
+				if (!isset($selectedPage->{$childSlug})) {
+					$selectedPage->{$childSlug} = new stdClass(); // Initialize the object
+					$selectedPage->{$childSlug}->title = mb_convert_case(str_replace('-', ' ', $childSlug), MB_CASE_TITLE);
 					$selectedPage->{$childSlug}->keywords = 'Keywords, are, good, for, search, engines';
 					$selectedPage->{$childSlug}->description = 'A short description is also good.';
-
+					$selectedPage->{$childSlug}->subpages = new stdClass(); // Initialize subpages
+	
 					if ($createMenuItem) {
-						$this->createMenuItem($parentTitle, $menuKey);
+						$this->createMenuItem($selectedPage->{$childSlug}->title, $menuKey);
 						$menuKey = $this->findAndUpdateMenuKey($menuKey, $childSlug); // Add newly added menu key
 					}
 				}
 
-				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
-					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
-				}
-
-				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
+				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
 		}
 
-		$pageTitle = !$slug ? str_replace('-', ' ', $pageSlug) : $pageSlug;
-
-		$selectedPage->{$slug} = new stdClass;
+		// Initialize the new page object
+		$selectedPage->{$slug} = new stdClass();
 		$selectedPage->{$slug}->created = date('c');
 		$selectedPage->{$slug}->modified = date('c');
-		$selectedPage->{$slug}->title = mb_convert_case($pageTitle, MB_CASE_TITLE);
+		$selectedPage->{$slug}->title = mb_convert_case(str_replace('-', ' ', $pageSlug), MB_CASE_TITLE);
 		$selectedPage->{$slug}->keywords = 'Keywords, are, good, for, search, engines';
 		$selectedPage->{$slug}->description = 'A short description is also good.';
-		$selectedPage->{$slug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+		$selectedPage->{$slug}->subpages = new stdClass(); // Initialize subpages
+
 		$this->set(self::DB_PAGES_KEY, $allPages);
 
 		if ($createMenuItem) {
-			$this->createMenuItem($pageTitle, $menuKey);
+			$this->createMenuItem($selectedPage->{$slug}->title, $menuKey);
 		}
 	}
 
