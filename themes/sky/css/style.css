@@ -555,3 +555,88 @@ input::-moz-focus-inner {
 	.menu li > a:only-child:after {
 		content: ''
 	}
+
+/* Search */
+    .wondersearch-container {
+    	position: relative;
+    	padding: 2em 0;
+    	max-width: 600px;
+    	margin-left: auto;
+    	margin-right: auto;
+    }
+    
+    .wondersearch-input {
+    	width: 100%;
+    	padding: 10px 15px;
+    	font-size: 1em;
+    	border: 1px solid rgba(255, 255, 255, 0.35);
+    	border-radius: 5px;
+    	background-color: rgba(255, 255, 255, 0.1);
+    	color: #fff;
+    	outline: none;
+    	transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+    
+    .wondersearch-input:focus {
+    	border-color: rgba(255, 255, 255, 0.88);
+    	background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .wondersearch-results {
+    	position: absolute;
+    	width: 100%;
+    	background-color: rgba(0, 0, 0, 0.8);
+    	border-radius: 5px;
+    	margin-top: 5px;
+    	z-index: 1000;
+    	max-height: 300px;
+    	overflow-y: auto;
+    	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    	padding: 10px; /* Added padding for no results */
+    	border: 1px solid transparent; /* Hide border by default */
+    	display: none; /* Hide results container by default */
+    }
+    
+    .wondersearch-results:not(:empty) {
+    	display: block; /* Show results container when not empty */
+    	border: 1px solid rgba(255, 255, 255, 0.15); /* Add border when results are present */
+    }
+    
+    .wondersearch-item {
+    	padding: 10px;
+    	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    	transition: background-color 0.2s ease;
+    }
+    
+    .wondersearch-item:last-child {
+    	border-bottom: none;
+    }
+    
+    .wondersearch-item:hover {
+    	background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .wondersearch-item a {
+    	color: #fff;
+    	text-decoration: none;
+    	font-weight: bold;
+    	display: block;
+    	margin-bottom: 5px;
+    }
+    
+    .wondersearch-item a:hover {
+    	text-decoration: underline;
+    }
+    
+    .wondersearch-item p {
+    	color: rgba(255, 255, 255, 0.8);
+    	margin: 0;
+    	font-size: 0.9em;
+    }
+    
+    .wondersearch-item mark {
+    	background-color: rgba(255, 255, 255, 0.2);
+    	color: #fff;
+    	padding: 2px 4px;
+    	border-radius: 3px;
+    }
