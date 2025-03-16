@@ -32,7 +32,7 @@
 		<!-- Theme CSS -->
 		<link rel="stylesheet" rel="preload" as="style" href="<?= $Wcms->asset('css/style.css') ?>">
 	</head>
-	
+
 	<body>
 		<!-- Admin settings panel and alerts -->
 		<?= $Wcms->settings() ?>
