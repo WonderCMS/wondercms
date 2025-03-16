@@ -3295,7 +3295,7 @@ EOT;
 		});
 		</script>
 EOT;
-	
+
 		return $this->hook('search', $output)[0];
 	}
 
@@ -3316,16 +3316,21 @@ EOT;
 			// Search main pages
 			$pages = $this->get('pages');
 			foreach ($pages as $slug => $page) {
+				// Skip 404 page and hidden pages
 				if ($slug === '404' || ($page->visibility ?? 'show') === 'hide') {
 					continue;
 				}
 
-				if ($this->pageMatchesQuery($page, $query)) {
-					$results[] = [
-						'title' => $page->title,
-						'excerpt' => $this->createExcerpt($page->content, $query, 100),
-						'slug' => $slug
-					];
+				// Ensure the page object is valid and has the required properties
+				if (is_object($page) && property_exists($page, 'title') && property_exists($page, 'content')) {
+					$content = $page->content ?? ''; // Default to empty string if content is missing or null
+					if ($this->pageMatchesQuery($page, $query)) {
+						$results[] = [
+							'title' => $page->title,
+							'excerpt' => $this->createExcerpt($content, $query, 100),
+							'slug' => $slug
+						];
+					}
 				}
 			}
 
@@ -3335,19 +3340,23 @@ EOT;
 				if (file_exists($blogPath)) {
 					$blogData = json_decode(file_get_contents($blogPath), true);
 					if (json_last_error() === JSON_ERROR_NONE && isset($blogData['posts'])) {
-						foreach ($blogData['posts'] as $slug => $post) { // Get slug and post data
-							if ($this->postMatchesQuery($post, $query)) {
-								$results[] = [
-									'title' => $post['title'],
-									'excerpt' => $this->createExcerpt($post['body'] ?? '', $query, 100), // Use 'body' field
-									'slug' => 'blog/' . $slug // Use slug from array key
-								];
+						foreach ($blogData['posts'] as $slug => $post) {
+							// Ensure the post array is valid and has the required keys
+							if (is_array($post) && isset($post['title']) && isset($post['body'])) {
+								$postContent = $post['body'] ?? ''; // Default to empty string if body is missing or null
+								if ($this->postMatchesQuery($post, $query)) {
+									$results[] = [
+										'title' => $post['title'],
+										'excerpt' => $this->createExcerpt($postContent, $query, 100),
+										'slug' => 'blog/' . $slug
+									];
+								}
 							}
 						}
 					}
 				}
 			}
-	
+
 			if (empty($results)) {
 				echo json_encode(['error' => 'No matching content found']);
 			} else {
@@ -3365,7 +3374,9 @@ EOT;
 	 */
 	private function pageMatchesQuery(object $page, string $query): bool
 	{
-		$searchableContent = $page->title . ' ' . strip_tags($page->content);
+		$title = $page->title ?? '';
+		$content = $page->content ?? '';
+		$searchableContent = $title . ' ' . strip_tags($content);
 		return stripos($searchableContent, $query) !== false;
 	}
 
@@ -3377,7 +3388,9 @@ EOT;
 	 */
 	private function postMatchesQuery(array $post, string $query): bool
 	{
-		$searchableContent = $post['title'] . ' ' . strip_tags($post['body'] ?? '');
+		$title = $post['title'] ?? '';
+		$content = $post['body'] ?? '';
+		$searchableContent = $title . ' ' . strip_tags($content);
 		return stripos($searchableContent, $query) !== false;
 	}
 
@@ -3443,6 +3456,8 @@ EOT;
 	 */
 	private function createExcerpt(string $content, string $query, int $length): string
 	{
+		// Ensure content is a string
+		$content = is_string($content) ? $content : '';
 		$stripped = strip_tags($content);
 		$position = stripos($stripped, $query);
 		
