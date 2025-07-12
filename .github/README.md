@@ -210,4 +210,4 @@ Also listed on the official [WonderCMS website](https://www.wondercms.com/donors
 
 
 #### Documentation
-- [Docs](https://wondercms.com-docs)
+- [Docs](https://wondercms.com/docs)
