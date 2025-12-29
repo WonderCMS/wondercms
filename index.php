@@ -549,17 +549,17 @@ class Wcms
 					'keywords' => 'Enter, keywords, for, this page',
 					'description' => 'A page description is also good for search engines.',
 					'content' => '<h2>Easy editing</h2>
-<p>After logging in, click anywhere to edit and click outside to save. Changes are live and shown immediately.</p>
+<p>After logging in, click anywhere to edit and click outside to save. Changes are live immediately.</p>
 
 <h2>Create new page</h2>
-<p>Pages can be created in the Settings.</p>
+<p>Pages can be created in Settings.</p>
 
 <h2>Start a blog or change your theme</h2>
-<p>To install, update or remove themes/plugins, visit the Settings.</p>
+<p>To install, update or remove themes/plugins, visit Settings.</p>
 
 <h2><b>Support WonderCMS</b></h2>
-<p>WonderCMS is free for over 12 years.<br>
-<a href="https://swag.wondercms.com" target="_blank"><u>Click here to support us by getting a T-shirt</u></a> or <a href="https://www.wondercms.com/donate" target="_blank"><u>with a donation</u></a>.</p>',
+<p>WonderCMS has been free for over 18 years.<br>
+<a href="https://www.wondercms.com/donate" target="_blank">Click here to buy us a coffee</a> or <a href="https://swag.wondercms.com" target="_blank">get an amazing WonderCMS t-shirt</a>.</p>',
 					self::DB_PAGES_SUBPAGE_KEY => new stdClass()
 				]
 			],
