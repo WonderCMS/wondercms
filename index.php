@@ -142,9 +142,9 @@ class Wcms
 		$this->getSiteLanguage();
 		$this->pageStatus();
 		$this->logoutAction();
+		$this->loadPlugins();
 		$this->loginAction();
 		$this->notFoundResponse();
-		$this->loadPlugins();
 		if ($this->loggedIn) {
 			$this->manuallyRefreshCacheData();
 			$this->addCustomModule();
@@ -605,7 +605,7 @@ class Wcms
 	 */
 	public function createMenuItem(
 		string $name,
-		string $menu = null,
+		?string $menu = null,
 		string $visibility = 'hide',
 		bool $createPage = false
 	): void {
@@ -707,7 +707,7 @@ class Wcms
 	 * @param string|null $menu
 	 * @return string
 	 */
-	public function createUniqueSlug(string $slug, string $menu = null): string
+	public function createUniqueSlug(string $slug, ?string $menu = null): string
 	{
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
@@ -739,7 +739,7 @@ class Wcms
 	 * @return void
 	 * @throws Exception
 	 */
-	public function createPage(array $slugTree = null, bool $createMenuItem = false): void
+	public function createPage(?array $slugTree = null, bool $createMenuItem = false): void
 	{
 		$pageExists = false;
 		$pageData = null;
@@ -888,7 +888,7 @@ class Wcms
 	 * @param array|null $slugTree
 	 * @throws Exception
 	 */
-	public function deletePageFromDb(array $slugTree = null): void
+	public function deletePageFromDb(?array $slugTree = null): void
 	{
 		$slug = array_pop($slugTree);
 
@@ -1279,7 +1279,9 @@ EOT;
 				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
 				$currentVersion = $exists ? $this->getModuleVersion($type, $dirName) : null;
 				$newVersion = $addon['version'];
-				$update = $newVersion !== null && $currentVersion !== null && $newVersion > $currentVersion;
+				$update = $newVersion !== null
+					&& $currentVersion !== null
+					&& version_compare((string)$newVersion, (string)$currentVersion, '>');
 				if ($update) {
 					$this->alert('info',
 						'New ' . $type . ' update available. <b><a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>');
@@ -1670,8 +1672,16 @@ EOT;
 			return;
 		}
 
-		$folderName = trim(htmlspecialchars($_REQUEST['installModule']));
-		$type = $_REQUEST['type'];
+		$folderName = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string)$_REQUEST['installModule']));
+		$type = trim((string)$_REQUEST['type']);
+		if (empty($folderName)) {
+			$this->alert('danger', 'Invalid module name.');
+			$this->redirect();
+		}
+		if (!in_array($type, self::VALID_DIRS, true)) {
+			$this->alert('danger', 'Invalid module type.');
+			$this->redirect();
+		}
 		$cached = $this->getSingleModuleCachedData($folderName, $type);
 		$url = !empty($cached) ? $cached['zip'] : null;
 
@@ -1682,40 +1692,62 @@ EOT;
 
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
 
-		if (in_array($type, self::VALID_DIRS, true)) {
-			$zipFile = $this->filesPath . '/ZIPFromURL.zip';
-			$zipResource = fopen($zipFile, 'w');
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL, $url);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-			curl_setopt($ch, CURLOPT_FILE, $zipResource);
-			curl_exec($ch);
-			$curlError = curl_error($ch);
-			curl_close($ch);
-			$zip = new \ZipArchive;
-			if ($curlError || $zip->open($zipFile) !== true || (stripos($url, '.zip') === false)) {
-				$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-				$this->alert('danger',
-					'Error opening ZIP file.' . ($curlError ? ' Error description: ' . $curlError : ''));
-				$this->redirect();
-			}
-			// First delete old plugin folder
-			$this->recursiveDelete($path . $folderName);
+		$zipFile = $this->filesPath . '/ZIPFromURL.zip';
+		$zipResource = fopen($zipFile, 'w');
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+		curl_setopt($ch, CURLOPT_FILE, $zipResource);
+		curl_exec($ch);
+		$curlError = curl_error($ch);
+		curl_close($ch);
+		if (is_resource($zipResource)) {
+			fclose($zipResource);
+		}
 
-			// Then extract new one
-			$zip->extractTo($path);
-			$zip->close();
-			$this->recursiveDelete($this->rootDir . '/data/files/ZIPFromURL.zip');
-			$moduleFolder = $path . $folderName . '-master';
-			if (!is_dir($moduleFolder)) {
-				$moduleFolder = $path . $folderName . '-main';
-			}
-			if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
-				throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
-			}
-			$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
+		$zip = new \ZipArchive;
+		if ($curlError || $zip->open($zipFile) !== true || (stripos($url, '.zip') === false)) {
+			$this->recursiveDelete($zipFile);
+			$this->alert('danger',
+				'Error opening ZIP file.' . ($curlError ? ' Error description: ' . $curlError : ''));
 			$this->redirect();
 		}
+
+		// Basic zip-slip protection: reject any absolute paths or parent traversal.
+		for ($i = 0; $i < $zip->numFiles; $i++) {
+			$name = $zip->getNameIndex($i);
+			if ($name === false) {
+				continue;
+			}
+			if (strpos($name, "\0") !== false
+				|| preg_match('#(^/|^\\\\|^[a-zA-Z]:)#', $name)
+				|| strpos($name, '../') !== false
+				|| strpos($name, '..\\') !== false
+			) {
+				$zip->close();
+				$this->recursiveDelete($zipFile);
+				$this->alert('danger', 'ZIP file contains invalid paths.');
+				$this->redirect();
+			}
+		}
+
+		// First delete old plugin/theme folder
+		$this->recursiveDelete($path . $folderName);
+
+		// Then extract new one
+		$zip->extractTo($path);
+		$zip->close();
+		$this->recursiveDelete($zipFile);
+
+		$moduleFolder = $path . $folderName . '-master';
+		if (!is_dir($moduleFolder)) {
+			$moduleFolder = $path . $folderName . '-main';
+		}
+		if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
+			throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
+		}
+		$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
+		$this->redirect();
 	}
 
 	/**
@@ -2018,7 +2050,7 @@ EOT;
 	private function checkWcmsCoreUpdate(): void
 	{
 		$onlineVersion = $this->getOfficialVersion();
-		if ($onlineVersion > VERSION) {
+		if ($onlineVersion !== null && version_compare((string)$onlineVersion, (string)VERSION, '>')) {
 			$this->alert(
 				'info',
 				'<h3>New WonderCMS update available</h3>
@@ -2270,7 +2302,7 @@ EOT;
 	 * @return void
 	 * @throws Exception
 	 */
-	public function save(string $path = null, object $content = null): void
+	public function save(?string $path = null, ?object $content = null): void
 	{
 		$path = $path ?? $this->dbPath;
 		$content = $content ?? $this->db;
@@ -3413,11 +3445,11 @@ EOT;
 	 * @param string $slug Page slug/URL
 	 * @return array Formatted result with title/excerpt/slug
 	 */
-	private function formatPageResult(object $page, string $slug): array
+	private function formatPageResult(object $page, string $slug, string $query): array
 	{
 		return [
-			'title' => $page->title,
-			'excerpt' => $this->createExcerpt($page->content, 100),
+			'title' => $page->title ?? '',
+			'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
 			'slug' => $slug
 		];
 	}
@@ -3433,13 +3465,15 @@ EOT;
 		$blogData = json_decode(file_get_contents("{$this->dataPath}/simpleblog.json"), true);
 		$results = [];
 		
-		foreach ($blogData['posts'] ?? [] as $post) {
-			if (stripos($post['title'], $query) !== false 
-				|| stripos($post['content'], $query) !== false) {
+		foreach ($blogData['posts'] ?? [] as $slug => $post) {
+			$title = is_array($post) ? ($post['title'] ?? '') : '';
+			$body = is_array($post) ? ($post['body'] ?? '') : '';
+			if (stripos($title, $query) !== false
+				|| stripos(strip_tags($body), $query) !== false) {
 				$results[] = [
-					'title' => $post['title'],
-					'excerpt' => $this->createExcerpt($post['content'], 100),
-					'slug' => 'blog/' . $post['slug']
+					'title' => $title,
+					'excerpt' => $this->createExcerpt($body, $query, 100),
+					'slug' => 'blog/' . $slug
 				];
 			}
 		}
