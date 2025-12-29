@@ -1008,12 +1008,12 @@ EOT;
 			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
 			$filename = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
-				null,
+				'',
 				trim($_REQUEST['deleteModule'])
 			);
 			$type = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
-				null,
+				'',
 				trim($_REQUEST['type'])
 			);
 			if (!in_array($type, $allowedDeleteTypes, true)) {
