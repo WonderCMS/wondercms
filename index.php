@@ -27,6 +27,8 @@ class Wcms
 		'updates' => 'update',
 		'exists' => 'exist',
 	];
+	private const DISABLED_PLUGINS_KEY = 'disabledPlugins';
+	private const EXCLUSIVE_PLUGIN_GROUPS = ['editor', 'translation'];
 
 	/** Database main keys */
 	public const DB_CONFIG = 'config';
@@ -149,6 +151,7 @@ class Wcms
 			$this->manuallyRefreshCacheData();
 			$this->addCustomModule();
 			$this->installUpdateModuleAction();
+			$this->togglePluginAction();
 			$this->changePasswordAction();
 			$this->deleteFileModuleAction();
 			$this->changePageThemeAction();
@@ -499,6 +502,7 @@ class Wcms
 				'lastLogins' => [],
 				'lastModulesSync' => null,
 				'customModules' => $this->defaultCustomModules(),
+				self::DISABLED_PLUGINS_KEY => [],
 				'menuItems' => [
 					'0' => [
 						'name' => 'Home',
@@ -1030,6 +1034,13 @@ EOT;
 			$path = realpath("{$folder}/{$filename}");
 			if (file_exists($path)) {
 				$this->recursiveDelete($path);
+				// If a plugin was deleted, also remove it from the disabled list (if present).
+				if ($type === self::PLUGINS_DIR) {
+					$disabled = $this->getDisabledPlugins();
+					if (in_array($filename, $disabled, true)) {
+						$this->setDisabledPlugins(array_values(array_diff($disabled, [$filename])));
+					}
+				}
 				$this->alert('success', "Deleted {$filename}.");
 				$this->redirect();
 			}
@@ -1505,6 +1516,7 @@ EOT;
 			"repo" => $module->repo,
 			"zip" => $module->zip,
 			"summary" => $module->summary,
+			"group" => (property_exists($module, 'group') && is_string($module->group) && trim($module->group) !== '') ? trim($module->group) : null,
 			"version" => $module->version,
 			"image" => $module->image,
 		];
@@ -1691,6 +1703,8 @@ EOT;
 		}
 
 		$path = sprintf('%s/%s/', $this->rootDir, $type);
+		$wasInstalled = is_dir($path . $folderName);
+		$wasDisabled = $type === self::PLUGINS_DIR && $wasInstalled && $this->isPluginDisabled($folderName);
 
 		$zipFile = $this->filesPath . '/ZIPFromURL.zip';
 		$zipResource = fopen($zipFile, 'w');
@@ -1746,6 +1760,44 @@ EOT;
 		if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
 			throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
 		}
+
+		// If this plugin belongs to an exclusive group (e.g. editor/translation), disable other enabled plugins in the same group.
+		// Keep disabled state on updates (if the plugin was disabled before updating).
+		if ($type === self::PLUGINS_DIR) {
+			$disabled = $this->getDisabledPlugins();
+
+			// If this is a new install, ensure it is enabled (remove any stale disable entry).
+			if (!$wasInstalled) {
+				$disabled = array_values(array_diff($disabled, [$folderName]));
+			}
+
+			$group = $this->getPluginGroup($folderName, $cached);
+			if ($this->isExclusivePluginGroup($group) && !$wasDisabled) {
+				$pluginsDir = $this->rootDir . '/' . self::PLUGINS_DIR;
+				foreach (glob($pluginsDir . '/*', GLOB_ONLYDIR) as $dir) {
+					$other = basename($dir);
+					if ($other === $folderName) {
+						continue;
+					}
+					if (!is_file($dir . '/' . $other . '.php')) {
+						continue;
+					}
+					if (in_array($other, $disabled, true)) {
+						continue;
+					}
+					if ($this->getPluginGroup($other) === $group) {
+						$disabled[] = $other;
+						$disabledOthers[] = $other;
+					}
+				}
+				$this->setDisabledPlugins($disabled);
+
+			} elseif (!$wasInstalled) {
+				// Persist cleaned stale disable entry, if any.
+				$this->setDisabledPlugins($disabled);
+			}
+		}
+
 		$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
 		$this->redirect();
 	}
@@ -1798,6 +1850,202 @@ EOT;
 	}
 
 	/**
+	 * Get disabled plugins list from DB.
+	 * Stored as config.disabledPlugins (array) but may come back as stdClass due to JSON_FORCE_OBJECT.
+	 * @return string[]
+	 */
+	private function getDisabledPlugins(): array
+	{
+		$value = $this->get(self::DB_CONFIG, self::DISABLED_PLUGINS_KEY);
+
+		if (is_object($value) && empty(get_object_vars($value))) {
+			return [];
+		}
+
+		$list = [];
+		if (is_array($value)) {
+			$list = $value;
+		} elseif (is_object($value)) {
+			$list = array_values((array)$value);
+		} elseif (is_string($value) && $value !== '') {
+			$list = [$value];
+		}
+
+		$list = array_values(array_filter($list, static function ($v) {
+			return is_string($v) && $v !== '';
+		}));
+
+		return array_values(array_unique($list));
+	}
+
+	/**
+	 * Persist disabled plugins list to DB.
+	 * @param array $disabledPlugins
+	 * @return void
+	 * @throws Exception
+	 */
+	private function setDisabledPlugins(array $disabledPlugins): void
+	{
+		$disabledPlugins = array_values(array_filter($disabledPlugins, static function ($v) {
+			return is_string($v) && $v !== '';
+		}));
+		$disabledPlugins = array_values(array_unique($disabledPlugins));
+		$this->set(self::DB_CONFIG, self::DISABLED_PLUGINS_KEY, $disabledPlugins);
+	}
+
+	/**
+	 * Check if a plugin is disabled in config.
+	 */
+	private function isPluginDisabled(string $pluginName): bool
+	{
+		return in_array($pluginName, $this->getDisabledPlugins(), true);
+	}
+
+	/**
+	 * Get plugin display name from local cache.json, fallback to folder name.
+	 */
+	private function getPluginDisplayName(string $pluginName): string
+	{
+		$cache = $this->getJsonFileData($this->modulesCachePath);
+		$name = is_array($cache) ? ($cache['plugins'][$pluginName]['name'] ?? null) : null;
+		return is_string($name) && $name !== '' ? $name : $pluginName;
+	}
+
+	/**
+	 * Infer group for plugin based on its folder name (fallback when metadata isn't present).
+	 */
+	private function inferPluginGroupFromName(string $pluginName): ?string
+	{
+		$lower = strtolower($pluginName);
+		if (strpos($lower, 'translation-') === 0) {
+			return 'translation';
+		}
+		if (strpos($lower, 'editor') !== false) {
+			return 'editor';
+		}
+		return null;
+	}
+
+	/**
+	 * Read optional "group" metadata from local cache.json (no network refresh).
+	 */
+	private function getPluginGroupFromCache(string $pluginName): ?string
+	{
+		$cache = $this->getJsonFileData($this->modulesCachePath);
+		if (!is_array($cache)) {
+			return null;
+		}
+		$group = $cache['plugins'][$pluginName]['group'] ?? null;
+		if (!is_string($group)) {
+			return null;
+		}
+		$group = strtolower(trim($group));
+		return $group !== '' ? $group : null;
+	}
+
+	/**
+	 * Resolve plugin group (optional metadata -> cache.json -> inference).
+	 */
+	private function getPluginGroup(string $pluginName, ?array $moduleData = null): ?string
+	{
+		$group = null;
+		if ($moduleData !== null && isset($moduleData['group']) && is_string($moduleData['group'])) {
+			$group = strtolower(trim($moduleData['group']));
+			$group = $group !== '' ? $group : null;
+		}
+		return $group ?? $this->getPluginGroupFromCache($pluginName) ?? $this->inferPluginGroupFromName($pluginName);
+	}
+
+	private function isExclusivePluginGroup(?string $group): bool
+	{
+		return $group !== null && in_array($group, self::EXCLUSIVE_PLUGIN_GROUPS, true);
+	}
+
+	/**
+	 * Toggle plugin enable/disable without deleting files.
+	 * Uses config.disabledPlugins and supports exclusive groups (editor/translation).
+	 * @throws Exception
+	 */
+	public function togglePluginAction(): void
+	{
+		if (!$this->loggedIn) {
+			return;
+		}
+		if (!isset($_REQUEST['togglePlugin'], $_REQUEST['state']) || !$this->verifyFormActions(true)) {
+			return;
+		}
+
+		$pluginName = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string)$_REQUEST['togglePlugin']));
+		$state = trim((string)$_REQUEST['state']);
+		if ($pluginName === '') {
+			$this->alert('danger', 'Invalid plugin name.');
+			$this->redirect();
+		}
+
+		$pluginDir = sprintf('%s/%s/%s', $this->rootDir, self::PLUGINS_DIR, $pluginName);
+		$pluginFile = $pluginDir . '/' . $pluginName . '.php';
+		if (!is_dir($pluginDir) || !is_file($pluginFile)) {
+			$this->alert('danger', 'Plugin not found.');
+			$this->redirect();
+		}
+
+		$disabled = $this->getDisabledPlugins();
+
+		if ($state === 'disable') {
+			if (!in_array($pluginName, $disabled, true)) {
+				$disabled[] = $pluginName;
+				$this->setDisabledPlugins($disabled);
+			}
+			$this->alert('success', 'Plugin disabled: ' . $this->getPluginDisplayName($pluginName) . '.');
+			$this->redirect();
+		}
+
+		if ($state === 'enable') {
+			$disabled = array_values(array_diff($disabled, [$pluginName]));
+			$disabledOthers = [];
+
+			$group = $this->getPluginGroup($pluginName);
+			if ($this->isExclusivePluginGroup($group)) {
+				$pluginsDir = $this->rootDir . '/' . self::PLUGINS_DIR;
+				foreach (glob($pluginsDir . '/*', GLOB_ONLYDIR) as $dir) {
+					$other = basename($dir);
+					if ($other === $pluginName) {
+						continue;
+					}
+					if (!is_file($dir . '/' . $other . '.php')) {
+						continue;
+					}
+					if (in_array($other, $disabled, true)) {
+						continue;
+					}
+					if ($this->getPluginGroup($other) === $group) {
+						$disabled[] = $other;
+						$disabledOthers[] = $other;
+					}
+				}
+			}
+
+			$this->setDisabledPlugins($disabled);
+
+			if (!empty($disabledOthers)) {
+				$disabledNames = array_map(function ($p) {
+					return $this->getPluginDisplayName($p);
+				}, $disabledOthers);
+				$this->alert(
+					'success',
+					'Plugin enabled: ' . $this->getPluginDisplayName($pluginName) . ' and disabled ' . implode(', ', $disabledNames) . '.'
+				);
+			} else {
+				$this->alert('success', 'Plugin enabled: ' . $this->getPluginDisplayName($pluginName) . '.');
+			}
+			$this->redirect();
+		}
+
+		$this->alert('danger', 'Invalid plugin action.');
+		$this->redirect();
+	}
+
+	/**
 	 * Load plugins (if any exist)
 	 * @return void
 	 */
@@ -1811,12 +2059,23 @@ EOT;
 		if (!is_dir($this->filesPath) && !mkdir($this->filesPath) && !is_dir($this->filesPath)) {
 			return;
 		}
+		$disabled = $this->getDisabledPlugins();
 		foreach (glob($plugins . '/*', GLOB_ONLYDIR) as $dir) {
 			$pluginName = basename($dir);
-			if (file_exists($dir . '/' . $pluginName . '.php')) {
-				include $dir . '/' . $pluginName . '.php';
-				$this->installedPlugins[] = $pluginName;
+			$pluginFile = $dir . '/' . $pluginName . '.php';
+			if (!file_exists($pluginFile)) {
+				continue;
 			}
+
+			// Track installed plugins even if they are disabled.
+			$this->installedPlugins[] = $pluginName;
+
+			// Skip disabled plugins.
+			if (in_array($pluginName, $disabled, true)) {
+				continue;
+			}
+
+			include $pluginFile;
 		}
 	}
 
@@ -2828,6 +3087,19 @@ EOT;
 					<div class="change row custom-cards">';
 		$defaultImage = '<svg style="max-width: 100%;" xmlns="http://www.w3.org/2000/svg" width="100%" height="140"><text x="50%" y="50%" font-size="18" text-anchor="middle" alignment-baseline="middle" font-family="monospace, sans-serif" fill="#ddd">No preview</text></svg>';
 		$updates = $exists = $installs = '';
+		$disabledPlugins = $type === self::PLUGINS_DIR ? $this->getDisabledPlugins() : [];
+		$enabledPluginsByGroup = [];
+		if ($type === self::PLUGINS_DIR) {
+			foreach ($this->installedPlugins as $installedPlugin) {
+				if (in_array($installedPlugin, $disabledPlugins, true)) {
+					continue;
+				}
+				$group = $this->getPluginGroup($installedPlugin);
+				if ($this->isExclusivePluginGroup($group)) {
+					$enabledPluginsByGroup[$group][] = $installedPlugin;
+				}
+			}
+		}
 		foreach ($this->listAllModules($type) as $addonType => $addonModules) {
 			foreach ($addonModules as $directoryName => $addon) {
 				$name = $addon['name'];
@@ -2836,13 +3108,61 @@ EOT;
 				$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s',
 					$addon['currentVersion']) : '';
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
+				$isPlugin = $type === self::PLUGINS_DIR;
+				$isInstalledPlugin = $isPlugin && !$addon['install'];
+				$isDisabledPlugin = $isInstalledPlugin && in_array($directoryName, $disabledPlugins, true);
+				$pluginGroup = $isPlugin ? $this->getPluginGroup($directoryName, $addon) : null;
+				$conflictingEnabled = ($isPlugin && $this->isExclusivePluginGroup($pluginGroup))
+					? array_values(array_diff($enabledPluginsByGroup[$pluginGroup] ?? [], [$directoryName]))
+					: [];
+				if ($isDisabledPlugin) {
+					$currentVersion = $currentVersion ? $currentVersion . ' (Disabled)' : 'Disabled';
+				}
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
-				$installButton = $addon['install'] ? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Install"><i class="installIcon"></i> Install</a>' : '';
-				$updateButton = !$addon['install'] && $addon['update'] ? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>' : '';
+
+				$conflictingNames = !empty($conflictingEnabled) ? array_map(function ($p) {
+					return $this->getPluginDisplayName($p);
+				}, $conflictingEnabled) : [];
+
+				$installConfirmAttr = '';
+				if ($addon['install'] && $isPlugin && $this->isExclusivePluginGroup($pluginGroup) && !empty($conflictingNames)) {
+					$installMsg = 'This is an ' . $pluginGroup . ' plugin. Installing ' . $name . ' will disable ' . implode(', ', $conflictingNames) . '. Continue?';
+					$installConfirmAttr = ' data-confirm="' . htmlspecialchars($installMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
+				}
+				$installButton = $addon['install']
+					? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $installConfirmAttr . ' title="Install"><i class="installIcon"></i> Install</a>'
+					: '';
+
+				$updateConfirmAttr = '';
+				if (!$addon['install'] && $addon['update'] && $isPlugin && !$isDisabledPlugin && $this->isExclusivePluginGroup($pluginGroup) && !empty($conflictingNames)) {
+					$updateMsg = 'This is an ' . $pluginGroup . ' plugin. Updating ' . $name . ' will keep it enabled and disable ' . implode(', ', $conflictingNames) . '. Continue?';
+					$updateConfirmAttr = ' data-confirm="' . htmlspecialchars($updateMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
+				}
+				$updateButton = !$addon['install'] && $addon['update']
+					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>'
+					: '';
+
 				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
 				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
+
+				$pluginToggleButton = '';
+				if ($isInstalledPlugin) {
+					$toggleState = $isDisabledPlugin ? 'enable' : 'disable';
+					$toggleLabel = $isDisabledPlugin ? 'Enable' : 'Disable';
+					$toggleClass = $isDisabledPlugin ? 'wbtn wbtn-primary wbtn-sm wbtn-block marginTop5' : 'wbtn wbtn-secondary wbtn-sm wbtn-block marginTop5';
+					$toggleUrl = self::url('?togglePlugin=' . $directoryName . '&state=' . $toggleState . '&token=' . $this->getToken());
+					$toggleConfirmAttr = '';
+					if ($toggleState === 'disable') {
+						$toggleMsg = 'Disable ' . $name . '?';
+						$toggleConfirmAttr = ' data-confirm="' . htmlspecialchars($toggleMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
+					} elseif ($toggleState === 'enable' && $this->isExclusivePluginGroup($pluginGroup) && !empty($conflictingNames)) {
+						$toggleMsg = 'This is an ' . $pluginGroup . ' plugin. Enabling ' . $name . ' will disable ' . implode(', ', $conflictingNames) . '. Continue?';
+						$toggleConfirmAttr = ' data-confirm="' . htmlspecialchars($toggleMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
+					}
+					$pluginToggleButton = '<a class="' . $toggleClass . '" href="' . $toggleUrl . '"' . $toggleConfirmAttr . '>' . $toggleLabel . '</a>';
+				}
 
 				$html = "<div class='coll-sm-4'>
 							<div>
@@ -2851,7 +3171,7 @@ EOT;
 								<p class='normalFont'>$info</p>
 								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><i class='linkIcon'></i> More info</a></p>
 								<div class='text-right'>$inactiveThemeButton $activeThemeButton</div>
-								<div class='text-left'>$installButton</div>
+								<div class='text-left'>$installButton $pluginToggleButton</div>
 								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
 							</div>
 						</div>";
