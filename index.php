@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.5.0');
+define('VERSION', '3.6.0');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
