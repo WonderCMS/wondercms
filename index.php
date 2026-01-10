@@ -753,7 +753,7 @@ class Wcms
 				continue;
 			}
 
-			$pageData = $pageData->subpages->{$parentPage} ?? null;
+			$pageData = $pageData->{self::DB_PAGES_SUBPAGE_KEY}->{$parentPage} ?? null;
 			$pageExists = !empty($pageData);
 		}
 
@@ -780,7 +780,7 @@ class Wcms
 					$selectedPage->{$childSlug}->title = mb_convert_case(str_replace('-', ' ', $childSlug), MB_CASE_TITLE);
 					$selectedPage->{$childSlug}->keywords = 'Keywords, are, good, for, search, engines';
 					$selectedPage->{$childSlug}->description = 'A short description is also good.';
-					$selectedPage->{$childSlug}->subpages = new stdClass(); // Initialize subpages
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new stdClass(); // Initialize subpages
 	
 					if ($createMenuItem) {
 						$this->createMenuItem($selectedPage->{$childSlug}->title, $menuKey);
@@ -788,7 +788,11 @@ class Wcms
 					}
 				}
 
-				$selectedPage = $selectedPage->{$childSlug}->subpages;
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
 			}
 		}
 
@@ -799,7 +803,7 @@ class Wcms
 		$selectedPage->{$slug}->title = mb_convert_case(str_replace('-', ' ', $pageSlug), MB_CASE_TITLE);
 		$selectedPage->{$slug}->keywords = 'Keywords, are, good, for, search, engines';
 		$selectedPage->{$slug}->description = 'A short description is also good.';
-		$selectedPage->{$slug}->subpages = new stdClass(); // Initialize subpages
+		$selectedPage->{$slug}->{self::DB_PAGES_SUBPAGE_KEY} = new stdClass(); // Initialize subpages
 
 		$this->set(self::DB_PAGES_KEY, $allPages);
 
@@ -816,7 +820,7 @@ class Wcms
 	 */
 	private function findAndUpdateMenuKey(?string $menuKey, string $slug): string
 	{
-		$menuKeys = $menuKey !== null ? explode('-', $menuKey) : $menuKey;
+		$menuKeys = $menuKey !== null ? explode('-', (string) $menuKey) : [];
 		$menuItems = json_decode(json_encode($this->get(self::DB_CONFIG, self::DB_MENU_ITEMS)), true);
 		foreach ($menuKeys as $key) {
 			$menuItems = $menuItems[$key][self::DB_MENU_ITEMS_SUBPAGE] ?? [];
@@ -899,7 +903,11 @@ class Wcms
 		$selectedPage = $this->db->{self::DB_PAGES_KEY};
 		if (!empty($slugTree)) {
 			foreach ($slugTree as $childSlug) {
-				$selectedPage = $selectedPage->{$childSlug}->subpages;
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
 			}
 		}
 
@@ -921,7 +929,11 @@ class Wcms
 		$selectedPage = $this->db->{self::DB_PAGES_KEY};
 		if (!empty($slugTree)) {
 			foreach ($slugTree as $childSlug) {
-				$selectedPage = $selectedPage->{$childSlug}->subpages;
+				if (!property_exists($selectedPage->{$childSlug}, self::DB_PAGES_SUBPAGE_KEY)) {
+					$selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY} = new StdClass;
+				}
+
+				$selectedPage = $selectedPage->{$childSlug}->{self::DB_PAGES_SUBPAGE_KEY};
 			}
 		}
 
