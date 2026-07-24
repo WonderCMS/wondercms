@@ -1015,6 +1015,9 @@ EOT;
 				'',
 				trim($_REQUEST['deleteModule'])
 			);
+			if (in_array($filename, ['', '.', '..'], true)) {
+				return;
+			}
 			$type = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
 				'',
@@ -2085,7 +2088,11 @@ EOT;
 	 */
 	public function loadThemeAndFunctions(): void
 	{
-		$location = $this->rootDir . '/themes/' . $this->get('config', 'theme');
+		$theme = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $this->get('config', 'theme'));
+		if ($theme === '' || !is_dir($this->rootDir . '/themes/' . $theme)) {
+			$theme = 'sky';
+		}
+		$location = $this->rootDir . '/themes/' . $theme;
 		if (file_exists($location . '/functions.php')) {
 			require_once $location . '/functions.php';
 		}
@@ -2628,6 +2635,9 @@ EOT;
 				$this->orderMenuItem($content, $menu);
 			}
 			if ($target === 'config') {
+				if (in_array($fieldname, ['password', 'customModules', 'menuItems', 'forceLogout', 'lastLogins', self::DISABLED_PLUGINS_KEY], true)) {
+					return;
+				}
 				if ($fieldname === 'defaultPage' && $content === 'blog') {
 					$this->set('config', $fieldname, $content);
 				} else {
