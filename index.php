@@ -1306,6 +1306,53 @@ EOT;
 				$newData[$addonType][$dirName]['install'] = !$exists;
 				$newData[$addonType][$dirName]['currentVersion'] = $currentVersion;
 			}
+
+			$newData = $this->addUncachedLocalModules($type, $newData);
+		}
+
+		return $newData;
+	}
+
+	/**
+	 * Add themes/plugins that exist in the local folder but are not part of the cached modules list
+	 * (e.g. manually uploaded custom themes)
+	 * @param string $type
+	 * @param array $newData
+	 * @return array
+	 */
+	private function addUncachedLocalModules(string $type, array $newData): array
+	{
+		$path = $this->rootDir . '/' . $type;
+		if (!is_dir($path)) {
+			return $newData;
+		}
+
+		$knownDirs = [];
+		foreach ($newData as $addonModules) {
+			$knownDirs = array_merge($knownDirs, array_keys($addonModules));
+		}
+
+		foreach (scandir($path) as $dirName) {
+			if ($dirName === '.' || $dirName === '..' || in_array($dirName, $knownDirs, true)) {
+				continue;
+			}
+			if (!is_dir($path . '/' . $dirName)) {
+				continue;
+			}
+
+			$newData[self::THEME_PLUGINS_TYPES['exists']][$dirName] = [
+				'name' => ucwords(str_replace(['-', '_'], ' ', $dirName)),
+				'dirName' => $dirName,
+				'repo' => '',
+				'zip' => '',
+				'summary' => 'Custom local ' . rtrim($type, 's') . '.',
+				'group' => null,
+				'version' => null,
+				'image' => null,
+				'update' => false,
+				'install' => false,
+				'currentVersion' => $this->getModuleVersion($type, $dirName),
+			];
 		}
 
 		return $newData;
@@ -3120,6 +3167,7 @@ EOT;
 				}
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
+				$moreInfoLink = $infoUrl !== '' ? '<a href="' . $infoUrl . '" target="_blank"><i class="linkIcon"></i> More info</a>' : '';
 
 				$conflictingNames = !empty($conflictingEnabled) ? array_map(function ($p) {
 					return $this->getPluginDisplayName($p);
@@ -3169,7 +3217,7 @@ EOT;
 								$image
 								<h4>$name</h4>
 								<p class='normalFont'>$info</p>
-								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><i class='linkIcon'></i> More info</a></p>
+								<p class='text-right small normalFont marginTop20'>$currentVersion<br />$moreInfoLink</p>
 								<div class='text-right'>$inactiveThemeButton $activeThemeButton</div>
 								<div class='text-left'>$installButton $pluginToggleButton</div>
 								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
@@ -3232,10 +3280,34 @@ EOT;
 	 */
 	public function slugify(string $text): string
 	{
+		$text = $this->transliterate($text);
 		$text = preg_replace('~[^\\pL\d]+~u', '-', $text);
 		$text = trim(htmlspecialchars(mb_strtolower($text), ENT_QUOTES), '/');
 		$text = trim($text, '-');
 		return empty($text) ? '-' : $text;
+	}
+
+	/**
+	 * Convert accented/special characters to their closest ASCII equivalent
+	 * so generated slugs don't contain them
+	 *
+	 * @param string $text
+	 * @return string
+	 */
+	private function transliterate(string $text): string
+	{
+		if (class_exists('Transliterator')) {
+			$transliterator = Transliterator::create('Any-Latin; Latin-ASCII');
+			if ($transliterator !== null) {
+				$transliterated = $transliterator->transliterate($text);
+				if ($transliterated !== false) {
+					return $transliterated;
+				}
+			}
+		}
+
+		$transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+		return $transliterated !== false ? $transliterated : $text;
 	}
 
 	/**
