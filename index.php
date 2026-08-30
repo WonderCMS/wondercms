@@ -3280,10 +3280,34 @@ EOT;
 	 */
 	public function slugify(string $text): string
 	{
+		$text = $this->transliterate($text);
 		$text = preg_replace('~[^\\pL\d]+~u', '-', $text);
 		$text = trim(htmlspecialchars(mb_strtolower($text), ENT_QUOTES), '/');
 		$text = trim($text, '-');
 		return empty($text) ? '-' : $text;
+	}
+
+	/**
+	 * Convert accented/special characters to their closest ASCII equivalent
+	 * so generated slugs don't contain them
+	 *
+	 * @param string $text
+	 * @return string
+	 */
+	private function transliterate(string $text): string
+	{
+		if (class_exists('Transliterator')) {
+			$transliterator = Transliterator::create('Any-Latin; Latin-ASCII');
+			if ($transliterator !== null) {
+				$transliterated = $transliterator->transliterate($text);
+				if ($transliterated !== false) {
+					return $transliterated;
+				}
+			}
+		}
+
+		$transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+		return $transliterated !== false ? $transliterated : $text;
 	}
 
 	/**
