@@ -26,9 +26,6 @@
 ## <div align="center">**[Demo](https://www.wondercms.com/demo) • [Download](https://www.wondercms.com/latest) • [Community](https://www.wondercms.com/community) • [News](https://www.wondercms.com/news) • [Donate](https://www.wondercms.com/donate)**  • [Buy merch](https://swag.wondercms.com)</div>
 
 
-[![What is WonderCMS? Introduction](https://www.wondercms.com/data/files/wondercms-introduction.png)](https://www.youtube.com/watch?v=gtkoi9X1L3g)
-
-
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
   - 5 files: [database.js](https://www.wondercms.com/docs/#default-generated-database) (JSON format), [index.php](https://github.com/WonderCMS/wondercms/blob/master/index.php), [theme.php](https://github.com/WonderCMS/wondercms/blob/master/themes/sky/theme.php), [style.css](https://github.com/WonderCMS/wondercms/blob/master/themes/sky/css/style.css) and [htaccess](https://github.com/WonderCMS/wondercms/blob/master/.htaccess).
