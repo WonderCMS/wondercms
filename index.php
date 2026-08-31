@@ -304,7 +304,18 @@ class Wcms
 	 */
 	public function asset(string $location): string
 	{
-		return self::url('themes/' . $this->get('config', 'theme') . '/' . $location);
+		return self::url('themes/' . $this->activeTheme() . '/' . $location);
+	}
+
+	/**
+	 * Sanitised active theme folder name, jailed to themes/ with a safe fallback.
+	 *
+	 * @return string
+	 */
+	public function activeTheme(): string
+	{
+		$theme = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $this->get('config', 'theme'));
+		return ($theme !== '' && is_dir($this->rootDir . '/themes/' . $theme)) ? $theme : 'sky';
 	}
 
 	/**
@@ -1015,6 +1026,10 @@ EOT;
 				'',
 				trim($_REQUEST['deleteModule'])
 			);
+			if (in_array($filename, ['', '.', '..'], true)) {
+				$this->alert('danger', 'Invalid file name.');
+				$this->redirect();
+			}
 			$type = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
 				'',
@@ -2085,7 +2100,7 @@ EOT;
 	 */
 	public function loadThemeAndFunctions(): void
 	{
-		$location = $this->rootDir . '/themes/' . $this->get('config', 'theme');
+		$location = $this->rootDir . '/themes/' . $this->activeTheme();
 		if (file_exists($location . '/functions.php')) {
 			require_once $location . '/functions.php';
 		}
@@ -2628,22 +2643,18 @@ EOT;
 				$this->orderMenuItem($content, $menu);
 			}
 			if ($target === 'config') {
-				if ($fieldname === 'defaultPage' && $content === 'blog') {
-					$this->set('config', $fieldname, $content);
-				} else {
-					if ($fieldname === 'defaultPage' && $this->getPageData($content) === null) {
-						return;
-					}
-					$this->set('config', $fieldname, $content);
+				if (in_array($fieldname, ['password', 'customModules', 'menuItems', 'forceLogout', 'lastLogins', self::DISABLED_PLUGINS_KEY], true)) {
+					return;
 				}
-			}
-			if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
-				return;
-			}
-			if ($fieldname === 'theme' && !is_dir($this->rootDir . '/themes/' . $content)) {
-				return;
-			}
-			if ($target === 'config') {
+				if ($fieldname === 'defaultPage' && $content !== 'blog' && $this->getPageData($content) === null) {
+					return;
+				}
+				if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
+					return;
+				}
+				if ($fieldname === 'theme' && (basename($content) !== $content || !is_dir($this->rootDir . '/themes/' . $content))) {
+					return;
+				}
 				$this->set('config', $fieldname, $content);
 			} elseif ($target === 'blocks') {
 				$this->set('blocks', $fieldname, 'content', $content);
