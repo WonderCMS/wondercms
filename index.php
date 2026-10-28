@@ -1198,6 +1198,9 @@ EOT;
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_URL, $fileUrl);
+		curl_setopt($ch, CURLOPT_FAILONERROR, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		$content = curl_exec($ch);
 		if (false === $content) {
 			$this->alert('danger', 'Cannot get content from url.');
@@ -1227,7 +1230,8 @@ EOT;
 	 */
 	public function getOfficialVersion(string $repo = self::WCMS_REPO): ?string
 	{
-		return $this->getCheckFileFromRepo('version', $repo);
+		$version = $this->getCheckFileFromRepo('version', $repo);
+		return $version !== null && preg_match('/^\d+\.\d+\.\d+$/', $version) ? $version : null;
 	}
 
 	/**
@@ -3275,13 +3279,28 @@ EOT;
 			return;
 		}
 		$contents = $this->getFileFromRepo('index.php');
-		if ($contents) {
-			file_put_contents(__FILE__, $contents);
+		if ($this->isValidCoreUpdate($contents) && file_put_contents(__FILE__, $contents, LOCK_EX)) {
+			if (function_exists('opcache_invalidate')) {
+				opcache_invalidate(__FILE__, true);
+			}
 			$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
 			$this->redirect();
 		}
 		$this->alert('danger', 'Something went wrong. Could not update WonderCMS.');
 		$this->redirect();
+	}
+
+	/**
+	 * Check that a downloaded index.php is a complete, newer WonderCMS core before it overwrites this file
+	 * @param string $contents
+	 * @return bool
+	 */
+	public function isValidCoreUpdate(string $contents): bool
+	{
+		return strncmp($contents, '<?php', 5) === 0
+			&& strpos($contents, 'class Wcms') !== false
+			&& preg_match("/define\('VERSION', '(\d+\.\d+\.\d+)'\);/", $contents, $match)
+			&& version_compare($match[1], VERSION, '>');
 	}
 
 	/**
