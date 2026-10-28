@@ -37,16 +37,6 @@ jobs:
           echo "version file: $FILE, VERSION constant: $CODE"
           test "$FILE" = "$CODE"
 
-      - name: A change to index.php on a PR into main must bump VERSION
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        run: |
-          git fetch origin main --depth=1
-          if git diff --quiet origin/main -- index.php; then echo "index.php unchanged"; exit 0; fi
-          BASE=$(git show origin/main:version | tr -d '[:space:]')
-          HEAD=$(tr -d '[:space:]' < version)
-          echo "main: $BASE, this branch: $HEAD"
-          php -r 'exit(version_compare($argv[1], $argv[2], ">") ? 0 : 1);' "$HEAD" "$BASE"
-
       - name: Fresh install boots without warnings
         run: |
           rm -rf /tmp/site && mkdir /tmp/site && cp index.php .htaccess /tmp/site/ && cp -r themes /tmp/site/
@@ -60,6 +50,16 @@ jobs:
 
       - name: PHPUnit
         run: phpunit --no-coverage
+
+      - name: A change to index.php on a PR into main must bump VERSION
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: |
+          git fetch origin main --depth=1
+          if git diff --quiet origin/main -- index.php; then echo "index.php unchanged"; exit 0; fi
+          BASE=$(git show origin/main:version | tr -d '[:space:]')
+          HEAD=$(tr -d '[:space:]' < version)
+          echo "main: $BASE, this branch: $HEAD"
+          php -r 'exit(version_compare($argv[1], $argv[2], ">") ? 0 : 1);' "$HEAD" "$BASE"
 
   windows-url:
     name: url() on Windows
