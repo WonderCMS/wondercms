@@ -19,6 +19,12 @@ below exists to make sure only a complete, versioned `index.php` ever gets there
 5. There is no rollback. Sites that already updated never download an older version, so a bad
    release is fixed by the next patch release, never by reverting `main`.
 
+## What the updater accepts
+
+Since 3.7.0 a site only replaces its `index.php` when the download starts with `<?php`, contains `class Wcms`,
+defines `define('VERSION', 'x.y.z');` with a version higher than the running one, and parses. Keep that exact
+`define` line format; a release that breaks it is never installed.
+
 ## Checklist
 
 1. Release branch from `main`; every change as its own commit with a test. Run
@@ -30,9 +36,14 @@ below exists to make sure only a complete, versioned `index.php` ever gets there
    **Update** from a copy of the previous release pointed at the branch's raw URL, try to break it.
    A fix after this point is a new commit; re-run the gates and the rehearsal.
 4. Merge the release branch into `main` (merge commit).
-5. Wait for GitHub's raw cache (up to 5 minutes), then check
-   `https://raw.githubusercontent.com/WonderCMS/wondercms/main/version` shows the new version.
-6. Canary: back up wondercms.com, click **Update** there, check the site, the login and a save.
+5. Wait for GitHub's raw cache (up to 5 minutes), then check that
+   `https://raw.githubusercontent.com/WonderCMS/wondercms/main/version` shows the new version and that the
+   SHA-256 of the served `main/index.php` equals `git show <merge-sha>:index.php` (the 3.6.0 updater writes
+   whatever it receives).
+6. Canary: confirm the live `index.php` is the stock previous release (compare its SHA-256), back up `index.php`
+   and `data/`, click **Update** on wondercms.com, check the site, the login, a save, and the `VERSION` in the
+   file on disk (opcache may serve the old code for a moment). Hold the news post and any announcement
+   until the canary has passed; the daily notice means publicity is what drives the fleet's updates.
 7. Tag the merge commit: `git tag X.Y.Z && git push origin X.Y.Z`.
 8. Build the ZIP from the tag: `./build-release.sh X.Y.Z`, then create the GitHub release with
    notes (Features and fixes / Changes / Backwards compatibility / How to update / Installation

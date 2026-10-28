@@ -11,3 +11,7 @@ git archive --format=tar --prefix=wondercms/ "$TAG" index.php .htaccess themes/s
 rm -rf "$TMP"
 printf '%s\n' "$NAME"
 shasum -a 256 "$NAME"
+# Self-test: the index.php inside the ZIP must equal the tagged file byte for byte.
+unzip -p "$NAME" wondercms/index.php | shasum -a 256 | cut -d' ' -f1 > "$TMP.sha"
+git show "$TAG:index.php" | shasum -a 256 | cut -d' ' -f1 | cmp -s - "$TMP.sha" && echo "self-test: index.php in ZIP matches tag $TAG" || { echo "self-test FAILED: ZIP index.php differs from tag"; rm -f "$TMP.sha"; exit 1; }
+rm -f "$TMP.sha"
