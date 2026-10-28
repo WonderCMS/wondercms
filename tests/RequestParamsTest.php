@@ -48,6 +48,27 @@ final class RequestParamsTest extends TestCase
 		$this->assertFalse(isset($_SESSION['loggedIn']));
 	}
 
+	public function testAnEmptySearchQueryListsNothing(): void
+	{
+		// A hand-made POST with an empty query must not list every page; a one-character query (a CJK word) still searches.
+		foreach (['', '  '] as $query) {
+			$out = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search ' . escapeshellarg($query));
+			$this->assertSame(['error' => 'No matching content found'], json_decode($out, true), var_export($query, true));
+		}
+		foreach (['Home', 'H'] as $query) {
+			$out = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search ' . escapeshellarg($query));
+			$this->assertNotEmpty(json_decode($out, true)[0]['slug'] ?? null, var_export($query, true) . ' still finds the home page');
+		}
+		// The highlight is case-insensitive for non-Latin text too (the /u flag on the regex).
+		$out = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search ' . escapeshellarg('шахматы') . ' ' . escapeshellarg('<p>Шахматы для всех</p>'));
+		$this->assertStringContainsString('<mark>Шахматы</mark>', json_decode($out, true)[0]['excerpt'] ?? '', 'a lowercase Cyrillic query highlights the capitalised word');
+		// A query that is not valid UTF-8 (raw bytes, passed as hex past escapeshellarg) answers like the empty one. On PHP 8.x mb_stripos()
+		// already finds nothing for it; on 7.4 to 8.0 mbstring folds the byte, the page matches and the /u highlight regex would return null
+		// with a warning, so the guard is pinned by the 7.4 CI leg (the warning would break this JSON).
+		$out = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=1 -d error_reporting=-1 ' . escapeshellarg(__DIR__ . '/probe.php') . ' search ' . escapeshellarg('hex:' . bin2hex("a\xff")) . ' ' . escapeshellarg('<p>a? page</p>') . ' 2>&1');
+		$this->assertSame(['error' => 'No matching content found'], json_decode($out, true), 'invalid UTF-8 query: ' . $out);
+	}
+
 	public function testArraySearchQueryIsIgnored(): void
 	{
 		$_POST['query'] = ['x'];

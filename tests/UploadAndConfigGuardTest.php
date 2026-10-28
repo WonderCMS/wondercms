@@ -65,13 +65,203 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->wcms->saveAction();
 		$this->assertNotSame('[]', $this->wcms->get('config', 'menuItems'));
 
+		$_POST = ['fieldname' => 'lastLogins', 'content' => '{"2026/01/01 00:00:00":"1.2.3.4"}', 'target' => 'config', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertSame([], (array)$this->wcms->get('config', 'lastLogins'), 'the login history is not editable through the generic save');
+
+		$_POST = ['fieldname' => 'forceLogout', 'content' => 'true', 'target' => 'config', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertNotSame('true', $this->wcms->get('config', 'forceLogout'));
+
+		$_POST = ['fieldname' => 'disabledPlugins', 'content' => '["summernote-editor"]', 'target' => 'config', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertSame([], (array)$this->wcms->get('config', 'disabledPlugins'), 'the disabled-plugins list is not editable through the generic save');
+
+		$_POST = ['fieldname' => 'customModules', 'content' => '{"plugins":["https://evil.example/list.json"]}', 'target' => 'config', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertStringNotContainsString('evil.example', json_encode($this->wcms->get('config', 'customModules')), 'the custom repository list is not editable through the generic save');
+
 		$_POST = ['fieldname' => 'siteTitle', 'content' => 'Allowed', 'target' => 'config', 'token' => $this->wcms->getToken()];
 		$this->wcms->saveAction();
 		$this->assertSame('Allowed', $this->wcms->get('config', 'siteTitle'));
 	}
 
+	public function testLoginIpsAreEscapedInTheSettingsPanel(): void
+	{
+		// A proxy header is stored as sent; the settings panel must print it as text.
+		$this->wcms->set('config', 'lastLogins', ['2026/10/28 10:00:00' => '<img src=x onerror=alert(1)>']);
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $html);
+		$this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $html);
+	}
+
+	public function testACustomModuleUrlMustBeHttpOrHttps(): void
+	{
+		$dir = sys_get_temp_dir() . '/wcms-module-' . bin2hex(random_bytes(3));
+		mkdir($dir);
+		file_put_contents($dir . '/wcms-modules.json', json_encode(['themes' => ['local' => ['name' => 'Local', 'repo' => 'file://' . $dir, 'zip' => 'file://' . $dir . '/local.zip', 'summary' => 's', 'version' => '1.0.0', 'image' => '']]]));
+		$this->wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$_POST = ['pluginThemeUrl' => 'file://' . $dir . '/wcms-modules.json', 'pluginThemeType' => 'themes', 'password_recheck' => 'secret', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->addCustomModule();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertStringStartsWith('Invalid URL.', $_SESSION['alert']['danger'][0]['message'] ?? '', 'a readable file:// list is still refused by its scheme');
+		}
+		$this->assertSame([], (array)$this->wcms->get('config', 'customModules', 'themes'));
+		unlink($dir . '/wcms-modules.json');
+		rmdir($dir);
+	}
+
+	public function testOnlyAThemeFolderCanBecomeTheActiveTheme(): void
+	{
+		$name = 'tt-' . bin2hex(random_bytes(3));
+		mkdir(__DIR__ . '/../themes/' . $name);
+		file_put_contents(__DIR__ . '/../themes/' . $name . '/theme.php', '<?php');
+		$before = $this->wcms->get('config', 'theme');
+
+		$_REQUEST = ['selectModule' => $name, 'type' => 'plugins', 'token' => $this->wcms->getToken()];
+		$this->wcms->changePageThemeAction();
+		$this->assertSame($before, $this->wcms->get('config', 'theme'), 'the plugins tab cannot pick a theme');
+
+		$_REQUEST = ['selectModule' => 'no-such-' . $name, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		$this->wcms->changePageThemeAction();
+		$this->assertSame($before, $this->wcms->get('config', 'theme'), 'a folder that does not exist is refused');
+
+		$_REQUEST = ['selectModule' => $name, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		$this->wcms->changePageThemeAction();
+		$this->assertSame($name, $this->wcms->get('config', 'theme'));
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $name);
+	}
+
+	public function testDisablingAPluginRefusesANameThatTheCleaningWouldChange(): void
+	{
+		// Two hand-uploaded plugins differing only in characters the cleaning strips: Disable on one must not toggle the other.
+		foreach (['foobar', 'foo.bar'] as $name) {
+			mkdir(__DIR__ . '/../plugins/' . $name, 0777, true);
+			file_put_contents(__DIR__ . '/../plugins/' . $name . '/' . $name . '.php', '<?php');
+		}
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$_REQUEST = ['togglePlugin' => 'foo.bar', 'state' => 'disable', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->togglePluginAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertSame('Invalid plugin name.', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		}
+		$this->assertSame([], (array)$this->wcms->get('config', 'disabledPlugins'), 'foobar was not disabled in its place');
+		unset($_SESSION['alert']);
+		$_REQUEST = ['togglePlugin' => ' foobar', 'state' => 'disable', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->togglePluginAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertSame('Invalid plugin name.', $_SESSION['alert']['danger'][0]['message'] ?? '', 'a leading space is refused too, not trimmed away');
+		}
+		$this->assertSame([], (array)$this->wcms->get('config', 'disabledPlugins'));
+		$this->wcms->recursiveDelete(__DIR__ . '/../plugins/foobar');
+		$this->wcms->recursiveDelete(__DIR__ . '/../plugins/foo.bar');
+		$_REQUEST = [];
+	}
+
+	public function testAThemeFolderWithoutThemePhpIsNotATheme(): void
+	{
+		// 3.6.0 (and PHP 7.4) fataled on require of the missing file; now the folder is not a theme and Sky stands in.
+		$name = 'empty-' . bin2hex(random_bytes(2));
+		mkdir(__DIR__ . '/../themes/' . $name);
+		$this->assertFalse($this->wcms->isThemeFolder($name));
+		$this->wcms->set('config', 'theme', $name);
+		$this->assertSame('sky', $this->wcms->activeTheme());
+		rmdir(__DIR__ . '/../themes/' . $name);
+	}
+
+	public function testAssetUrlsEncodeTheThemeFolderName(): void
+	{
+		$name = 'a#b ' . bin2hex(random_bytes(2));
+		mkdir(__DIR__ . '/../themes/' . $name);
+		file_put_contents(__DIR__ . '/../themes/' . $name . '/theme.php', '<?php');
+		$this->wcms->set('config', 'theme', $name);
+		$this->assertStringEndsWith('/themes/' . rawurlencode($name) . '/css/style.css', $this->wcms->asset('css/style.css'));
+		$this->assertStringNotContainsString('#', $this->wcms->asset('css/style.css'), 'a # would cut the URL into a fragment');
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $name);
+	}
+
+	public function testSkyCannotBeRemovedWhileItStandsInForAMissingTheme(): void
+	{
+		// Sky is the fallback for a missing AND for a broken theme; the broken case is only known at render time, so Sky is never removable from the UI.
+		// This test runs against the checkout's real themes/sky: a regression in the guard deletes it (git restores it; the mutant runs did exactly that).
+		$broken = 'broken-' . bin2hex(random_bytes(2));
+		mkdir(__DIR__ . '/../themes/' . $broken);
+		file_put_contents(__DIR__ . '/../themes/' . $broken . '/theme.php', '<?php throw new RuntimeException("boom");');
+		$this->wcms->set('config', 'theme', $broken);
+		$this->assertSame($broken, $this->wcms->activeTheme(), 'before render the broken theme still counts as active');
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$_REQUEST = ['deleteModule' => 'sky', 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->deleteFileModuleAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertStringContainsString('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		}
+		$this->assertFileExists(__DIR__ . '/../themes/sky/theme.php');
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $broken);
+		unset($_SESSION['alert']);
+
+		$this->wcms->set('config', 'theme', 'gone-' . bin2hex(random_bytes(2)));
+		$this->assertSame('sky', $this->wcms->activeTheme());
+		$_REQUEST = ['deleteModule' => 'sky', 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->deleteFileModuleAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertStringContainsString('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		}
+		$this->assertFileExists(__DIR__ . '/../themes/sky/theme.php');
+		unset($_SESSION['alert']);
+		$_REQUEST = ['deleteModule' => 'Sky', 'type' => 'themes', 'token' => $this->wcms->getToken()]; // on Windows and macOS Sky/ is sky/
+		try {
+			$this->wcms->deleteFileModuleAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertStringContainsString('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '', 'the guard compares case-insensitively');
+		}
+		$this->assertFileExists(__DIR__ . '/../themes/sky/theme.php');
+
+		// The active theme is guarded the same way, in any letter case.
+		$mine = 'mine-' . bin2hex(random_bytes(2));
+		mkdir(__DIR__ . '/../themes/' . $mine);
+		file_put_contents(__DIR__ . '/../themes/' . $mine . '/theme.php', '<?php');
+		$this->wcms->set('config', 'theme', $mine);
+		foreach ([$mine, strtoupper($mine)] as $spelling) {
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => $spelling, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+			try {
+				$this->wcms->deleteFileModuleAction();
+				$this->fail('no redirect');
+			} catch (RuntimeException $e) {
+				$this->assertStringContainsString('Cannot delete currently active theme', $_SESSION['alert']['danger'][0]['message'] ?? '', 'refused as ' . $spelling);
+			}
+			$this->assertFileExists(__DIR__ . '/../themes/' . $mine . '/theme.php');
+		}
+		$this->wcms->set('config', 'theme', 'sky');
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $mine);
+
+		// The active-theme guard applies to themes only: a FILE that happens to share the theme's name can be deleted.
+		@mkdir(__DIR__ . '/../data_test/files_test', 0777, true);
+		file_put_contents(__DIR__ . '/../data_test/files_test/sky', 'x');
+		$_REQUEST = ['deleteModule' => 'sky', 'type' => 'files', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->deleteFileModuleAction();
+		} catch (RuntimeException $e) {
+		}
+		$this->assertFileDoesNotExist(__DIR__ . '/../data_test/files_test/sky');
+		$_REQUEST = [];
+	}
+
 	public function testLogoutIgnoresAnArrayRedirectTarget(): void
 	{
+		$this->wcms->set('config', 'logoutToLoginScreen', false); // the default (true) never reads ?to, so the guard is only reached with it off
 		$this->wcms->currentPage = 'logout';
 		$_REQUEST['token'] = $this->wcms->getToken();
 		$_GET['to'] = ['https://evil.example'];
@@ -85,6 +275,47 @@ final class UploadAndConfigGuardTest extends TestCase
 		$db = json_decode(file_get_contents(__DIR__ . '/../data_test/database_test.js'));
 		$db->pages->games->subpages = [];
 		$db->pages->games->content = 'board games';
+		file_put_contents(__DIR__ . '/../data_test/database_test.js', json_encode($db));
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$method = new ReflectionMethod(Wcms::class, 'searchPages');
+		if (PHP_VERSION_ID < 80100) {
+			$method->setAccessible(true);
+		}
+		$this->assertSame(['games'], array_column($method->invoke($wcms, $wcms->get('pages'), 'board'), 'slug'));
+	}
+
+	public function testAFailedUploadMoveReportsFailureAndNothingElse(): void
+	{
+		// #356 follow-up: the move fails (a CLI file is not an upload), the admin gets the failure and never the old "File uploaded".
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$file = tempnam(sys_get_temp_dir(), 'wcms');
+		file_put_contents($file, 'hello');
+		$_POST['token'] = $this->wcms->getToken();
+		$_FILES['uploadFile'] = ['name' => 'note.txt', 'tmp_name' => $file, 'error' => UPLOAD_ERR_OK, 'size' => 5];
+		try {
+			$this->wcms->uploadFileAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertStringContainsString('Failed to move', $_SESSION['alert']['danger'][0]['message'] ?? '');
+			$this->assertFalse(isset($_SESSION['alert']['success']), 'no success alert after a failed move');
+		}
+		unlink($file);
+	}
+
+	public function testAlertsSitAboveTheSettingsModalAndVisitPageClosesIt(): void
+	{
+		// #346: the alert wrapper's z-index beats the modal's 1050. #353: the Visit link closes the modal so it does not reopen on arrival.
+		$this->wcms->alert('info', 'hello');
+		$this->assertStringContainsString('class="alertWrapper" style="z-index:1060"', $this->wcms->alerts());
+		$this->assertStringContainsString("querySelector('#settingsModal .close')", $this->wcms->settings());
+	}
+
+	public function testSearchSkipsAPageThatIsNotAnObject(): void
+	{
+		$this->wcms->createPage(['games'], true);
+		$db = json_decode(file_get_contents(__DIR__ . '/../data_test/database_test.js'));
+		$db->pages->games->content = 'board games';
+		$db->pages->broken = null; // a hand-edited database
 		file_put_contents(__DIR__ . '/../data_test/database_test.js', json_encode($db));
 		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
 		$method = new ReflectionMethod(Wcms::class, 'searchPages');

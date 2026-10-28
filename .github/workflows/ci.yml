@@ -30,6 +30,8 @@ jobs:
       - name: Lint
         run: php -l index.php && php -l themes/sky/theme.php
 
+      - name: the VERSION line has the exact shape the updater parses
+        run: grep -Eq "^define\('VERSION', '[0-9]+\.[0-9]+\.[0-9]+'\);$" index.php
       - name: version file must equal the VERSION constant
         run: |
           FILE=$(tr -d '[:space:]' < version)
@@ -47,6 +49,18 @@ jobs:
           echo "$BODY" | grep -q "<html" || { echo "no HTML"; cat /tmp/server.log; exit 1; }
           if echo "$BODY" | grep -qiE "Warning:|Deprecated:|Notice:|Fatal error"; then echo "$BODY" | grep -iE "Warning:|Deprecated:|Notice:|Fatal error"; exit 1; fi
           grep -iE "Warning|Deprecated|Fatal" /tmp/server.log && exit 1 || echo "clean boot"
+
+      - name: Fresh install boots with the disable-able functions disabled
+        # Hardened shared hosts put these in disable_functions. The updater guards its own set; this checks the boot path (round 14: flock; round 15: the ob_* set). is_writable() is not in the list: 3.6.0 needs it at boot too.
+        run: |
+          rm -rf /tmp/site2 && mkdir /tmp/site2 && cp index.php .htaccess /tmp/site2/ && cp -r themes /tmp/site2/
+          cd /tmp/site2
+          php -d display_errors=1 -d error_reporting=-1 -d disable_functions=flock,fopen,stream_get_contents,fclose,ob_start,ob_get_level,ob_end_clean,ob_end_flush,chmod,rename,unlink,fileowner,filegroup,fileperms,exec,shell_exec,system,passthru,proc_open,popen -S 127.0.0.1:8081 >/tmp/server2.log 2>&1 &
+          sleep 2
+          BODY=$(curl -s http://127.0.0.1:8081/)
+          echo "$BODY" | grep -q "<html" || { echo "no HTML with functions disabled"; cat /tmp/server2.log; exit 1; }
+          if echo "$BODY" | grep -qiE "Warning:|Deprecated:|Notice:|Fatal error"; then echo "$BODY" | grep -iE "Warning:|Deprecated:|Notice:|Fatal error"; exit 1; fi
+          grep -iE "Warning|Deprecated|Fatal" /tmp/server2.log && exit 1 || echo "clean boot with functions disabled"
 
       - name: PHPUnit
         run: phpunit --no-coverage
@@ -80,11 +94,32 @@ jobs:
       - name: Updater as another user than the file owner writes in place and keeps the owner
         run: |
           SITE=$(mktemp -d) && cp index.php "$SITE/" && chmod 777 "$SITE" && chmod 666 "$SITE/index.php"
+          sudo chgrp nogroup "$SITE/index.php"  # same group as nobody's temp file: only the owner half of the condition can route this in place
           sed "s/define('VERSION', '\([0-9.]*\)');/define('VERSION', '99.0.0');/" index.php > /tmp/newcore.php
           sudo -u nobody "$(command -v php)" tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
           test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$(sha256sum /tmp/newcore.php | cut -d' ' -f1)"
           test "$(stat -c %U "$SITE/index.php")" = "$(id -un)"
           test ! -e "$SITE/index.php.tmp"
+
+      - name: Updater on a disk with no free inode or block refuses and leaves index.php whole
+        run: |
+          # A real ENOSPC, the shape the atomic write exists for: a tmpfs with room for the site and nothing else.
+          SITE=$(mktemp -d) && sudo mount -t tmpfs -o size=1m,nr_inodes=12,mode=0777 tmpfs "$SITE"
+          cp index.php "$SITE/" && BEFORE=$(sha256sum "$SITE/index.php" | cut -d' ' -f1)
+          head -c 20 index.php > /tmp/truncated.php && php tests/probe.php update-run "$SITE" /tmp/truncated.php > /dev/null  # a first run creates data/, themes/, plugins/ and the database, as the PHPUnit steps do
+          i=0; while touch "$SITE/filler$i" 2>/dev/null; do i=$((i+1)); done; echo "fillers: $i"   # use up every remaining inode
+          php tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
+          test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$BEFORE"   # untouched (3.6.0's in-place write would have succeeded here; the refusal is the price of never half-writing)
+          test ! -e "$SITE/index.php.tmp"
+          grep -q '"success"' /tmp/probe.json && exit 1 || true
+          # the same site with the blocks exhausted instead of the inodes
+          sudo umount "$SITE" && sudo mount -t tmpfs -o size=192k,nr_inodes=100,mode=0777 tmpfs "$SITE"
+          cp index.php "$SITE/" && php tests/probe.php update-run "$SITE" /tmp/truncated.php > /dev/null
+          php tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
+          test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$BEFORE"   # untouched, not truncated (with no block free 3.6.0 left 0 bytes; with fewer than one core free it overwrote in place, so here 3.7.0 refuses where 3.6.0 succeeded)
+          test ! -e "$SITE/index.php.tmp"
+          grep -q '"success"' /tmp/probe.json && exit 1 || true
+          sudo umount "$SITE"
 
   windows-url:
     name: url() on Windows

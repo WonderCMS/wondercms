@@ -67,6 +67,7 @@ final class WcmsTest extends TestCase
 		$this->assertFalse(isset($_SESSION['loggedIn']));
 		$this->assertFalse(isset($_SESSION['rootDir']));
 		$this->assertEquals($_SESSION['alert']['danger'][0]['message'], 'Wrong password.');
+		$visitorToken = $this->wcms->getToken(); // the token the failed attempt's session carries (round-14 opus-7: a planted session must not know the admin's token)
 
 		// Test right password
 		$hashPass = password_hash(self::PASSWORD, PASSWORD_DEFAULT);
@@ -83,6 +84,7 @@ final class WcmsTest extends TestCase
 		$this->assertTrue($_SESSION['loggedIn']);
 		$this->assertEquals($_SESSION['rootDir'], $this->wcms->rootDir);
 		$this->assertTrue($this->wcms->loggedIn);
+		$this->assertNotSame($visitorToken, $this->wcms->getToken(), 'the admin gets a token minted after login');
 	}
 
 	public function testLogoutAction(): void

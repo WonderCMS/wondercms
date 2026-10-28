@@ -51,6 +51,9 @@ class Wcms
 	/** @var string|null theme rendered instead of a broken one, for this request only */
 	private $fallbackTheme;
 
+	/** @var array $printedAlerts what alerts() handed to the theme in this request; restored if the theme then fails */
+	private $printedAlerts = [];
+
 	/** @var array $currentPageTree - Tree hierarchy of the current page */
 	public $currentPageTree = [];
 
@@ -259,9 +262,9 @@ class Wcms
 			return '';
 		}
 		$output = '<div id="alertWrapperId" class="alertWrapper" style="z-index:1060">'; // above the settings modal (1050)
-		$output .= '<script>
-					const displayAlerts = localStorage.getItem("displayAlerts");
-					if (displayAlerts === "false") {
+		$output .= '<script>' . // the hide is keyed to the session token: it ends with the login it was clicked in, and a visitor at the login form has another token
+					'const displayAlerts = localStorage.getItem("displayAlerts");
+					if (displayAlerts === "' . $this->getToken() . '") {
 						const alertWrapper = document.getElementById("alertWrapperId");
 						if (alertWrapper) {
 							alertWrapper.style.display = "none";
@@ -280,6 +283,7 @@ class Wcms
 			}
 		}
 		$output .= '</div>';
+		$this->printedAlerts = $_SESSION['alert'];
 		unset($_SESSION['alert']);
 		return $output;
 	}
@@ -294,7 +298,7 @@ class Wcms
 			return '';
 		}
 		$output = '';
-		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'false\');"><small>Hide all alerts until next login</small></a></div>';
+		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'' . $this->getToken() . '\');"><small>Hide all alerts until next login</small></a></div>';
 		return $output;
 	}
 
@@ -306,7 +310,7 @@ class Wcms
 	 */
 	public function asset(string $location): string
 	{
-		return self::url('themes/' . $this->activeTheme() . '/' . $location);
+		return self::url('themes/' . rawurlencode($this->activeTheme()) . '/' . $location);
 	}
 
 	/**
@@ -321,7 +325,7 @@ class Wcms
 	}
 
 	/**
-	 * True when $theme names an existing folder directly inside themes/ (no path separators, no dot folders)
+	 * True when $theme names a folder directly inside themes/ that holds a theme.php (no path separators, no dot folders)
 	 *
 	 * @param string $theme
 	 * @return bool
@@ -329,7 +333,7 @@ class Wcms
 	public function isThemeFolder(string $theme): bool
 	{
 		return $theme !== '' && $theme === basename($theme) && !in_array($theme, ['.', '..'], true)
-			&& is_dir($this->rootDir . '/themes/' . $theme);
+			&& is_file($this->rootDir . '/themes/' . $theme . '/theme.php'); // a folder without theme.php falls back to Sky instead of a fatal
 	}
 
 	/**
@@ -662,6 +666,9 @@ class Wcms
 		$slugTree[] = $slug;
 
 		$menuCount = count(get_object_vars($menuSelectionObject));
+		while (isset($menuSelectionObject->{$menuCount})) {
+			$menuCount++; // a key gap left by an older delete must not make the new item replace the last sibling
+		}
 
 		$menuSelectionObject->{$menuCount} = new stdClass;
 		$menuSelectionObject->{$menuCount}->name = $name;
@@ -1008,8 +1015,32 @@ EOT;
 			$this->checkFolder($this->rootDir . '/' . self::PLUGINS_DIR);
 			$this->createDb();
 		}
-		return json_decode(file_get_contents($this->dbPath), false);
+		return json_decode($this->lockedRead($this->dbPath), false);
 	}
+
+	/**
+	 * Read a file under a shared lock. save() writes under an exclusive lock (file_put_contents() with LOCK_EX locks before
+	 * it truncates), but the read side took none, so a request reading database.js during a save could see it emptied or
+	 * half-written; json_decode() then gave null and the request died on getDb()'s return type (nothing on disk was lost)
+	 * @param string $path
+	 * @return string
+	 */
+	private function lockedRead(string $path): string
+	{
+		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('stream_get_contents') || !function_exists('fclose')) {
+			return (string)@file_get_contents($path); // a host that disables one of these reads exactly as 3.6.0 did (file_put_contents() locks inside PHP, so saving still works there)
+		}
+		$handle = fopen($path, 'rb');
+		if ($handle === false) {
+			return '';
+		}
+		flock($handle, LOCK_SH); // a filesystem without locking reads as before
+		$contents = stream_get_contents($handle);
+		flock($handle, LOCK_UN);
+		fclose($handle);
+		return (string)$contents;
+	}
+
 
 	/**
 	 * Get data from any json file
@@ -1041,7 +1072,7 @@ EOT;
 				'',
 				trim($_REQUEST['deleteModule'])
 			);
-			if (in_array($filename, ['', '.', '..'], true)) {
+			if (in_array($filename, ['', '.', '..'], true) || $filename !== $_REQUEST['deleteModule']) { // a name the cleaning (or the trim) changed would delete a different entry
 				$this->alert('danger', 'Invalid file name.');
 				$this->redirect();
 			}
@@ -1055,9 +1086,9 @@ EOT;
 					'Wrong delete folder path.');
 				$this->redirect();
 			}
-			if ($filename === $this->get('config', 'theme')) {
+			if ($type === 'themes' && (strcasecmp($filename, (string)$this->get('config', 'theme')) === 0 || strcasecmp($filename, 'sky') === 0)) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
 				$this->alert('danger',
-					'Cannot delete currently active theme. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
+					(strcasecmp($filename, 'sky') === 0 ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
 				$this->redirect();
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
@@ -1282,9 +1313,9 @@ EOT;
 	}
 
 	/**
-	 * Compare token with hash_equals
+	 * Compare a request token with the session token (constant time); anything but a string fails
 	 *
-	 * @param string $token
+	 * @param mixed $token
 	 * @return bool
 	 */
 	public function hashVerify($token): bool
@@ -1326,7 +1357,7 @@ EOT;
 			$data = $this->getModulesCachedData($type);
 
 			foreach ($data as $dirName => $addon) {
-				$exists = is_dir($this->rootDir . "/$type/" . $dirName);
+				$exists = is_dir($this->rootDir . "/$type/" . $dirName) && ($type !== self::THEMES_DIR || $this->isThemeFolder($dirName)); // a theme folder without theme.php gets Install back, which repairs it
 				$currentVersion = $exists ? $this->getModuleVersion($type, $dirName) : null;
 				$newVersion = $addon['version'];
 				$update = $newVersion !== null
@@ -1354,7 +1385,7 @@ EOT;
 					continue;
 				}
 				$newData[self::THEME_PLUGINS_TYPES['exists']][$dirName] = [
-					'name' => htmlspecialchars($dirName), 'summary' => 'Found in the ' . $type . ' folder (not in the official list).',
+					'name' => $dirName, 'summary' => 'Found in the ' . $type . ' folder (' . ($data ? 'not in the official list' : 'the official list could not be loaded') . ').', // escaped where it is printed, like the official entries
 					'repo' => '', 'zip' => '', 'group' => null, 'version' => null, 'image' => null,
 					'update' => false, 'install' => false, 'currentVersion' => $this->getModuleVersion($type, $dirName),
 				];
@@ -1376,10 +1407,10 @@ EOT;
 		// Recreate cache if lastModulesSync is missing
 		$lastSync = $db->config->lastModulesSync ?? strtotime('-2 days');
 		if (empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
+			$this->updateAndCacheModules(); // writes the stamp first: a request killed in the core check below must not repeat it on every admin page
 			if ($this->loggedIn && strtotime($lastSync) < strtotime('-1 days')) {
 				$this->checkWcmsCoreUpdate();
 			}
-			$this->updateAndCacheModules();
 		}
 	}
 
@@ -1800,8 +1831,8 @@ EOT;
 			}
 		}
 
-		// First delete old plugin/theme folder
-		$this->recursiveDelete($path . $folderName);
+		// First delete old plugin/theme folder (a link is removed, never followed, as in deleteFileModuleAction())
+		is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
 
 		// Then extract new one
 		$zip->extractTo($path);
@@ -2032,7 +2063,7 @@ EOT;
 
 		$pluginName = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string)$_REQUEST['togglePlugin']));
 		$state = trim((string)$_REQUEST['state']);
-		if ($pluginName === '') {
+		if ($pluginName === '' || $pluginName !== $_REQUEST['togglePlugin']) { // a name the cleaning changed would toggle a different plugin
 			$this->alert('danger', 'Invalid plugin name.');
 			$this->redirect();
 		}
@@ -2141,8 +2172,17 @@ EOT;
 	public function loadThemeAndFunctions(): void
 	{
 		$theme = $this->activeTheme();
+		if ($this->loggedIn && $theme !== (string)$this->get('config', 'theme')) {
+			$this->alert('danger', 'Theme <b>' . htmlspecialchars((string)$this->get('config', 'theme')) . '</b> is not installed. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
+		}
 		$location = $this->rootDir . '/themes/' . $theme;
-		ob_start();
+		$listeners = $this->listeners; // the plugins' listeners; a broken theme's own are dropped with it
+		// Output buffering lets a theme that fails halfway be replaced by Sky; a host that disables the ob_* functions renders as 3.6.0 did, unbuffered
+		$buffered = function_exists('ob_start') && function_exists('ob_get_level') && function_exists('ob_end_clean') && function_exists('ob_end_flush');
+		$level = $buffered ? ob_get_level() : 0;
+		if ($buffered) {
+			ob_start();
+		}
 		try {
 			if (file_exists($location . '/functions.php')) {
 				require_once $location . '/functions.php';
@@ -2154,18 +2194,29 @@ EOT;
 			require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
 		} catch (Throwable $e) {
 			// A broken theme (parse error, fatal) must not take the site and its login screen down with it
-			ob_end_clean();
+			while ($buffered && ob_get_level() > $level && ob_end_clean()) { // including any buffer the theme itself opened before it failed; stops on one that cannot be removed
+			}
 			if ($theme === 'sky' || !is_file($this->rootDir . '/themes/sky/theme.php')) {
 				throw $e;
 			}
+			$this->listeners = $listeners; // a listener the broken theme registered must not fatal Sky, nor the alert below (alert() runs the alert hook)
+			if ($buffered && $this->printedAlerts) { // what the theme printed is gone with its output; Sky prints them again, before anything queued since (unbuffered, the output stayed, so no repeat)
+				$_SESSION['alert'] = array_merge_recursive($this->printedAlerts, $_SESSION['alert'] ?? []);
+				$this->printedAlerts = [];
+			}
 			if ($this->loggedIn) {
-				$this->alert('danger', 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ' . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
+				$blame = strpos($e->getFile(), $this->rootDir . '/plugins/') === 0 // a plugin hook that throws while the theme renders is the plugin's fault
+					? 'Plugin <b>' . htmlspecialchars(strtok(substr($e->getFile(), strlen($this->rootDir) + 9), '/')) . '</b> failed while theme <b>' . htmlspecialchars($theme) . '</b> rendered: '
+					: 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ';
+				$this->alert('danger', $blame . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
 			}
 			$this->fallbackTheme = 'sky'; // asset() resolves to Sky for this request; the setting itself is untouched
 			require $this->rootDir . '/themes/sky/theme.php';
 			return;
 		}
-		ob_end_flush();
+		if ($buffered && ob_get_level() > $level) { // a theme that ended the buffer itself leaves nothing to flush
+			ob_end_flush();
+		}
 	}
 
 
@@ -2200,6 +2251,7 @@ EOT;
 			]);
 	
 			session_regenerate_id(true);
+			unset($_SESSION['token']); // a token the visitor's session already carried (the alert hide script, the search form, a failed login) is not the admin's: mint a new one after login
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
@@ -2454,7 +2506,10 @@ EOT;
 			}
 		}
 
-		$targetPosition = $selectedMenuKey + $content;
+		$targetPosition = (int)$selectedMenuKey + $content;
+		if (!isset($menuSelectionObject->{$selectedMenuKey}, $menuSelectionObject->{$targetPosition})) {
+			return; // only neighbours swap; a move past the end (an arrow on a menu with a key gap, or a crafted request) would store a null item and break every page
+		}
 
 		// Find and switch target and selected menu position in DB
 		$selectedMenu = $menuSelectionObject->{$selectedMenuKey};
@@ -2604,7 +2659,7 @@ EOT;
 			$files = new DirectoryIterator($file);
 			foreach ($files as $dirFile) {
 				if (!$dirFile->isDot()) {
-					$dirFile->isDir() ? $this->recursiveDelete($dirFile->getPathname()) : unlink($dirFile->getPathname());
+					$dirFile->isDir() && !$dirFile->isLink() ? $this->recursiveDelete($dirFile->getPathname()) : unlink($dirFile->getPathname()); // a link is removed, never followed
 				}
 			}
 			rmdir($file);
@@ -2862,9 +2917,9 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
+									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
-										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
+										<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>
 									</span>
 									<p></p>';
 		}
@@ -3169,11 +3224,13 @@ EOT;
 		}
 		foreach ($this->listAllModules($type) as $addonType => $addonModules) {
 			foreach ($addonModules as $directoryName => $addon) {
-				$name = $addon['name'];
-				$info = $addon['summary'];
-				$infoUrl = $addon['repo'];
+				$rawName = (string)$addon['name'];
+				$name = htmlspecialchars($rawName, ENT_QUOTES); // list text comes from the CDN (two entries from third-party repositories) or a folder name
+				$info = htmlspecialchars((string)$addon['summary'], ENT_QUOTES);
+				$infoUrl = preg_match('#^https?://#i', (string)$addon['repo']) ? htmlspecialchars($addon['repo'], ENT_QUOTES) : ''; // list URLs are printed only as http(s) links, escaped
+				$imageUrl = preg_match('#^https?://#i', (string)$addon['image']) ? htmlspecialchars($addon['image'], ENT_QUOTES) : null;
 				$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s',
-					$addon['currentVersion']) : '';
+					htmlspecialchars((string)$addon['currentVersion'], ENT_QUOTES)) : ''; // from the installed module's own version file or wcms-modules.json
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
 				$isPlugin = $type === self::PLUGINS_DIR;
 				$isInstalledPlugin = $isPlugin && !$addon['install'];
@@ -3186,7 +3243,7 @@ EOT;
 					$currentVersion = $currentVersion ? $currentVersion . ' (Disabled)' : 'Disabled';
 				}
 
-				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
+				$image = $imageUrl !== null ? '<a class="text-center center-block" href="' . $imageUrl . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $imageUrl . '" alt="' . $name . '" /></a>' : $defaultImage;
 				$moreInfoLink = $infoUrl !== '' ? '<a href="' . $infoUrl . '" target="_blank"><i class="linkIcon"></i> More info</a>' : '';
 
 				$conflictingNames = !empty($conflictingEnabled) ? array_map(function ($p) {
@@ -3195,24 +3252,24 @@ EOT;
 
 				$installConfirmAttr = '';
 				if ($addon['install'] && $isPlugin && $this->isExclusivePluginGroup($pluginGroup) && !empty($conflictingNames)) {
-					$installMsg = 'This is an ' . $pluginGroup . ' plugin. Installing ' . $name . ' will disable ' . implode(', ', $conflictingNames) . '. Continue?';
+					$installMsg = 'This is an ' . $pluginGroup . ' plugin. Installing ' . $rawName . ' will disable ' . implode(', ', $conflictingNames) . '. Continue?';
 					$installConfirmAttr = ' data-confirm="' . htmlspecialchars($installMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
 				}
 				$installButton = $addon['install']
-					? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $installConfirmAttr . ' title="Install"><i class="installIcon"></i> Install</a>'
+					? '<a class="wbtn wbtn-success wbtn-block wbtn-sm" href="' . self::url('?installModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $installConfirmAttr . ' title="Install"><i class="installIcon"></i> Install</a>'
 					: '';
 
 				$updateConfirmAttr = '';
 				if (!$addon['install'] && $addon['update'] && $isPlugin && !$isDisabledPlugin && $this->isExclusivePluginGroup($pluginGroup) && !empty($conflictingNames)) {
-					$updateMsg = 'This is an ' . $pluginGroup . ' plugin. Updating ' . $name . ' will keep it enabled and disable ' . implode(', ', $conflictingNames) . '. Continue?';
+					$updateMsg = 'This is an ' . $pluginGroup . ' plugin. Updating ' . $rawName . ' will keep it enabled and disable ' . implode(', ', $conflictingNames) . '. Continue?';
 					$updateConfirmAttr = ' data-confirm="' . htmlspecialchars($updateMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
 				}
 				$updateButton = !$addon['install'] && $addon['update']
-					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . $addon['version'] . '</a>'
+					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . htmlspecialchars((string)$addon['version'], ENT_QUOTES) . '</a>'
 					: '';
 
-				$removeButton = !$addon['install'] ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Remove ' . $name . '?\')" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . $directoryName . '&type=' . $type . '&token=' . $this->getToken()) . '" onclick="return confirm(\'Activate ' . $name . ' theme?\')"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$removeButton = !$addon['install'] && !($type === 'themes' && $directoryName === 'sky') ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
 				$pluginToggleButton = '';
@@ -3220,13 +3277,13 @@ EOT;
 					$toggleState = $isDisabledPlugin ? 'enable' : 'disable';
 					$toggleLabel = $isDisabledPlugin ? 'Enable' : 'Disable';
 					$toggleClass = $isDisabledPlugin ? 'wbtn wbtn-primary wbtn-sm wbtn-block marginTop5' : 'wbtn wbtn-secondary wbtn-sm wbtn-block marginTop5';
-					$toggleUrl = self::url('?togglePlugin=' . $directoryName . '&state=' . $toggleState . '&token=' . $this->getToken());
+					$toggleUrl = self::url('?togglePlugin=' . rawurlencode($directoryName) . '&state=' . $toggleState . '&token=' . $this->getToken());
 					$toggleConfirmAttr = '';
 					if ($toggleState === 'disable') {
-						$toggleMsg = 'Disable ' . $name . '?';
+						$toggleMsg = 'Disable ' . $rawName . '?';
 						$toggleConfirmAttr = ' data-confirm="' . htmlspecialchars($toggleMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
 					} elseif ($toggleState === 'enable' && $this->isExclusivePluginGroup($pluginGroup) && !empty($conflictingNames)) {
-						$toggleMsg = 'This is an ' . $pluginGroup . ' plugin. Enabling ' . $name . ' will disable ' . implode(', ', $conflictingNames) . '. Continue?';
+						$toggleMsg = 'This is an ' . $pluginGroup . ' plugin. Enabling ' . $rawName . ' will disable ' . implode(', ', $conflictingNames) . '. Continue?';
 						$toggleConfirmAttr = ' data-confirm="' . htmlspecialchars($toggleMsg, ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"';
 					}
 					$pluginToggleButton = '<a class="' . $toggleClass . '" href="' . $toggleUrl . '"' . $toggleConfirmAttr . '>' . $toggleLabel . '</a>';
@@ -3343,42 +3400,53 @@ EOT;
 			return;
 		}
 		$contents = $this->getFileFromRepo('index.php');
-		if ($this->isValidCoreUpdate($contents) && $this->writeCore($contents)) {
+		if (!$this->isValidCoreUpdate($contents)) {
+			$this->alert('danger', 'The downloaded file was not a complete, newer WonderCMS core; nothing was changed. Try again in a few minutes.');
+		} elseif ($this->writeCore($contents)) {
 			if (function_exists('opcache_invalidate')) {
 				@opcache_invalidate(__FILE__, true); // warns under opcache.restrict_api
 			}
 			$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
-			$this->redirect();
+		} else {
+			$this->alert('danger', 'Could not write the new index.php. Check the free disk space and the permissions of index.php and its folder, then try again.');
 		}
-		$this->alert('danger', 'Something went wrong. Could not update WonderCMS.');
 		$this->redirect();
 	}
 
 	/**
-	 * Replace index.php with the downloaded core: the whole file lands next to it first and is then
-	 * renamed over it, so a full disk cannot leave a half-written core. A folder that is not writable
-	 * falls back to the direct write (3.6.0 behaviour), still checked for length.
+	 * Replace index.php with the downloaded core: where a temp file can be created next to it, the whole
+	 * file lands there first and is renamed over it, so a full disk cannot leave a half-written core. A
+	 * folder that is not writable, or a host that disables a needed function, gets the direct write
+	 * (3.6.0 behaviour), still checked for length.
 	 * @param string $contents
 	 * @return bool
 	 */
 	private function writeCore(string $contents): bool
 	{
-		$temp = __FILE__ . '.tmp';
-		$bytes = @file_put_contents($temp, $contents, LOCK_EX); // false (never a short count) on a non-writable folder and on a full disk
-		if ($bytes === false && !is_writable(__DIR__)) {
-			return file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents); // folder not writable: write directly as 3.6.0 did
+		foreach (['is_writable', 'fileowner', 'filegroup', 'fileperms', 'chmod', 'rename', 'unlink'] as $function) {
+			if (!function_exists($function)) { // a host that disables one of these (disable_functions): write in place as 3.6.0 did
+				return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
+			}
 		}
+		if (!is_writable(__DIR__)) {
+			return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents); // folder not writable: no temp file possible, write directly as 3.6.0 did
+		}
+		$temp = __FILE__ . '.tmp';
+		@unlink($temp); // a leftover or planted index.php.tmp (even a symlink) is never written through
+		$bytes = @file_put_contents($temp, $contents, LOCK_EX); // false on a full disk in practice; a short count is checked too
 		if ($bytes === strlen($contents)) {
 			if (fileowner($temp) !== fileowner(__FILE__) || filegroup($temp) !== filegroup(__FILE__)) {
 				@unlink($temp); // PHP runs as another user or group than the file's: a rename would change them, so write in place as 3.6.0 did
-				return file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
+				return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
 			}
 			@chmod($temp, fileperms(__FILE__) & 0777); // the rename keeps the mode index.php had
 			if (@rename($temp, __FILE__)) {
 				return true;
 			}
+			@unlink($temp); // the host allows the write but not the rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the space proven for the folder
+			return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
 		}
-		@unlink($temp); // a full disk (blocks or inodes) or a failed rename: index.php is untouched
+		@unlink($temp); // a full disk (blocks or inodes): index.php is untouched
 		return false;
 	}
 
@@ -3651,6 +3719,9 @@ EOT;
 		$reindexObject = new stdClass;
 		$index = 0;
 		foreach ($object as $value) {
+			if (($value->{self::DB_MENU_ITEMS_SUBPAGE} ?? null) instanceof stdClass) {
+				$value->{self::DB_MENU_ITEMS_SUBPAGE} = $this->reindexObject($value->{self::DB_MENU_ITEMS_SUBPAGE}); // a gap left by a deleted subpage made the next createMenuItem() overwrite a sibling
+			}
 			$reindexObject->{$index} = $value;
 			$index++;
 		}
@@ -3785,6 +3856,10 @@ EOT;
 			&& is_string($_POST['query']) && $this->hashVerify($_POST['token'])) {
 			
 			$query = trim($_POST['query']);
+			if ($query === '' || !mb_check_encoding($query, 'UTF-8')) { // an empty query would match every page; an invalid one makes the /u highlight regex fail
+				echo json_encode(['error' => 'No matching content found']);
+				exit;
+			}
 			$results = $this->searchPages($this->get('pages'), $query);
 
 			// Search blog posts

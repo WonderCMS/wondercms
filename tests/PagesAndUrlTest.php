@@ -128,6 +128,239 @@ final class PagesAndUrlTest extends TestCase
 		unset($_GET['delete'], $_REQUEST['token'], $_SESSION['loggedIn']);
 	}
 
+	public function testMovingTheLastMenuItemPastTheEndChangesNothing(): void
+	{
+		// The UI hides the arrow; a crafted request used to swap the item with a missing neighbour and store null, after which every page fataled.
+		$items = (array)$this->wcms->get('config', 'menuItems');
+		$last = (string)max(array_keys($items));
+		$before = json_encode($this->wcms->get('config', 'menuItems'));
+
+		$this->wcms->orderMenuItem(1, $last);
+		$this->assertSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'moving the last item down is ignored');
+		$this->wcms->orderMenuItem(-1, '0');
+		$this->assertSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'moving the first item up is ignored');
+		$this->wcms->orderMenuItem(1, '');
+		$this->assertSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'an empty key is ignored');
+		$this->assertNotContains(null, (array)$this->wcms->get('config', 'menuItems'));
+
+		$this->wcms->orderMenuItem(1, '0');
+		$this->assertNotSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'a real neighbour swap still happens');
+	}
+
+	public function testDeletingASubpageLeavesNoGapSoTheNextSubpageDoesNotReplaceASibling(): void
+	{
+		// Only the top level was renumbered after a delete; a gap in a parent's subpages made createMenuItem() reuse the key of the last sibling.
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		foreach (['Sub A', 'Sub B', 'Sub C'] as $name) {
+			$this->wcms->createMenuItem($name, $parentKey, 'show', true);
+		}
+		$_GET['delete'] = 'parent/sub-b';
+		$_REQUEST['token'] = $this->wcms->getToken();
+		$this->wcms->deletePageAction();
+		$this->wcms->createMenuItem('Sub D', $parentKey, 'show', true);
+
+		$subpages = (array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages;
+		$this->assertSame([0, 1, 2], array_keys($subpages), 'keys are contiguous after the delete');
+		$this->assertSame(['Sub A', 'Sub C', 'Sub D'], array_column($subpages, 'name'), 'the surviving sibling keeps its menu entry');
+		unset($_GET['delete'], $_REQUEST['token']);
+	}
+
+	public function testAddingASubpageToAMenuWithAKeyGapKeepsEverySibling(): void
+	{
+		// A database written by an older version can carry a gap (keys 0 and 2); createMenuItem() used count() as the new key.
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		foreach (['Sub A', 'Sub B', 'Sub C'] as $name) {
+			$this->wcms->createMenuItem($name, $parentKey, 'show', true);
+		}
+		$this->wcms->createMenuItem('Sub D', $parentKey, 'show', true);
+		$this->wcms->createMenuItem('Sub E', $parentKey, 'show', true);
+		$db = $this->reload();
+		unset($db->config->menuItems->{$parentKey}->subpages->{'1'}, $db->config->menuItems->{$parentKey}->subpages->{'2'}); // two gaps: keys 0, 3, 4 remain
+		file_put_contents($this->dbPath, json_encode($db, JSON_PRETTY_PRINT));
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$wcms->loggedIn = true;
+
+		$wcms->createMenuItem('Sub F', $parentKey, 'show', true);
+
+		$subpages = (array)$wcms->get('config', 'menuItems')->{$parentKey}->subpages;
+		$this->assertSame(['Sub A', 'Sub D', 'Sub E', 'Sub F'], array_values(array_column($subpages, 'name')), 'every surviving sibling keeps its menu entry');
+		$this->assertSame([0, 3, 4, 5], array_keys($subpages), 'the new item takes the first free key past every gap');
+	}
+
+	public function testDeletingAPageWithAStaleSlugPathChangesNoMenuEntry(): void
+	{
+		// A path whose first segment matches nothing must not remove a same-named top-level item found later in the tree.
+		$this->wcms->loggedIn = true;
+		$before = json_encode($this->wcms->get('config', 'menuItems'));
+		$_GET['delete'] = 'nope/home';
+		$_REQUEST['token'] = $this->wcms->getToken();
+		set_error_handler(static function (): bool { return true; }); // deletePageFromDb() warns about the missing parent (pre-existing, crafted input only); this test is about the menu
+		$this->wcms->deletePageAction();
+		restore_error_handler();
+		$this->assertSame($before, json_encode($this->wcms->get('config', 'menuItems')));
+		unset($_GET['delete'], $_REQUEST['token']);
+	}
+
+	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void
+	{
+		// A hand-uploaded folder named mytheme~ is listed with a Remove button; the cleaned name would have deleted mytheme.
+		$name = 'guard-' . bin2hex(random_bytes(3));
+		mkdir(__DIR__ . '/../themes/' . $name);
+		file_put_contents(__DIR__ . '/../themes/' . $name . '/theme.php', '<?php');
+		mkdir(__DIR__ . '/../themes/' . $name . '~');
+		file_put_contents(__DIR__ . '/../themes/' . $name . '~/theme.php', '<?php');
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$this->wcms->loggedIn = true;
+		$_REQUEST = ['deleteModule' => $name . '~', 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->deleteFileModuleAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertSame('Invalid file name.', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		}
+		$this->assertDirectoryExists(__DIR__ . '/../themes/' . $name, 'the look-alike folder is untouched');
+		$this->assertDirectoryExists(__DIR__ . '/../themes/' . $name . '~', 'the odd folder is untouched');
+
+		// A leading space is trimmed by the cleaning too; the request is compared untrimmed.
+		unset($_SESSION['alert']);
+		$_REQUEST = ['deleteModule' => ' ' . $name, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->deleteFileModuleAction();
+			$this->fail('no redirect');
+		} catch (RuntimeException $e) {
+			$this->assertSame('Invalid file name.', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		}
+		$this->assertDirectoryExists(__DIR__ . '/../themes/' . $name);
+
+		// The Remove and Activate links carry the folder name URL-encoded, so `victim&copy` cannot arrive as `victim`.
+		mkdir(__DIR__ . '/../themes/' . $name . '&copy');
+		file_put_contents(__DIR__ . '/../themes/' . $name . '&copy/theme.php', '<?php');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('deleteModule=' . $name . '%26copy&type=themes', $html);
+		$this->assertStringContainsString('selectModule=' . $name . '%26copy&type=themes', $html);
+		$this->assertStringNotContainsString('deleteModule=' . $name . '&copy&', $html);
+		mkdir(__DIR__ . '/../plugins/' . $name . '&copy');
+		file_put_contents(__DIR__ . '/../plugins/' . $name . '&copy/' . $name . '&copy.php', '<?php');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('togglePlugin=' . $name . '%26copy&state=', $html, 'the Disable link carries the plugin name URL-encoded');
+		$this->assertStringContainsString('data-confirm="Remove ' . $name . '&amp;copy?" onclick="return confirm(this.dataset.confirm)"', $html, 'the confirm text is an attribute value, never JS source (a quote in a name used to break the handler and skip the confirm)');
+		$this->assertStringNotContainsString("confirm('Remove", $html);
+		$this->assertStringContainsString('data-confirm="Activate ' . $name . '&amp;copy theme?" onclick="return confirm(this.dataset.confirm)"', $html, 'the Activate confirm text is an attribute value too');
+		$this->assertMatchesRegularExpression('#<h4>sky</h4>#i', $html, 'Sky is listed (anchors the next assertion; the folder scan prints the folder name when the official list is offline)');
+		$this->assertStringNotContainsString('deleteModule=sky&type=themes', $html, 'Sky, the fallback, gets no Remove button (the action refuses it anyway)');
+		$this->wcms->recursiveDelete(__DIR__ . '/../plugins/' . $name . '&copy');
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $name . '&copy');
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $name);
+		$this->wcms->recursiveDelete(__DIR__ . '/../themes/' . $name . '~');
+		$_REQUEST = [];
+	}
+
+	public function testDeletingAModuleRemovesSymlinksInsideItWithoutFollowingThem(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		$root = __DIR__ . '/../data_test';
+		$outside = $root . '/outside-' . bin2hex(random_bytes(3));
+		mkdir($outside, 0777, true);
+		file_put_contents($outside . '/keep.txt', 'x');
+		$plugin = __DIR__ . '/../plugins/doomed-' . bin2hex(random_bytes(3));
+		mkdir($plugin . '/sub', 0777, true);
+		file_put_contents($plugin . '/' . basename($plugin) . '.php', '<?php');
+		symlink($outside, $plugin . '/sub/link-to-outside');
+		symlink($outside . '/keep.txt', $plugin . '/link-to-file');
+
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$wcms->recursiveDelete($plugin);
+
+		$this->assertDirectoryDoesNotExist($plugin, 'the module folder is gone');
+		$this->assertFileExists($outside . '/keep.txt', 'the symlink target outside the folder is untouched');
+		unlink($outside . '/keep.txt');
+		rmdir($outside);
+	}
+
+	public function testDeletingAModuleThatIsItselfASymlinkRemovesTheLinkOnly(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		$outside = __DIR__ . '/../data_test/shared-' . bin2hex(random_bytes(3));
+		mkdir($outside, 0777, true);
+		file_put_contents($outside . '/theme.php', '<?php');
+		$link = __DIR__ . '/../themes/linked-' . bin2hex(random_bytes(3));
+		symlink($outside, $link);
+
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$wcms->loggedIn = true;
+		$_REQUEST = ['deleteModule' => basename($link), 'type' => 'themes', 'token' => $wcms->getToken()];
+		$wcms->deleteFileModuleAction();
+
+		$this->assertFalse(is_link($link) || file_exists($link), 'the link is gone');
+		$this->assertFileExists($outside . '/theme.php', 'the folder the link pointed at is untouched');
+		unlink($outside . '/theme.php');
+		rmdir($outside);
+		$_REQUEST = [];
+	}
+
+	public function testInstallingOverAModuleThatIsASymlinkReplacesTheLinkAndLeavesItsTargetAlone(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		$outside = __DIR__ . '/../data_test/shared-' . bin2hex(random_bytes(3));
+		mkdir($outside, 0777, true);
+		file_put_contents($outside . '/theme.php', 'old');
+		$name = 'linked-' . bin2hex(random_bytes(3));
+		$link = __DIR__ . '/../themes/' . $name;
+		symlink($outside, $link);
+		$zipPath = sys_get_temp_dir() . '/wcms-' . $name . '.zip';
+		$zip = new ZipArchive();
+		$zip->open($zipPath, ZipArchive::CREATE);
+		$zip->addFromString($name . '-master/theme.php', 'new');
+		$zip->close();
+		@mkdir(__DIR__ . '/../data_test/files_test', 0777, true);
+
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'getSingleModuleCachedData'])->getMock();
+		$wcms->method('getSingleModuleCachedData')->willReturn(['zip' => 'file://' . $zipPath]);
+		$wcms->loggedIn = true;
+		$_REQUEST = ['installModule' => $name, 'type' => 'themes', 'token' => $wcms->getToken()];
+		$wcms->installUpdateModuleAction();
+
+		$this->assertSame('old', file_get_contents($outside . '/theme.php'), 'the folder the link pointed at is untouched');
+		$this->assertFalse(is_link($link), 'the link is gone');
+		$this->assertSame('new', file_get_contents($link . '/theme.php'), 'the module is a real folder with the new files');
+		$wcms->recursiveDelete($link);
+		unlink($outside . '/theme.php');
+		rmdir($outside);
+		unlink($zipPath);
+		$_REQUEST = [];
+	}
+
+	public function testFilesTabShowsTheFilenameAndKeepsTheFullUrlOnTheLink(): void
+	{
+		// #357: the visible text is the filename; the full URL stays as the link target and tooltip, so copy-link still works.
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$wcms->loggedIn = true;
+		@mkdir(__DIR__ . '/../data_test/files_test', 0777, true);
+		file_put_contents(__DIR__ . '/../data_test/files_test/brochure.pdf', 'x');
+		file_put_contents(__DIR__ . '/../data_test/files_test/a&b.pdf', 'x'); // an FTP-placed name; the delete link must not split on the &
+		$html = $wcms->settings();
+		$url = Wcms::url('data/files/') . 'brochure.pdf';
+		$this->assertStringContainsString('href="' . $url . '" class="normalFont" target="_blank" title="' . $url . '"><b class="fontSize21">brochure.pdf</b></a>', $html);
+		$this->assertStringNotContainsString('>' . Wcms::url('data/files/') . '<b', $html, 'the URL prefix is no longer printed as text');
+		$this->assertStringContainsString('deleteModule=a%26b.pdf&type=files', $html, 'the delete link carries the name URL-encoded');
+		$this->assertStringContainsString('data-confirm="Delete a&amp;b.pdf?" onclick="return confirm(this.dataset.confirm)"', $html, 'the confirm text is an attribute value');
+		$this->assertStringContainsString('href="' . Wcms::url('data/files/') . 'a%26b.pdf" class="normalFont" target="_blank" title="' . Wcms::url('data/files/') . 'a&amp;b.pdf"><b class="fontSize21">a&amp;b.pdf</b></a>', $html, 'the view link encodes the href and escapes title and text');
+		$wcms->currentPageTree = ['about'];
+		$this->assertStringContainsString('about/?deleteModule=brochure.pdf&type=files', $wcms->settings(), 'the delete link returns to the current page (#347)');
+		unlink(__DIR__ . '/../data_test/files_test/brochure.pdf');
+		unlink(__DIR__ . '/../data_test/files_test/a&b.pdf');
+	}
+
 	public function testDeletingAFileRedirectsBackToTheCurrentPage(): void
 	{
 		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();

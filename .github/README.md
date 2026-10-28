@@ -30,7 +30,7 @@
   - **No configuration needed - unzip and upload.**
   - 5 files: [database.js](https://www.wondercms.com/docs/#default-generated-database) (JSON format), [index.php](https://github.com/WonderCMS/wondercms/blob/main/index.php), [theme.php](https://github.com/WonderCMS/wondercms/blob/main/themes/sky/theme.php), [style.css](https://github.com/WonderCMS/wondercms/blob/main/themes/sky/css/style.css) and [htaccess](https://github.com/WonderCMS/wondercms/blob/main/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files (no additional configuration/migration)
- - Privacy oriented: no cookies, tracking or "powered by" links.
+ - Privacy oriented: no tracking cookies, no tracking, no "powered by" links (one PHP session cookie, PHPSESSID, used for the admin login and form tokens).
  - Includes plugins ([via hooks/listeners](https://www.wondercms.com/docs/#hooks)), [themes](https://www.wondercms.com/docs/#themes)/plugins installer, [backups](https://www.wondercms.com/docs/#backup-and-restore), [1 click updates](https://www.wondercms.com/docs/#do-and-dont).
  - Supports most server types (Apache, NGINX, IIS, Caddy).
   - Project goal: keep it simple, tiny, hassle free (infrequent-ish 1 click updates).
@@ -86,7 +86,7 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 - WonderCMS includes CSRF verification tokens for each user action and additionally uses the hash_equals function to prevent CSRF token timing attacks.
 - No known vulnerabilities.
    - Special thanks to yassineaddi, hypnito, Ramon Dunker and other security researchers.
-   - 3.7.0: thanks to Slaven Stančič (review), Almorca (local theme listing), NorfolkGreg (search and menu reports), andre5x and hightowe (bug reports). Full list: [wondercms.com/contributors](https://www.wondercms.com/contributors).
+- 3.7.0 contributors: thanks to Slaven Stančič (security review), Almorca (hand-uploaded themes and plugins listed in Settings), NorfolkGreg (search and menu reports; his GregCustom theme's menu showed the touch recipe), andre5x (reports and requests #346 to #357), hightowe (legacy subpage report and a proposed fix, #336 and #337), Joe90 (search report on the forum), James1949 (#343 report) and Edward205 (Romanian translation plugin). Full list: [wondercms.com/contributors](https://www.wondercms.com/contributors).
 
 <br>
 
