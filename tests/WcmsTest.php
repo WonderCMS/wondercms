@@ -1,10 +1,8 @@
 <?php
-ob_start();
-define('PHPUNIT_TESTING', true);
 
 use PHPUnit\Framework\TestCase;
 
-require '../index.php';
+require_once __DIR__ . '/../index.php';
 
 final class WcmsTest extends TestCase
 {
@@ -20,7 +18,7 @@ final class WcmsTest extends TestCase
 		$_SERVER['SERVER_PORT'] = '80';
 
 		$this->wcms = $this->getMockBuilder(Wcms::class)
-			->setMethods(['redirect'])
+			->onlyMethods(['redirect'])
 			->getMock();
 
 		$this->wcms->setPaths('data_test', 'files_test', 'database_test.js');
