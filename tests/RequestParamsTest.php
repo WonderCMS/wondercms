@@ -52,7 +52,6 @@ final class RequestParamsTest extends TestCase
 		$_POST['query'] = ['x'];
 		$_POST['token'] = $this->wcms->getToken();
 		$method = new ReflectionMethod(Wcms::class, 'searchAction');
-		$method->setAccessible(true);
 		$method->invoke($this->wcms);
 		$this->assertTrue(true); // no TypeError
 	}

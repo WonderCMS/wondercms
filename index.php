@@ -3708,28 +3708,7 @@ EOT;
 			&& is_string($_POST['query']) && $this->hashVerify($_POST['token'])) {
 			
 			$query = trim($_POST['query']);
-			$results = [];
-			
-			// Search main pages
-			$pages = $this->get('pages');
-			foreach ($pages as $slug => $page) {
-				// Skip 404 page and hidden pages
-				if ($slug === '404' || ($page->visibility ?? 'show') === 'hide') {
-					continue;
-				}
-
-				// Ensure the page object is valid and has the required properties
-				if (is_object($page) && property_exists($page, 'title') && property_exists($page, 'content')) {
-					$content = $page->content ?? ''; // Default to empty string if content is missing or null
-					if ($this->pageMatchesQuery($page, $query)) {
-						$results[] = [
-							'title' => $page->title,
-							'excerpt' => $this->createExcerpt($content, $query, 100),
-							'slug' => $slug
-						];
-					}
-				}
-			}
+			$results = $this->searchPages($this->get('pages'), $query);
 
 			// Search blog posts
 			if ($this->blogPluginInstalled()) {
@@ -3764,6 +3743,35 @@ EOT;
 	}
 
 	/**
+	 * Search pages and their subpages recursively. Pages hidden from the menu are public by URL and are included.
+	 * @param object $pages
+	 * @param string $query
+	 * @param string $prefix slug path of the parent, with trailing slash
+	 * @return array
+	 */
+	private function searchPages(object $pages, string $query, string $prefix = ''): array
+	{
+		$results = [];
+		foreach ($pages as $slug => $page) {
+			// 404 is never a result; a top-level key containing '/' is a legacy duplicate (#360)
+			if ($slug === '404' || strpos($slug, '/') !== false || !is_object($page)) {
+				continue;
+			}
+			if ($this->pageMatchesQuery($page, $query)) {
+				$results[] = [
+					'title' => $page->title ?? '',
+					'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
+					'slug' => $prefix . $slug
+				];
+			}
+			if (!empty($page->subpages)) {
+				$results = array_merge($results, $this->searchPages($page->subpages, $query, $prefix . $slug . '/'));
+			}
+		}
+		return $results;
+	}
+
+	/**
 	 * Check if page content matches search query.
 	 * @param object $page Page object from database
 	 * @param string $query Search term
@@ -3774,7 +3782,7 @@ EOT;
 		$title = $page->title ?? '';
 		$content = $page->content ?? '';
 		$searchableContent = $title . ' ' . strip_tags($content);
-		return stripos($searchableContent, $query) !== false;
+		return mb_stripos($searchableContent, $query) !== false;
 	}
 
 	/**
@@ -3788,62 +3796,7 @@ EOT;
 		$title = $post['title'] ?? '';
 		$content = $post['body'] ?? '';
 		$searchableContent = $title . ' ' . strip_tags($content);
-		return stripos($searchableContent, $query) !== false;
-	}
-
-	/**
-	 * Determine if page should be included in search results.
-	 * @param object $page Page object to check
-	 * @param string $slug Page slug/URL
-	 * @return bool True if page is searchable, false otherwise
-	 */
-	private function isSearchablePage(object $page, string $slug): bool
-	{
-		return $slug !== '404' 
-			&& ($page->visibility ?? 'show') !== 'hide'
-			&& !in_array($slug, ['config', 'blocks']);
-	}
-
-	/**
-	 * Format page data for search results.
-	 * @param object $page Page object from database
-	 * @param string $slug Page slug/URL
-	 * @return array Formatted result with title/excerpt/slug
-	 */
-	private function formatPageResult(object $page, string $slug, string $query): array
-	{
-		return [
-			'title' => $page->title ?? '',
-			'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
-			'slug' => $slug
-		];
-	}
-
-	/**
-	 * Search blog posts from simpleblog.json data.
-	 * @param string $query Search term to match
-	 * @return array Array of matching blog posts with title/excerpt/slug
-	 * @throws Exception If blog data file is missing or invalid JSON
-	 */
-	private function searchBlogPosts(string $query): array
-	{
-		$blogData = json_decode(file_get_contents("{$this->dataPath}/simpleblog.json"), true);
-		$results = [];
-		
-		foreach ($blogData['posts'] ?? [] as $slug => $post) {
-			$title = is_array($post) ? ($post['title'] ?? '') : '';
-			$body = is_array($post) ? ($post['body'] ?? '') : '';
-			if (stripos($title, $query) !== false
-				|| stripos(strip_tags($body), $query) !== false) {
-				$results[] = [
-					'title' => $title,
-					'excerpt' => $this->createExcerpt($body, $query, 100),
-					'slug' => 'blog/' . $slug
-				];
-			}
-		}
-
-		return $results;
+		return mb_stripos($searchableContent, $query) !== false;
 	}
 
 	/**
@@ -3858,18 +3811,18 @@ EOT;
 		// Ensure content is a string
 		$content = is_string($content) ? $content : '';
 		$stripped = strip_tags($content);
-		$position = stripos($stripped, $query);
-		
-		// Show context around match if found
+		$position = mb_stripos($stripped, $query);
+
+		// Show context around match if found (character based, so multibyte text stays valid UTF-8)
 		if ($position !== false) {
 			$start = max(0, $position - 20);
-			$excerpt = substr($stripped, $start, $length);
-			$excerpt = preg_replace('/(' . preg_quote($query, '/') . ')/i', '<mark>$1</mark>', $excerpt);
+			$excerpt = mb_substr($stripped, $start, $length);
+			$excerpt = preg_replace('/(' . preg_quote($query, '/') . ')/iu', '<mark>$1</mark>', $excerpt);
 			return trim($excerpt);
 		}
 
 		// Fallback to first characters
-		return substr($stripped, 0, $length) . '...';
+		return mb_substr($stripped, 0, $length) . '...';
 	}
 
 }
