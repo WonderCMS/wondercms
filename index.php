@@ -1340,6 +1340,20 @@ EOT;
 				$newData[$addonType][$dirName]['install'] = !$exists;
 				$newData[$addonType][$dirName]['currentVersion'] = $currentVersion;
 			}
+
+			// Themes and plugins uploaded by hand: present on disk, not in the official list (#345, Almorca)
+			foreach (glob($this->rootDir . '/' . $type . '/*', GLOB_ONLYDIR) as $dir) {
+				$dirName = basename($dir);
+				$entryFile = $type === self::THEMES_DIR ? 'theme.php' : $dirName . '.php';
+				if (isset($data[$dirName]) || !is_file($dir . '/' . $entryFile)) {
+					continue;
+				}
+				$newData[self::THEME_PLUGINS_TYPES['exists']][$dirName] = [
+					'name' => htmlspecialchars($dirName), 'summary' => 'Found in the ' . $type . ' folder (not in the official list).',
+					'repo' => '', 'zip' => '', 'group' => null, 'version' => null, 'image' => null,
+					'update' => false, 'install' => false, 'currentVersion' => $this->getModuleVersion($type, $dirName),
+				];
+			}
 		}
 
 		return $newData;
@@ -1702,7 +1716,7 @@ EOT;
 		if (is_dir($path) && (is_file($wcmsModulesPath) || is_file($versionPath))) {
 			if (is_file($wcmsModulesPath)) {
 				$wcmsModules = json_decode(trim(file_get_contents($wcmsModulesPath)));
-				$version = $wcmsModules->{$type}->{$name}->version;
+				$version = $wcmsModules->{$type}->{$name}->version ?? null;
 			} else {
 				$version = trim(file_get_contents($versionPath));
 			}
@@ -3151,6 +3165,7 @@ EOT;
 				}
 
 				$image = $addon['image'] !== null ? '<a class="text-center center-block" href="' . $addon['image'] . '" target="_blank"><img style="max-width: 100%; max-height: 250px;" src="' . $addon['image'] . '" alt="' . $name . '" /></a>' : $defaultImage;
+				$moreInfoLink = $infoUrl !== '' ? '<a href="' . $infoUrl . '" target="_blank"><i class="linkIcon"></i> More info</a>' : '';
 
 				$conflictingNames = !empty($conflictingEnabled) ? array_map(function ($p) {
 					return $this->getPluginDisplayName($p);
@@ -3200,7 +3215,7 @@ EOT;
 								$image
 								<h4>$name</h4>
 								<p class='normalFont'>$info</p>
-								<p class='text-right small normalFont marginTop20'>$currentVersion<br /><a href='$infoUrl' target='_blank'><i class='linkIcon'></i> More info</a></p>
+								<p class='text-right small normalFont marginTop20'>$currentVersion<br />$moreInfoLink</p>
 								<div class='text-right'>$inactiveThemeButton $activeThemeButton</div>
 								<div class='text-left'>$installButton $pluginToggleButton</div>
 								<div class='text-right'><span class='text-left bold'>$updateButton</span> <span class='text-right'>$removeButton</span></div>
