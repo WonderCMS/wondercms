@@ -2173,7 +2173,7 @@ EOT;
 				'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
 			]);
 	
-			$this->alert('test', '<script>alert("Wrong password")</script>', 1);
+			$this->alert('danger', 'Wrong password.');
 			$this->redirect($this->get('config', 'login'));
 		}
 	}

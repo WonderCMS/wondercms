@@ -113,11 +113,13 @@ final class WcmsTest extends TestCase
 
 		$_POST['token'] = $this->wcms->getToken();
 		$_POST['old_password'] = self::PASSWORD;
-		$_POST['new_password'] = 'test';
+		$_POST['new_password'] = 'testPassword';
+		$_POST['repeat_password'] = 'testPassword';
 
 		$this->wcms->loginStatus();
 		$this->wcms->changePasswordAction();
 
-		$this->assertEquals($_SESSION['alert']['success'][0]['message'], 'Password changed.');
+		$this->assertStringContainsString('Password changed.', $_SESSION['alert']['success'][0]['message']);
+		$this->assertTrue(password_verify('testPassword', $this->wcms->get('config', 'password')));
 	}
 }
