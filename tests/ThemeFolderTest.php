@@ -78,11 +78,14 @@ final class ThemeFolderTest extends TestCase
 		$this->assertStringContainsString('/themes/sky/css/style.css', $output);
 		$this->assertFalse(isset($_SESSION['alert']), 'visitors must not see the failure message');
 
-		// Admin (fresh request): same render plus an alert naming the broken theme
+		// Admin (fresh request; a second broken theme because require_once remembers the first file): alert names the theme
+		mkdir($this->root . '/themes/broken2');
+		file_put_contents($this->root . '/themes/broken2/theme.php', '<?php echo "partial"; echo "unterminated;');
 		$wcms = $this->getMockBuilder(Wcms::class)
 			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
 			->onlyMethods(['redirect'])
 			->getMock();
+		$wcms->set('config', 'theme', 'broken2');
 		$GLOBALS['Wcms'] = $wcms;
 		$wcms->loggedIn = true;
 		ob_start();
@@ -90,7 +93,7 @@ final class ThemeFolderTest extends TestCase
 		ob_end_clean();
 		$this->assertStringContainsString('failed to load', $_SESSION['alert']['danger'][0]['message']);
 		$saved = json_decode(file_get_contents($this->root . '/data_test/database_test.js'));
-		$this->assertSame('broken', $saved->config->theme, 'the setting on disk is not changed behind the admin\'s back');
+		$this->assertSame('broken2', $saved->config->theme, 'the setting on disk is not changed behind the admin\'s back');
 		unset($_SESSION['alert'], $GLOBALS['Wcms']);
 		exec('rm -rf ' . escapeshellarg($this->root . '/data_test'));
 	}
