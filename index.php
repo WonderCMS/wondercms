@@ -1282,9 +1282,9 @@ EOT;
 	 * @param string $token
 	 * @return bool
 	 */
-	public function hashVerify(string $token): bool
+	public function hashVerify($token): bool
 	{
-		return hash_equals($token, $this->getToken());
+		return is_string($token) && hash_equals($token, $this->getToken());
 	}
 
 	/**
@@ -2150,7 +2150,7 @@ EOT;
 			return;
 		}
 	
-		$password = $_POST['password'] ?? '';
+		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
 		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 		$timestamp = date('c');
 		$valid = password_verify($password, $this->get('config', 'password'));
@@ -2539,7 +2539,7 @@ EOT;
 	public function parseUrl(): string
 	{
 		$page = $_GET['page'] ?? null;
-		$page = !empty($page) ? trim(htmlspecialchars($page, ENT_QUOTES)) : null;
+		$page = is_string($page) && $page !== '' ? trim(htmlspecialchars($page, ENT_QUOTES)) : null;
 
 		if (!isset($page) || !$page) {
 			$defaultPage = $this->get('config', 'defaultPage');
@@ -3704,8 +3704,8 @@ EOT;
 	 */
 	private function searchAction(): void
 	{
-		if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['query'], $_POST['token']) 
-			&& $this->hashVerify($_POST['token'])) {
+		if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['query'], $_POST['token'])
+			&& is_string($_POST['query']) && $this->hashVerify($_POST['token'])) {
 			
 			$query = trim($_POST['query']);
 			$results = [];
