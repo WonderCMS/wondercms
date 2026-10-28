@@ -35,6 +35,9 @@ final class SearchTest extends TestCase
 	private function search(string $query): array
 	{
 		$method = new ReflectionMethod(Wcms::class, 'searchPages');
+		if (PHP_VERSION_ID < 80100) {
+			$method->setAccessible(true);
+		}
 		return $method->invoke($this->wcms, $this->wcms->get('pages'), $query);
 	}
 
@@ -72,6 +75,9 @@ final class SearchTest extends TestCase
 	public function testCreateExcerptDoesNotCutInsideAMultibyteCharacter(): void
 	{
 		$method = new ReflectionMethod(Wcms::class, 'createExcerpt');
+		if (PHP_VERSION_ID < 80100) {
+			$method->setAccessible(true);
+		}
 		// 'a' + 9 bytes of 2-byte Cyrillic: a byte cut at 10 lands inside a character (3.6.0 returned invalid UTF-8 here)
 		$excerpt = $method->invoke($this->wcms, 'aШахматы Шахматы', 'Шахматы', 10);
 		$this->assertNotFalse(json_encode(['excerpt' => $excerpt]), json_last_error_msg());
