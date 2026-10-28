@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, mbstring, zip, fileinfo
+          tools: phpunit:${{ matrix.php < '8.1' && '9.6' || '11' }}
+          coverage: none
+
+      - name: Lint
+        run: php -l index.php && php -l themes/sky/theme.php
+
+      - name: version file must equal the VERSION constant
+        run: |
+          FILE=$(tr -d '[:space:]' < version)
+          CODE=$(grep -oE "define\('VERSION', '[0-9]+\.[0-9]+\.[0-9]+'\)" index.php | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          echo "version file: $FILE, VERSION constant: $CODE"
+          test "$FILE" = "$CODE"
+
+      - name: A change to index.php on a PR into main must bump VERSION
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: |
+          git fetch origin main --depth=1
+          if git diff --quiet origin/main -- index.php; then echo "index.php unchanged"; exit 0; fi
+          BASE=$(git show origin/main:version | tr -d '[:space:]')
+          HEAD=$(tr -d '[:space:]' < version)
+          echo "main: $BASE, this branch: $HEAD"
+          php -r 'exit(version_compare($argv[1], $argv[2], ">") ? 0 : 1);' "$HEAD" "$BASE"
+
+      - name: Fresh install boots without warnings
+        run: |
+          rm -rf /tmp/site && mkdir /tmp/site && cp index.php .htaccess /tmp/site/ && cp -r themes /tmp/site/
+          cd /tmp/site
+          php -d display_errors=1 -d error_reporting=-1 -S 127.0.0.1:8080 >/tmp/server.log 2>&1 &
+          sleep 2
+          BODY=$(curl -s http://127.0.0.1:8080/)
+          echo "$BODY" | grep -q "<html" || { echo "no HTML"; cat /tmp/server.log; exit 1; }
+          if echo "$BODY" | grep -qiE "Warning:|Deprecated:|Notice:|Fatal error"; then echo "$BODY" | grep -iE "Warning:|Deprecated:|Notice:|Fatal error"; exit 1; fi
+          grep -iE "Warning|Deprecated|Fatal" /tmp/server.log && exit 1 || echo "clean boot"
+
+      - name: PHPUnit
+        run: phpunit --no-coverage
+
+  windows-url:
+    name: url() on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, zip
+          tools: phpunit:11
+          coverage: none
+      - run: phpunit --no-coverage --filter PagesAndUrlTest

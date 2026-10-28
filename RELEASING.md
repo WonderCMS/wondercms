@@ -1,0 +1,43 @@
+# Releasing WonderCMS
+
+The `main` branch is the update channel: when an admin clicks **Update**, their site downloads
+`main/index.php` and writes it over itself. Merging into `main` is the release. Everything
+below exists to make sure only a complete, versioned `index.php` ever gets there.
+
+## Rules
+
+1. `index.php` reaches `main` only through a release branch (`370`, `371`, ...) merged with a
+   merge commit. Never commit to `main` directly, never squash.
+2. The version bump is the **last** commit on the release branch: `define('VERSION', 'X.Y.Z')`
+   in `index.php` and the `version` file, together. CI fails when they differ, and fails a PR
+   into `main` that changes `index.php` without a higher version.
+3. The admin CSS and JS pins (`wcms-admin.min.css`, `wcms-admin.min.js` from
+   `WonderCMS/wondercms-cdn-files`) use the **same** tag and both carry an `integrity` hash.
+   If either file changes, tag the CDN repo first, then update the pin and hash on the
+   release branch, before the merge.
+4. PHP floor is 7.4. CI lints and boots on 7.4, 8.1, 8.3, 8.4 and 8.5 and runs the tests.
+5. There is no rollback. Sites that already updated never download an older version, so a bad
+   release is fixed by the next patch release, never by reverting `main`.
+
+## Checklist
+
+1. Release branch from `main`; every change as its own commit with a test. Run
+   `php phpunit.phar` locally (phpunit.phar is ignored by git; download it from
+   https://phar.phpunit.de/).
+2. Rehearse: install the branch's `index.php` in a non-public folder on the server, run an
+   **Update** from a copy of the previous release pointed at the branch's raw URL, try to break it.
+3. Version bump commit. CI green.
+4. Merge the release branch into `main` (merge commit).
+5. Wait for GitHub's raw cache (up to 5 minutes), then check
+   `https://raw.githubusercontent.com/WonderCMS/wondercms/main/version` shows the new version.
+6. Canary: back up wondercms.com, click **Update** there, check the site, the login and a save.
+7. Tag the merge commit: `git tag X.Y.Z && git push origin X.Y.Z`.
+8. Build the ZIP from the tag: `./build-release.sh X.Y.Z`, then create the GitHub release with
+   notes (Features and fixes / Changes / Backwards compatibility / How to update / Installation
+   with the SHA-256 of the uploaded asset) and attach the ZIP.
+9. wondercms.com: copy the ZIP next to the previous ones, point `download-latest.php` at the new
+   asset, update the latest/download/news/contributors pages and the docs, rebuild the demo.
+10. Theme or plugin changes shipped with the release (for example `themes/sky`) are pushed to
+    their own repositories with a version bump so existing sites receive them; confirm the CDN
+    repo's daily `wcms-modules.json` workflow is enabled and has run.
+11. Close the fixed issues with the commit links; fast-forward `develop` to `main`.

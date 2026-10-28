@@ -13,7 +13,7 @@
 <a href="https://wondercms.com/docs"><img src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" alt="Docs" data-canonical-src="https://img.shields.io/readthedocs/pip/stable.svg?longCache=true&amp;v=100" style="max-width:100%;"></a>
 <a href="https://www.wondercms.com/about" rel="nofollow"><img src="https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&amp;v=100" alt="Project " data-canonical-src="https://img.shields.io/badge/project%20founded%20-%20in%202008-%25600?longCache=true&amp;v=100" style="max-width:100%;"></a>
 <a target="_blank" rel="noopener noreferrer" href="https://camo.githubusercontent.com/21e44ed76cd7c7d861a97c415edebdc421e8fcee/68747470733a2f2f696d672e736869656c64732e696f2f6d61696e74656e616e63652f7965732f323032302e7376673f6c6f6e6743616368653d74727565"><img src="https://img.shields.io/maintenance/yes/2026.svg?longCache=true" alt="Maintained" data-canonical-src="https://img.shields.io/maintenance/yes/2026.svg?longCache=true" style="max-width:100%;"></a>
-<a href="https://github.com/WonderCMS/wondercms/blob/master/license"><img src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" alt="License" data-canonical-src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" style="max-width:100%;"></a>
+<a href="https://github.com/WonderCMS/wondercms/blob/main/license"><img src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" alt="License" data-canonical-src="https://img.shields.io/github/license/mashape/apistatus.svg?longCache=true" style="max-width:100%;"></a>
 <a href="https://paypal.me/WonderCMS" rel="nofollow"><img src="https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true" alt="Donate" data-canonical-src="https://img.shields.io/badge/donate-PayPal-11AABB.svg?longCache=true" style="max-width:100%;"></a>
 </p>
 
@@ -28,7 +28,7 @@
 
 ## Small and simple flat file CMS
   - **No configuration needed - unzip and upload.**
-  - 5 files: [database.js](https://www.wondercms.com/docs/#default-generated-database) (JSON format), [index.php](https://github.com/WonderCMS/wondercms/blob/master/index.php), [theme.php](https://github.com/WonderCMS/wondercms/blob/master/themes/sky/theme.php), [style.css](https://github.com/WonderCMS/wondercms/blob/master/themes/sky/css/style.css) and [htaccess](https://github.com/WonderCMS/wondercms/blob/master/.htaccess).
+  - 5 files: [database.js](https://www.wondercms.com/docs/#default-generated-database) (JSON format), [index.php](https://github.com/WonderCMS/wondercms/blob/main/index.php), [theme.php](https://github.com/WonderCMS/wondercms/blob/main/themes/sky/theme.php), [style.css](https://github.com/WonderCMS/wondercms/blob/main/themes/sky/css/style.css) and [htaccess](https://github.com/WonderCMS/wondercms/blob/main/.htaccess).
     - Transferring your website to a new host/server is done by only copy/pasting all files (no additional configuration/migration)
  - Privacy oriented: no cookies, tracking or "powered by" links.
  - Includes plugins ([via hooks/listeners](https://www.wondercms.com/docs/#hooks)), [themes](https://www.wondercms.com/docs/#themes)/plugins installer, [backups](https://www.wondercms.com/docs/#backup-and-restore), [1 click updates](https://www.wondercms.com/docs/#do-and-dont).
@@ -85,7 +85,8 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
   - Choosing a strong password will prevent malicious actors from gaining any further admin access (if they would have guessed your login URL).
 - WonderCMS includes CSRF verification tokens for each user action and additionally uses the hash_equals function to prevent CSRF token timing attacks.
 - No known vulnerabilities.
-   - Special thanks to yassineaddi, hypnito and other security researchers.
+   - Special thanks to yassineaddi, hypnito, Ramon Dunker and other security researchers.
+   - 3.7.0: thanks to Slaven Stančič (review), Almorca (local theme listing), NorfolkGreg (search and menu reports), andre5x and hightowe (bug reports). Full list: [wondercms.com/contributors](https://www.wondercms.com/contributors).
 
 <br>
 

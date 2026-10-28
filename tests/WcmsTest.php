@@ -46,9 +46,6 @@ final class WcmsTest extends TestCase
 		$this->assertTrue(property_exists($return->pages->home, 'content'));
 	}
 
-	/**
-	 * @depends testGetDb
-	 */
 	public function testLoginAction(): void
 	{
 		$this->assertFalse($this->wcms->loggedIn);
@@ -82,9 +79,6 @@ final class WcmsTest extends TestCase
 		$this->assertTrue($this->wcms->loggedIn);
 	}
 
-	/**
-	 * @depends testLoginAction
-	 */
 	public function testLogoutAction(): void
 	{
 		$_REQUEST['token'] = $this->wcms->getToken();
