@@ -18,13 +18,9 @@ final class PagesAndUrlTest extends TestCase
 		$_SERVER['SERVER_PORT'] = '80';
 		$_SERVER['SCRIPT_NAME'] = '/index.php';
 		unset($_SERVER['HTTP_HOST']);
-		$this->wcms = $this->getMockBuilder(Wcms::class)->onlyMethods(['redirect'])->getMock();
-		$this->wcms->setPaths('data_test', 'files_test', 'database_test.js');
+		@unlink(__DIR__ . '/../data_test/database_test.js');
+		$this->wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
 		$this->dbPath = __DIR__ . '/../data_test/database_test.js';
-		if (file_exists($this->dbPath)) {
-			unlink($this->dbPath);
-		}
-		$this->wcms->getDb();
 	}
 
 	private function reload(): object
@@ -43,8 +39,7 @@ final class PagesAndUrlTest extends TestCase
 		$db = $this->reload();
 		$db->pages->legacy = $legacy;
 		file_put_contents($this->dbPath, json_encode($db, JSON_PRETTY_PRINT));
-		$wcms = $this->getMockBuilder(Wcms::class)->onlyMethods(['redirect'])->getMock();
-		$wcms->setPaths('data_test', 'files_test', 'database_test.js');
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
 
 		$wcms->createPage(['legacy', 'child'], false);
 
@@ -71,5 +66,48 @@ final class PagesAndUrlTest extends TestCase
 	{
 		$_SERVER['SERVER_PORT'] = '8080';
 		$this->assertSame('http://wondercms.doc:8080/', Wcms::url());
+	}
+
+	public function testViewingAnOldSubpageWritesNoTopLevelDuplicate(): void
+	{
+		$db = $this->reload();
+		$db->pages->parent = (object) ['title' => 'Parent', 'keywords' => '', 'description' => '', 'content' => '',
+			'subpages' => (object) ['child' => (object) ['title' => 'Child', 'keywords' => '', 'description' => '', 'content' => 'x']]];
+		file_put_contents($this->dbPath, json_encode($db, JSON_PRETTY_PRINT));
+		$before = md5_file($this->dbPath);
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+
+		$page = $wcms->getPageData('parent/child');
+
+		$this->assertSame('show', $page->visibility);
+		$this->assertSame($before, md5_file($this->dbPath), 'a page view must not write database.js');
+		$this->assertFalse(isset($this->reload()->pages->{'parent/child'}));
+	}
+
+	public function testLastPageIsNotDeletedAndStaleChildKeepsSiblings(): void
+	{
+		$_GET['token'] = $this->wcms->getToken();
+		$_SESSION['loggedIn'] = true;
+		$this->wcms->loggedIn = true;
+
+		$_GET['delete'] = 'home';
+		$this->wcms->deletePageAction();
+		$this->assertTrue(isset($this->reload()->pages->home), 'the last page keeps its content');
+
+		$this->wcms->createPage(['games'], true);
+		$this->wcms->createPage(['games', 'board'], true);
+		$this->wcms->createPage(['games', 'table'], true);
+		$_GET['delete'] = 'games/does-not-exist';
+		$this->wcms->deletePageAction();
+		$menu = $this->reload()->config->menuItems;
+		$games = null;
+		foreach ($menu as $item) {
+			if ($item->slug === 'games') {
+				$games = $item;
+			}
+		}
+		$this->assertNotNull($games);
+		$this->assertCount(2, (array) $games->subpages, 'a stale child slug must not remove a sibling');
+		unset($_GET['delete'], $_GET['token'], $_SESSION['loggedIn']);
 	}
 }

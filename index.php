@@ -1099,17 +1099,18 @@ EOT;
 			return;
 		}
 		$slugTree = explode('/', $_GET['delete']);
-		$this->deletePageFromDb($slugTree);
-
 		$allMenuItems = $selectedMenuItem = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		if (count(get_object_vars($allMenuItems)) === 1 && count($slugTree) === 1) {
 			$this->alert('danger', 'Last page cannot be deleted - at least one page must exist.');
 			$this->redirect();
+			return;
 		}
+		$this->deletePageFromDb($slugTree);
 
 		$selectedMenuItemParent = $selectedMenuItemKey = null;
 		foreach ($slugTree as $slug) {
 			$selectedMenuItemParent = $selectedMenuItem->{self::DB_MENU_ITEMS_SUBPAGE} ?? $selectedMenuItem;
+			$selectedMenuItemKey = null;
 			foreach ($selectedMenuItemParent as $menuItemKey => $menuItem) {
 				if ($menuItem->slug === $slug) {
 					$selectedMenuItem = $menuItem;
@@ -1118,7 +1119,9 @@ EOT;
 				}
 			}
 		}
-		unset($selectedMenuItemParent->{$selectedMenuItemKey});
+		if ($selectedMenuItemKey !== null) { // a stale slug must not remove a sibling
+			unset($selectedMenuItemParent->{$selectedMenuItemKey});
+		}
 		$allMenuItems = $this->reindexObject($allMenuItems);
 
 		$defaultPage = $this->get(self::DB_CONFIG, 'defaultPage');
@@ -2488,8 +2491,7 @@ EOT;
 		}
 
 		if ($pageData && !property_exists($pageData, 'visibility')) {
-			$pageData->visibility = 'show';
-			$this->set(self::DB_PAGES_KEY, $slugTree, $pageData);
+			$pageData->visibility = 'show'; // in memory only: a page view must not write the database
 		}
 
 		return $pageData;

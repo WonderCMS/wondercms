@@ -15,7 +15,7 @@ final class UpdateGuardTest extends TestCase
 	{
 		$_SERVER['SERVER_NAME'] = 'wondercms.doc';
 		$_SERVER['SERVER_PORT'] = '80';
-		$this->wcms = new Wcms();
+		$this->wcms = new Wcms('data_test', 'files_test', 'database_test.js');
 	}
 
 	private function core(string $version): string
@@ -63,6 +63,7 @@ final class UpdateGuardTest extends TestCase
 	public function testOfficialVersionMustBeStrictSemver(): void
 	{
 		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])
 			->onlyMethods(['getCheckFileFromRepo'])
 			->getMock();
 		$wcms->method('getCheckFileFromRepo')->willReturnOnConsecutiveCalls(

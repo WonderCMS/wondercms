@@ -22,7 +22,7 @@ final class ThemeFolderTest extends TestCase
 			mkdir($this->root . '/themes/' . $dir, 0777, true);
 		}
 		mkdir($this->root . '/plugins/notatheme', 0777, true);
-		$this->wcms = new Wcms();
+		$this->wcms = new Wcms('data_test', 'files_test', 'database_test.js');
 		$this->wcms->rootDir = $this->root;
 	}
 

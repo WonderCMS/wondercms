@@ -18,10 +18,9 @@ final class WcmsTest extends TestCase
 		$_SERVER['SERVER_PORT'] = '80';
 
 		$this->wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])
 			->onlyMethods(['redirect'])
 			->getMock();
-
-		$this->wcms->setPaths('data_test', 'files_test', 'database_test.js');
 	}
 
 	public function testGetDb(): void
