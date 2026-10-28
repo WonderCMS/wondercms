@@ -811,6 +811,7 @@ class Wcms
 					}
 				}
 
+				$selectedPage->{$childSlug}->subpages ??= new stdClass(); // pages created before 3.2.0 have none
 				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
 		}
@@ -839,7 +840,7 @@ class Wcms
 	 */
 	private function findAndUpdateMenuKey(?string $menuKey, string $slug): string
 	{
-		$menuKeys = $menuKey !== null ? explode('-', $menuKey) : $menuKey;
+		$menuKeys = $menuKey !== null ? explode('-', $menuKey) : [];
 		$menuItems = json_decode(json_encode($this->get(self::DB_CONFIG, self::DB_MENU_ITEMS)), true);
 		foreach ($menuKeys as $key) {
 			$menuItems = $menuItems[$key][self::DB_MENU_ITEMS_SUBPAGE] ?? [];
@@ -3440,7 +3441,7 @@ EOT;
 				$this->alert('danger', 'Unknown error.');
 				$this->redirect();
 		}
-		$mimeType = '';
+		$mimeType = null;
 		$fileName = basename(str_replace(
 			['"', "'", '*', '<', '>', '%22', '&#39;', '%', ';', '#', '&', './', '../', '/', '+'],
 			'',
@@ -3454,16 +3455,16 @@ EOT;
 			$mimeType = $finfo->file($_FILES['uploadFile']['tmp_name']);
 		} elseif (function_exists('mime_content_type')) {
 			$mimeType = mime_content_type($_FILES['uploadFile']['tmp_name']);
-		} elseif (array_key_exists($ext, $allowedExtensions)) {
-			$mimeType = $allowedExtensions[$ext];
 		}
-		if (!in_array($mimeType, $allowedMimeTypes, true) || !in_array($ext, $allowedExtensions)) {
+		// Without the fileinfo extension only the extension can be checked
+		if (($mimeType !== null && !in_array($mimeType, $allowedMimeTypes, true)) || !in_array($ext, $allowedExtensions, true)) {
 			$this->alert('danger',
 				'File format is not allowed. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>Re-open file options</b></a>');
 			$this->redirect();
 		}
 		if (!move_uploaded_file($_FILES['uploadFile']['tmp_name'], $this->filesPath . '/' . $fileName)) {
 			$this->alert('danger', 'Failed to move uploaded file.');
+			$this->redirect();
 		}
 		$this->alert('success',
 			'File uploaded. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>Open file options to see your uploaded file</b></a>');
@@ -3488,11 +3489,10 @@ EOT;
 		}
 
 		$serverPort = ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']);
+		$directory = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/.'); // '\' on Windows, '/' or '.' at the root
 		return ($showHttps ? 'https' : 'http')
-			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'])
-			. ($_SERVER['HTTP_HOST'] ? '' : $serverPort)
-			. ((dirname($_SERVER['SCRIPT_NAME']) === '/') ? '' : dirname($_SERVER['SCRIPT_NAME']))
-			. '/' . $location;
+			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] . $serverPort)
+			. ($directory !== '' ? '/' . $directory : '') . '/' . $location;
 	}
 
 	/**

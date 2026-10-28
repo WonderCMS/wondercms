@@ -1,0 +1,75 @@
+<?php
+
+use PHPUnit\Framework\TestCase;
+
+/**
+ * #336 (subpage under a page created before 3.2.0), #348 (Windows URLs), #360 (visitor view writes duplicates).
+ */
+final class PagesAndUrlTest extends TestCase
+{
+	/** @var Wcms */
+	private $wcms;
+	/** @var string */
+	private $dbPath;
+
+	protected function setUp(): void
+	{
+		$_SERVER['SERVER_NAME'] = 'wondercms.doc';
+		$_SERVER['SERVER_PORT'] = '80';
+		$_SERVER['SCRIPT_NAME'] = '/index.php';
+		unset($_SERVER['HTTP_HOST']);
+		$this->wcms = $this->getMockBuilder(Wcms::class)->onlyMethods(['redirect'])->getMock();
+		$this->wcms->setPaths('data_test', 'files_test', 'database_test.js');
+		$this->dbPath = __DIR__ . '/../data_test/database_test.js';
+		if (file_exists($this->dbPath)) {
+			unlink($this->dbPath);
+		}
+		$this->wcms->getDb();
+	}
+
+	private function reload(): object
+	{
+		return json_decode(file_get_contents($this->dbPath));
+	}
+
+	public function testSubpageUnderLegacyParentIsCreatedAndPersisted(): void
+	{
+		// A page from before 3.2.0 has no 'subpages' property at all
+		$legacy = new stdClass();
+		$legacy->title = 'Legacy';
+		$legacy->keywords = '';
+		$legacy->description = '';
+		$legacy->content = 'old';
+		$db = $this->reload();
+		$db->pages->legacy = $legacy;
+		file_put_contents($this->dbPath, json_encode($db, JSON_PRETTY_PRINT));
+		$wcms = $this->getMockBuilder(Wcms::class)->onlyMethods(['redirect'])->getMock();
+		$wcms->setPaths('data_test', 'files_test', 'database_test.js');
+
+		$wcms->createPage(['legacy', 'child'], false);
+
+		$db = $this->reload();
+		$this->assertTrue(isset($db->pages->legacy->subpages->child), 'child must be attached to the legacy parent');
+		$this->assertSame('Child', $db->pages->legacy->subpages->child->title);
+		$this->assertFalse(isset($db->pages->{'legacy/child'}), 'no top-level duplicate');
+	}
+
+	public function testUrlOnWindowsDoesNotStartWithDoubleSlash(): void
+	{
+		$_SERVER['SCRIPT_NAME'] = '\\index.php';
+		$this->assertSame('http://wondercms.doc/about', Wcms::url('about'));
+
+		$_SERVER['SCRIPT_NAME'] = '/sub/index.php';
+		$this->assertSame('http://wondercms.doc/sub/about', Wcms::url('about'));
+
+		$_SERVER['SCRIPT_NAME'] = '/index.php';
+		$_SERVER['HTTP_HOST'] = 'example.org:8080';
+		$this->assertSame('http://example.org:8080/about', Wcms::url('about'));
+	}
+
+	public function testUrlUsesServerPortOnlyWithoutHostHeader(): void
+	{
+		$_SERVER['SERVER_PORT'] = '8080';
+		$this->assertSame('http://wondercms.doc:8080/', Wcms::url());
+	}
+}
