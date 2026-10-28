@@ -1355,6 +1355,9 @@ EOT;
 		$lastSync = $db->config->lastModulesSync ?? strtotime('-2 days');
 		if (empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
 			$this->updateAndCacheModules();
+			if ($this->loggedIn) {
+				$this->checkWcmsCoreUpdate();
+			}
 		}
 	}
 
