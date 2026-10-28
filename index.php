@@ -48,6 +48,8 @@ class Wcms
 
 	/** @var string $currentPage - current page */
 	public $currentPage = '';
+	/** @var string|null theme rendered instead of a broken one, for this request only */
+	private $fallbackTheme;
 
 	/** @var array $currentPageTree - Tree hierarchy of the current page */
 	public $currentPageTree = [];
@@ -315,7 +317,7 @@ class Wcms
 	public function activeTheme(): string
 	{
 		$theme = (string) $this->get('config', 'theme');
-		return $this->isThemeFolder($theme) ? $theme : 'sky';
+		return $this->fallbackTheme ?? ($this->isThemeFolder($theme) ? $theme : 'sky');
 	}
 
 	/**
@@ -744,7 +746,7 @@ class Wcms
 		$menuTree = $menu ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
-				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages;
+				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages ?? [];
 			}
 		}
 
@@ -811,7 +813,7 @@ class Wcms
 					}
 				}
 
-				$selectedPage->{$childSlug}->subpages ??= new stdClass(); // pages created before 3.2.0 have none
+				$selectedPage->{$childSlug}->subpages = $selectedPage->{$childSlug}->subpages ?? new stdClass(); // pages created before 3.2.0 have none; long form keeps PHP < 7.4 at the version message instead of a parse error
 				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
 		}
@@ -1061,7 +1063,7 @@ EOT;
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
 			$path = realpath("{$folder}/{$filename}");
 			if (file_exists($path)) {
-				$this->recursiveDelete($path);
+				is_link("{$folder}/{$filename}") ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder
 				// If a plugin was deleted, also remove it from the disabled list (if present).
 				if ($type === self::PLUGINS_DIR) {
 					$disabled = $this->getDisabledPlugins();
@@ -1276,7 +1278,7 @@ EOT;
 	public function getCheckFileFromRepo(string $fileName, string $repo = self::WCMS_REPO): ?string
 	{
 		$version = trim($this->getFileFromRepo($fileName, $repo));
-		return $version === '404: Not Found' || $version === '400: Invalid request' ? null : $version;
+		return $version === '' ? null : $version; // HTTP errors come back empty (CURLOPT_FAILONERROR)
 	}
 
 	/**
@@ -1374,10 +1376,10 @@ EOT;
 		// Recreate cache if lastModulesSync is missing
 		$lastSync = $db->config->lastModulesSync ?? strtotime('-2 days');
 		if (empty($data) || strtotime($lastSync) < strtotime('-1 days')) {
-			$this->updateAndCacheModules();
-			if ($this->loggedIn) {
+			if ($this->loggedIn && strtotime($lastSync) < strtotime('-1 days')) {
 				$this->checkWcmsCoreUpdate();
 			}
+			$this->updateAndCacheModules();
 		}
 	}
 
@@ -2159,7 +2161,7 @@ EOT;
 			if ($this->loggedIn) {
 				$this->alert('danger', 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ' . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
 			}
-			$this->db->config->theme = 'sky'; // in memory only, so asset() resolves to Sky for this request; the setting on disk is untouched
+			$this->fallbackTheme = 'sky'; // asset() resolves to Sky for this request; the setting itself is untouched
 			require $this->rootDir . '/themes/sky/theme.php';
 			return;
 		}
@@ -3343,7 +3345,7 @@ EOT;
 		$contents = $this->getFileFromRepo('index.php');
 		if ($this->isValidCoreUpdate($contents) && file_put_contents(__FILE__, $contents, LOCK_EX)) {
 			if (function_exists('opcache_invalidate')) {
-				opcache_invalidate(__FILE__, true);
+				@opcache_invalidate(__FILE__, true); // warns under opcache.restrict_api
 			}
 			$this->alert('success', 'WonderCMS successfully updated. Wohoo!');
 			$this->redirect();
@@ -3359,10 +3361,18 @@ EOT;
 	 */
 	public function isValidCoreUpdate(string $contents): bool
 	{
-		return strncmp($contents, '<?php', 5) === 0
-			&& strpos($contents, 'class Wcms') !== false
-			&& preg_match("/define\('VERSION', '(\d+\.\d+\.\d+)'\);/", $contents, $match)
-			&& version_compare($match[1], VERSION, '>');
+		if (strncmp($contents, '<?php', 5) !== 0
+			|| strpos($contents, 'class Wcms') === false
+			|| !preg_match("/define\('VERSION', '(\d+\.\d+\.\d+)'\);/", $contents, $match)
+			|| !version_compare($match[1], VERSION, '>')) {
+			return false;
+		}
+		try {
+			token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
+		} catch (ParseError $e) {
+			return false;
+		}
+		return true;
 	}
 
 	/**

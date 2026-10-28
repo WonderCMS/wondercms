@@ -24,9 +24,11 @@ below exists to make sure only a complete, versioned `index.php` ever gets there
 1. Release branch from `main`; every change as its own commit with a test. Run
    `php phpunit.phar` locally (phpunit.phar is ignored by git; download it from
    https://phar.phpunit.de/).
-2. Rehearse: install the branch's `index.php` in a non-public folder on the server, run an
+2. Version bump commit (the old updater only offers an Update when the remote version is higher,
+   so the rehearsal needs the bumped file). CI green.
+3. Rehearse: install the branch's `index.php` in a non-public folder on the server, run an
    **Update** from a copy of the previous release pointed at the branch's raw URL, try to break it.
-3. Version bump commit. CI green.
+   A fix after this point is a new commit; re-run the gates and the rehearsal.
 4. Merge the release branch into `main` (merge commit).
 5. Wait for GitHub's raw cache (up to 5 minutes), then check
    `https://raw.githubusercontent.com/WonderCMS/wondercms/main/version` shows the new version.

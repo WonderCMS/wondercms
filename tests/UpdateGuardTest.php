@@ -52,7 +52,14 @@ final class UpdateGuardTest extends TestCase
 	public function testRefusesTruncatedCore(): void
 	{
 		$truncated = substr($this->core($this->newer()), 0, 20);
-		$this->assertFalse($this->wcms->isValidCoreUpdate($truncated));
+		$this->assertFalse($this->wcms->isValidCoreUpdate($truncated), 'cut before VERSION');
+
+		$body = "<?php\ndefine('VERSION', '" . $this->newer() . "');\nclass Wcms {\n\tpublic function a() { return 1; }\n";
+		$this->assertFalse($this->wcms->isValidCoreUpdate($body), 'cut after class Wcms, unbalanced brace');
+
+		$real = str_replace("'" . VERSION . "'", "'" . $this->newer() . "'", file_get_contents(__DIR__ . '/../index.php'));
+		$this->assertTrue($this->wcms->isValidCoreUpdate($real), 'the complete current core, bumped, is accepted');
+		$this->assertFalse($this->wcms->isValidCoreUpdate(substr($real, 0, 50000)), 'the same file cut at 50 KB is refused');
 	}
 
 	public function testRefusesPhpThatIsNotWonderCms(): void
