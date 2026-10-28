@@ -963,7 +963,7 @@ class Wcms
 	{
 		if ($this->loggedIn) {
 			$styles = <<<'EOT'
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/WonderCMS/wondercms-cdn-files@3.2.25/wcms-admin.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/WonderCMS/wondercms-cdn-files@3.5.0/wcms-admin.min.css" integrity="sha384-470Y78f3/HAZi5/a3VrzsPmFwThYQg5u7Zmnlkpng3dvIxZI49Ob2J6bpOBAYqZb" crossorigin="anonymous">
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
@@ -1859,7 +1859,7 @@ EOT;
 	 */
 	private function isValidModuleURL(string $url): bool
 	{
-		return strpos($url, 'wcms-modules.json') !== false;
+		return preg_match('#^https?://#i', $url) && strpos($url, 'wcms-modules.json') !== false;
 	}
 
 	/**
@@ -2135,15 +2135,29 @@ EOT;
 	 */
 	public function loadThemeAndFunctions(): void
 	{
-		$location = $this->rootDir . '/themes/' . $this->activeTheme();
-		if (file_exists($location . '/functions.php')) {
-			require_once $location . '/functions.php';
-		}
+		$theme = $this->activeTheme();
+		$location = $this->rootDir . '/themes/' . $theme;
+		ob_start();
+		try {
+			if (file_exists($location . '/functions.php')) {
+				require_once $location . '/functions.php';
+			}
 
-		# If page does not exist for non-logged-in users, then show 404 theme if it exists.
-		$is404 = !$this->loggedIn && !$this->currentPageExists && $this->currentPage !== $this->get('config', 'login');
-		$customPageTemplate = sprintf('%s/%s.php', $location, $is404 ? '404' : $this->currentPage);
-		require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
+			# If page does not exist for non-logged-in users, then show 404 theme if it exists.
+			$is404 = !$this->loggedIn && !$this->currentPageExists && $this->currentPage !== $this->get('config', 'login');
+			$customPageTemplate = sprintf('%s/%s.php', $location, $is404 ? '404' : $this->currentPage);
+			require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
+		} catch (Throwable $e) {
+			// A broken theme (parse error, fatal) must not take the site and its login screen down with it
+			ob_end_clean();
+			if ($theme === 'sky' || !is_file($this->rootDir . '/themes/sky/theme.php')) {
+				throw $e;
+			}
+			$this->alert('danger', 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ' . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
+			require $this->rootDir . '/themes/sky/theme.php';
+			return;
+		}
+		ob_end_flush();
 	}
 
 
@@ -3110,7 +3124,7 @@ EOT;
 		$getIPs = $this->get('config', 'lastLogins') ?? [];
 		$renderIPs = '';
 		foreach ($getIPs as $time => $adminIP) {
-			$renderIPs .= sprintf('%s - %s<br />', date('M d, Y H:i:s', strtotime($time)), $adminIP);
+			$renderIPs .= sprintf('%s - %s<br />', date('M d, Y H:i:s', strtotime($time)), htmlspecialchars((string)$adminIP));
 		}
 		return '<p class="subTitle">Last 5 logins</p>
 				<div class="change">

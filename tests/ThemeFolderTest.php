@@ -55,4 +55,27 @@ final class ThemeFolderTest extends TestCase
 		$this->assertFalse($this->wcms->isThemeFolder('does-not-exist'));
 		$this->assertFalse($this->wcms->isThemeFolder('notatheme'));
 	}
+
+	public function testBrokenThemeFallsBackToSkyInsteadOfAWhiteScreen(): void
+	{
+		file_put_contents($this->root . '/themes/sky/theme.php', '<?php echo "SKY";');
+		mkdir($this->root . '/themes/broken');
+		file_put_contents($this->root . '/themes/broken/theme.php', '<?php echo "partial"; echo "unterminated;');
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect'])
+			->getMock();
+		$wcms->set('config', 'theme', 'broken');
+		unset($_SESSION['alert']);
+
+		ob_start();
+		$wcms->loadThemeAndFunctions();
+		$output = ob_get_clean();
+
+		$this->assertSame('SKY', $output);
+		$this->assertStringContainsString('failed to load', $_SESSION['alert']['danger'][0]['message']);
+		$this->assertSame('broken', $wcms->get('config', 'theme'), 'the setting is not changed behind the admin\'s back');
+		unset($_SESSION['alert']);
+		exec('rm -rf ' . escapeshellarg($this->root . '/data_test'));
+	}
 }
