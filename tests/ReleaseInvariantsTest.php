@@ -26,6 +26,8 @@ final class ReleaseInvariantsTest extends TestCase
 		$this->assertStringContainsString('class Wcms', $source);
 		$this->assertSame(1, preg_match("/define\('VERSION', '(\d+\.\d+\.\d+)'\);/", $source, $m));
 		$this->assertSame(VERSION, $m[1]);
+		// The tokenizer-less update guard relies on this: after "class Wcms" the only "}" at column 0 is the class's own.
+		$this->assertSame(1, substr_count(substr($source, strpos($source, "\nclass Wcms")), "\n}"), 'keep the class closing brace the only column-0 brace');
 	}
 
 	public function testAdminCssAndJsArePinnedToTheSameCdnTagWithIntegrity(): void

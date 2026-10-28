@@ -6,6 +6,7 @@ set -eu
 TAG="${1:?usage: build-release.sh <tag>}"
 NAME="wondercms-$(printf '%s' "$TAG" | tr -d .).zip"
 TMP="$(mktemp -d)"
+rm -f "$NAME" # zip -r would add to an existing archive and keep its stale members
 git archive --format=tar --prefix=wondercms/ "$TAG" index.php .htaccess themes/sky | tar -x -C "$TMP"
 ( cd "$TMP" && zip -q -r -X "$OLDPWD/$NAME" wondercms )
 rm -rf "$TMP"

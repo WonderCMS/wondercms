@@ -23,6 +23,12 @@ final class WcmsTest extends TestCase
 			->getMock();
 	}
 
+	protected function tearDown(): void
+	{
+		$_GET = $_POST = $_REQUEST = [];
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
+	}
+
 	public function testGetDb(): void
 	{
 		if (file_exists(self::DB_PATH)) {

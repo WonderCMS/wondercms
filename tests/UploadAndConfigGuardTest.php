@@ -29,12 +29,29 @@ final class UploadAndConfigGuardTest extends TestCase
 
 	public function testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable(): void
 	{
-		// The upload gate's final check: an allowed extension with no detected MIME type passes, a disallowed extension does not.
-		$method = new ReflectionMethod(Wcms::class, 'uploadFileAction');
-		$source = file_get_contents(__DIR__ . '/../index.php');
-		$this->assertStringContainsString("(\$mimeType !== null && !in_array(\$mimeType, \$allowedMimeTypes, true)) || !in_array(\$ext, \$allowedExtensions, true)", $source, 'without fileinfo only the extension is checked');
-		$this->assertStringNotContainsString("elseif (array_key_exists(\$ext, \$allowedExtensions))", $source, 'the dead 3.6.0 fallback is gone');
-		$this->assertTrue($method->isPublic());
+		// Runs uploadFileAction() on a PHP without the fileinfo extension (3.6.0 refused every upload there, #356).
+		// disable_classes does not remove the class (class_exists() stays true and new finfo warns), so this needs a
+		// PHP built or configured without fileinfo: the "no-fileinfo" CI job. Everywhere else it skips.
+		if (extension_loaded('fileinfo')) {
+			$this->markTestSkipped('needs a PHP without the fileinfo extension (the no-fileinfo CI job)');
+		}
+		$file = tempnam(sys_get_temp_dir(), 'wcms');
+		file_put_contents($file, 'hello');
+		$alerts = [];
+		foreach (['note.txt', 'shell.php'] as $name) {
+			$cmd = escapeshellarg(PHP_BINARY) . ' -d disable_functions=mime_content_type '
+				. escapeshellarg(__DIR__ . '/probe.php') . ' upload ' . escapeshellarg($file) . ' ' . escapeshellarg($name);
+			$out = (string)shell_exec($cmd . ' 2>&1');
+			$result = json_decode($out, true);
+			if (!is_array($result) || $result['fileinfo']) {
+				unlink($file);
+				$this->fail('probe must run without fileinfo and print JSON; output: ' . $out);
+			}
+			$alerts[$name] = implode(' ', array_column($result['alert']['danger'] ?? [], 'message'));
+		}
+		unlink($file);
+		$this->assertStringNotContainsString('File format is not allowed', $alerts['note.txt'], 'an allowed extension passes on its own');
+		$this->assertStringContainsString('File format is not allowed', $alerts['shell.php'], 'a disallowed extension is still refused');
 	}
 
 	public function testGenericSaveCannotTouchProtectedConfigKeys(): void
@@ -77,12 +94,23 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->assertSame(['games'], array_column($method->invoke($wcms, $wcms->get('pages'), 'board'), 'slug'));
 	}
 
-	public function testUpdateGuardWithoutTokenizerStillRequiresACompleteFile(): void
+	public function testDeleteRefusesAnEmptyOrDotDotName(): void
 	{
-		// Mirrors the function_exists('token_get_all') fallback: a complete class body ends with '}'.
-		$source = file_get_contents(__DIR__ . '/../index.php');
-		$this->assertStringContainsString("if (!function_exists('token_get_all'))", $source);
-		$this->assertSame('}', substr(rtrim($source), -1));
-		$this->assertNotSame('}', substr(rtrim(substr($source, 0, 50000)), -1));
+		// In production redirect() dies; here it throws, so the test proves the guard stops the action.
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		@mkdir(__DIR__ . '/../data_test/files_test', 0777, true);
+		file_put_contents(__DIR__ . '/../data_test/files_test/keep.txt', 'x');
+		foreach (['', '..', '../'] as $name) {
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => $name, 'type' => 'files', 'token' => $this->wcms->getToken()];
+			try {
+				$this->wcms->deleteFileModuleAction();
+				$this->fail('no redirect for ' . var_export($name, true));
+			} catch (RuntimeException $e) {
+				$this->assertSame('Invalid file name.', $_SESSION['alert']['danger'][0]['message'] ?? '', var_export($name, true));
+			}
+		}
+		$this->assertFileExists(__DIR__ . '/../data_test/files_test/keep.txt');
+		$this->assertDirectoryExists(__DIR__ . '/../data_test/files_test');
 	}
 }

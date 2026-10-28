@@ -61,6 +61,22 @@ jobs:
           echo "main: $BASE, this branch: $HEAD"
           php -r 'exit(version_compare($argv[1], $argv[2], ">") ? 0 : 1);' "$HEAD" "$BASE"
 
+  no-fileinfo:
+    name: Upload without fileinfo (#356)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, zip, :fileinfo
+          tools: phpunit:11
+          coverage: none
+      - name: fileinfo really is absent
+        run: "php -r 'exit((int) extension_loaded(\"fileinfo\"));'"
+      - name: PHPUnit (the no-fileinfo test runs for real here, skips elsewhere)
+        run: phpunit --no-coverage --filter testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable
+
   windows-url:
     name: url() on Windows
     runs-on: windows-latest

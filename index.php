@@ -813,7 +813,7 @@ class Wcms
 					}
 				}
 
-				$selectedPage->{$childSlug}->subpages = $selectedPage->{$childSlug}->subpages ?? new stdClass(); // pages created before 3.2.0 have none; long form keeps PHP < 7.4 at the version message instead of a parse error
+				$selectedPage->{$childSlug}->subpages = $selectedPage->{$childSlug}->subpages ?? new stdClass(); // pages created before 3.2.0 have none; long form (not ??=) keeps the file parseable on PHP < 7.4
 				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
 		}
@@ -3368,7 +3368,7 @@ EOT;
 			return false;
 		}
 		if (!function_exists('token_get_all')) {
-			return substr(rtrim($contents), -1) === '}'; // no tokenizer extension: at least require a complete class body
+			return substr(rtrim($contents), -2) === "\n}"; // no tokenizer extension: the class's closing brace is the only column-0 brace after the class opens
 		}
 		try {
 			token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
@@ -3539,7 +3539,8 @@ EOT;
 		}
 
 		$serverPort = ((($_SERVER['SERVER_PORT'] == '80') || ($_SERVER['SERVER_PORT'] == '443')) ? '' : ':' . $_SERVER['SERVER_PORT']);
-		$directory = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/.'); // '\' on Windows, '/' or '.' at the root
+		$directory = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/'); // '\' on Windows
+		$directory = $directory === '.' ? '' : $directory; // dirname() of a bare 'index.php' is '.'
 		return ($showHttps ? 'https' : 'http')
 			. '://' . ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] . $serverPort)
 			. ($directory !== '' ? '/' . $directory : '') . '/' . $location;

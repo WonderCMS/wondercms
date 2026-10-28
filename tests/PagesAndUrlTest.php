@@ -63,6 +63,12 @@ final class PagesAndUrlTest extends TestCase
 		$_SERVER['SCRIPT_NAME'] = '/sub/index.php';
 		$this->assertSame('http://wondercms.doc/sub/about', Wcms::url('about'));
 
+		$_SERVER['SCRIPT_NAME'] = '/.cms/index.php';
+		$this->assertSame('http://wondercms.doc/.cms/about', Wcms::url('about'), 'a folder name starting with a dot is kept');
+
+		$_SERVER['SCRIPT_NAME'] = 'index.php';
+		$this->assertSame('http://wondercms.doc/about', Wcms::url('about'), "dirname('index.php') is '.'");
+
 		$_SERVER['SCRIPT_NAME'] = '/index.php';
 		$_SERVER['HTTP_HOST'] = 'example.org:8080';
 		$this->assertSame('http://example.org:8080/about', Wcms::url('about'));
