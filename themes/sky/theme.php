@@ -79,6 +79,34 @@
 
 		<!-- Admin JavaScript. More JS libraries can be added below -->
 		<?= $Wcms->js() ?>
+		<script>
+			// Touch screens: the first tap on a menu item with subpages opens them (and closes its siblings), the second tap follows the link
+			if (!window.matchMedia('(hover: hover)').matches) {
+				var closeOpen = function (scope) {
+					scope.querySelectorAll('.subpage-nav.open').forEach(function (item) {
+						item.classList.remove('open');
+						item.querySelector('a').setAttribute('aria-expanded', 'false');
+					});
+				};
+				document.querySelectorAll('#topMenu .subpage-nav > a').forEach(function (link) {
+					link.setAttribute('aria-expanded', 'false');
+					link.addEventListener('click', function (event) {
+						var item = link.parentNode;
+						if (!item.classList.contains('open')) {
+							event.preventDefault();
+							closeOpen(item.parentNode);
+							item.classList.add('open');
+							link.setAttribute('aria-expanded', 'true');
+						}
+					});
+				});
+				document.addEventListener('click', function (event) {
+					if (!event.target.closest('#topMenu')) {
+						closeOpen(document);
+					}
+				});
+			}
+		</script>
 
 	</body>
 </html>
