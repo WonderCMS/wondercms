@@ -110,4 +110,22 @@ final class PagesAndUrlTest extends TestCase
 		$this->assertCount(2, (array) $games->subpages, 'a stale child slug must not remove a sibling');
 		unset($_GET['delete'], $_GET['token'], $_SESSION['loggedIn']);
 	}
+
+	public function testDeletingAFileRedirectsBackToTheCurrentPage(): void
+	{
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$wcms->loggedIn = true;
+		$wcms->currentPageTree = ['about'];
+		@mkdir(__DIR__ . '/../data_test/files_test', 0777, true);
+		file_put_contents(__DIR__ . '/../data_test/files_test/note.txt', 'x');
+		$_REQUEST['deleteModule'] = 'note.txt';
+		$_REQUEST['type'] = 'files';
+		$_REQUEST['token'] = $wcms->getToken();
+		$wcms->expects($this->once())->method('redirect')->with('about/');
+
+		$wcms->deleteFileModuleAction();
+
+		$this->assertFileDoesNotExist(__DIR__ . '/../data_test/files_test/note.txt');
+		$_REQUEST = [];
+	}
 }

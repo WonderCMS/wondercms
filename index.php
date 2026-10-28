@@ -256,7 +256,7 @@ class Wcms
 		if (!isset($_SESSION['alert'])) {
 			return '';
 		}
-		$output = '<div id="alertWrapperId" class="alertWrapper" style="">';
+		$output = '<div id="alertWrapperId" class="alertWrapper" style="position:relative;z-index:1060">'; // above the settings modal (1050)
 		$output .= '<script>
 					const displayAlerts = localStorage.getItem("displayAlerts");
 					if (displayAlerts === "false") {
@@ -1070,7 +1070,7 @@ EOT;
 					}
 				}
 				$this->alert('success', "Deleted {$filename}.");
-				$this->redirect();
+				$this->redirect($type === 'files' ? $this->getCurrentPagePath() : '');
 			}
 		}
 	}
@@ -2826,7 +2826,7 @@ EOT;
 							 <div class="change">';
 		foreach ($fileList as $file) {
 			$output .= '
-									<a href="' . self::url('?deleteModule=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
+									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . $file . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" onclick="return confirm(\'Delete ' . $file . '?\')" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
 										<a href="' . self::url('data/files/') . $file . '" class="normalFont" target="_blank">' . self::url('data/files/') . '<b class="fontSize21">' . $file . '</b></a>
 									</span>
@@ -3039,7 +3039,7 @@ EOT;
 		if (!$isLastEl) {
 			$output .= '<a class="arrowIcon downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
 		}
-		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page" style="display: inline;">visit</a>
+		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page" style="display: inline;" onclick="var c=document.querySelector(\'#settingsModal .close\');if(c){c.click();}">visit</a>
 					</div>
 					<div class="coll-xs-12 text-right marginTop5 marginBottom20">
 						<a class="menu-item-add wbtn wbtn-sm wbtn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
