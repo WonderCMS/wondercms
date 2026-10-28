@@ -3343,7 +3343,7 @@ EOT;
 			return;
 		}
 		$contents = $this->getFileFromRepo('index.php');
-		if ($this->isValidCoreUpdate($contents) && file_put_contents(__FILE__, $contents, LOCK_EX)) {
+		if ($this->isValidCoreUpdate($contents) && $this->writeCore($contents)) {
 			if (function_exists('opcache_invalidate')) {
 				@opcache_invalidate(__FILE__, true); // warns under opcache.restrict_api
 			}
@@ -3352,6 +3352,34 @@ EOT;
 		}
 		$this->alert('danger', 'Something went wrong. Could not update WonderCMS.');
 		$this->redirect();
+	}
+
+	/**
+	 * Replace index.php with the downloaded core: the whole file lands next to it first and is then
+	 * renamed over it, so a full disk cannot leave a half-written core. A folder that is not writable
+	 * falls back to the direct write (3.6.0 behaviour), still checked for length.
+	 * @param string $contents
+	 * @return bool
+	 */
+	private function writeCore(string $contents): bool
+	{
+		$temp = __FILE__ . '.tmp';
+		$bytes = @file_put_contents($temp, $contents, LOCK_EX); // false (never a short count) on a non-writable folder and on a full disk
+		if ($bytes === false && !is_writable(__DIR__)) {
+			return file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents); // folder not writable: write directly as 3.6.0 did
+		}
+		if ($bytes === strlen($contents)) {
+			if (fileowner($temp) !== fileowner(__FILE__) || filegroup($temp) !== filegroup(__FILE__)) {
+				@unlink($temp); // PHP runs as another user or group than the file's: a rename would change them, so write in place as 3.6.0 did
+				return file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
+			}
+			@chmod($temp, fileperms(__FILE__) & 0777); // the rename keeps the mode index.php had
+			if (@rename($temp, __FILE__)) {
+				return true;
+			}
+		}
+		@unlink($temp); // a full disk (blocks or inodes) or a failed rename: index.php is untouched
+		return false;
 	}
 
 	/**

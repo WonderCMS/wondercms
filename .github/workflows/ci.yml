@@ -77,6 +77,15 @@ jobs:
       - name: PHPUnit (the no-fileinfo test runs for real here, skips elsewhere)
         run: phpunit --no-coverage --filter testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable
 
+      - name: Updater as another user than the file owner writes in place and keeps the owner
+        run: |
+          SITE=$(mktemp -d) && cp index.php "$SITE/" && chmod 777 "$SITE" && chmod 666 "$SITE/index.php"
+          sed "s/define('VERSION', '\([0-9.]*\)');/define('VERSION', '99.0.0');/" index.php > /tmp/newcore.php
+          sudo -u nobody "$(command -v php)" tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
+          test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$(sha256sum /tmp/newcore.php | cut -d' ' -f1)"
+          test "$(stat -c %U "$SITE/index.php")" = "$(id -un)"
+          test ! -e "$SITE/index.php.tmp"
+
   windows-url:
     name: url() on Windows
     runs-on: windows-latest
@@ -88,4 +97,7 @@ jobs:
           extensions: curl, mbstring, zip
           tools: phpunit:11
           coverage: none
+      # url() shapes, and the updater's temp-file + rename write (rename over an existing file differs on Windows).
+      # Two lines: the phpunit .bat shim re-parses a "|" in the filter as a pipe.
       - run: phpunit --no-coverage --filter PagesAndUrlTest
+      - run: phpunit --no-coverage --filter UpdateGuardTest
