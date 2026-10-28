@@ -23,7 +23,8 @@ final class RequestParamsTest extends TestCase
 
 	protected function tearDown(): void
 	{
-		$_GET = $_POST = [];
+		$_GET = $_POST = $_REQUEST = [];
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
 	}
 
 	public function testArrayPageFallsBackToDefaultPage(): void

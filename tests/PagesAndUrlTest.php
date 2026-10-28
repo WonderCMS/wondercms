@@ -12,6 +12,12 @@ final class PagesAndUrlTest extends TestCase
 	/** @var string */
 	private $dbPath;
 
+	protected function tearDown(): void
+	{
+		$_GET = $_POST = $_REQUEST = [];
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
+	}
+
 	protected function setUp(): void
 	{
 		$_SERVER['SERVER_NAME'] = 'wondercms.doc';

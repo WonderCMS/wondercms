@@ -2285,7 +2285,7 @@ EOT;
 			|| ($this->currentPage === 'logout'
 				&& isset($_REQUEST['token'])
 				&& $this->hashVerify($_REQUEST['token']))) {
-			$to = isset($_GET['to']) && !empty($_GET['to']) && !$this->isLogoutToLoginScreenEnabled()
+			$to = isset($_GET['to']) && is_string($_GET['to']) && $_GET['to'] !== '' && !$this->isLogoutToLoginScreenEnabled()
 				? $_GET['to']
 				: $this->get('config', 'login');
 			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
@@ -3367,6 +3367,9 @@ EOT;
 			|| !version_compare($match[1], VERSION, '>')) {
 			return false;
 		}
+		if (!function_exists('token_get_all')) {
+			return substr(rtrim($contents), -1) === '}'; // no tokenizer extension: at least require a complete class body
+		}
 		try {
 			token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
 		} catch (ParseError $e) {
@@ -3809,7 +3812,7 @@ EOT;
 					'slug' => $prefix . $slug
 				];
 			}
-			if (!empty($page->subpages)) {
+			if (!empty($page->subpages) && is_object($page->subpages)) {
 				$results = array_merge($results, $this->searchPages($page->subpages, $query, $prefix . $slug . '/'));
 			}
 		}
