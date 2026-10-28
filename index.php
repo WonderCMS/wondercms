@@ -1232,7 +1232,6 @@ EOT;
 		if (false === $content) {
 			$this->alert('danger', 'Cannot get content from url.');
 		}
-		curl_close($ch);
 
 		return (string)$content;
 	}
@@ -1293,7 +1292,7 @@ EOT;
 		$numArgs = func_num_args();
 		$args = func_get_args();
 		if ($numArgs < 2) {
-			trigger_error('Insufficient arguments', E_USER_ERROR);
+			throw new Exception('Insufficient arguments');
 		}
 		$hookName = array_shift($args);
 		if (!isset($this->listeners[$hookName])) {
@@ -1748,7 +1747,6 @@ EOT;
 		curl_setopt($ch, CURLOPT_FILE, $zipResource);
 		curl_exec($ch);
 		$curlError = curl_error($ch);
-		curl_close($ch);
 		if (is_resource($zipResource)) {
 			fclose($zipResource);
 		}
@@ -3547,8 +3545,8 @@ EOT;
 	 */
 	private function checkMinimumRequirements(): void
 	{
-		if (PHP_VERSION_ID <= 70200) {
-			die('<p>To run WonderCMS, PHP version 7.2 or greater is required.</p>');
+		if (PHP_VERSION_ID < 70400) {
+			die('<p>To run WonderCMS, PHP version 7.4 or greater is required.</p>');
 		}
 		$extensions = ['curl', 'zip', 'mbstring'];
 		$missingExtensions = [];
