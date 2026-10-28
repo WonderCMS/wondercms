@@ -24,7 +24,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: curl, mbstring, zip, fileinfo
-          tools: phpunit:${{ matrix.php < '8.1' && '9.6' || '11' }}
+          tools: phpunit:${{ matrix.php < '8.2' && '9.6' || '11' }}
           coverage: none
 
       - name: Lint
