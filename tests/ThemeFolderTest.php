@@ -58,7 +58,7 @@ final class ThemeFolderTest extends TestCase
 
 	public function testBrokenThemeFallsBackToSkyInsteadOfAWhiteScreen(): void
 	{
-		file_put_contents($this->root . '/themes/sky/theme.php', '<?php echo "SKY";');
+		file_put_contents($this->root . '/themes/sky/theme.php', '<?php global $Wcms; echo "SKY " . $Wcms->asset("css/style.css");');
 		mkdir($this->root . '/themes/broken');
 		file_put_contents($this->root . '/themes/broken/theme.php', '<?php echo "partial"; echo "unterminated;');
 		$wcms = $this->getMockBuilder(Wcms::class)
@@ -68,14 +68,30 @@ final class ThemeFolderTest extends TestCase
 		$wcms->set('config', 'theme', 'broken');
 		unset($_SESSION['alert']);
 
+		$GLOBALS['Wcms'] = $wcms;
+
+		// Anonymous visitor: Sky renders with Sky's assets, no alert leaks the error message
 		ob_start();
 		$wcms->loadThemeAndFunctions();
 		$output = ob_get_clean();
+		$this->assertStringStartsWith('SKY ', $output);
+		$this->assertStringContainsString('/themes/sky/css/style.css', $output);
+		$this->assertFalse(isset($_SESSION['alert']), 'visitors must not see the failure message');
 
-		$this->assertSame('SKY', $output);
+		// Admin (fresh request): same render plus an alert naming the broken theme
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect'])
+			->getMock();
+		$GLOBALS['Wcms'] = $wcms;
+		$wcms->loggedIn = true;
+		ob_start();
+		$wcms->loadThemeAndFunctions();
+		ob_end_clean();
 		$this->assertStringContainsString('failed to load', $_SESSION['alert']['danger'][0]['message']);
-		$this->assertSame('broken', $wcms->get('config', 'theme'), 'the setting is not changed behind the admin\'s back');
-		unset($_SESSION['alert']);
+		$saved = json_decode(file_get_contents($this->root . '/data_test/database_test.js'));
+		$this->assertSame('broken', $saved->config->theme, 'the setting on disk is not changed behind the admin\'s back');
+		unset($_SESSION['alert'], $GLOBALS['Wcms']);
 		exec('rm -rf ' . escapeshellarg($this->root . '/data_test'));
 	}
 }

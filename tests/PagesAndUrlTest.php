@@ -86,13 +86,18 @@ final class PagesAndUrlTest extends TestCase
 
 	public function testLastPageIsNotDeletedAndStaleChildKeepsSiblings(): void
 	{
-		$_GET['token'] = $this->wcms->getToken();
+		$_REQUEST['token'] = $this->wcms->getToken();
 		$_SESSION['loggedIn'] = true;
 		$this->wcms->loggedIn = true;
+		$this->assertTrue($this->wcms->verifyFormActions(true), 'the test must reach deletePageAction()');
 
+		$_GET['delete'] = 'how-to';
+		$this->wcms->deletePageAction();
+		$this->assertFalse(isset($this->reload()->pages->{'how-to'}));
 		$_GET['delete'] = 'home';
 		$this->wcms->deletePageAction();
 		$this->assertTrue(isset($this->reload()->pages->home), 'the last page keeps its content');
+		$this->assertCount(1, (array) $this->reload()->config->menuItems);
 
 		$this->wcms->createPage(['games'], true);
 		$this->wcms->createPage(['games', 'board'], true);
@@ -108,7 +113,7 @@ final class PagesAndUrlTest extends TestCase
 		}
 		$this->assertNotNull($games);
 		$this->assertCount(2, (array) $games->subpages, 'a stale child slug must not remove a sibling');
-		unset($_GET['delete'], $_GET['token'], $_SESSION['loggedIn']);
+		unset($_GET['delete'], $_REQUEST['token'], $_SESSION['loggedIn']);
 	}
 
 	public function testDeletingAFileRedirectsBackToTheCurrentPage(): void

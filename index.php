@@ -256,7 +256,7 @@ class Wcms
 		if (!isset($_SESSION['alert'])) {
 			return '';
 		}
-		$output = '<div id="alertWrapperId" class="alertWrapper" style="position:relative;z-index:1060">'; // above the settings modal (1050)
+		$output = '<div id="alertWrapperId" class="alertWrapper" style="z-index:1060">'; // above the settings modal (1050)
 		$output .= '<script>
 					const displayAlerts = localStorage.getItem("displayAlerts");
 					if (displayAlerts === "false") {
@@ -1118,8 +1118,11 @@ EOT;
 					break;
 				}
 			}
+			if ($selectedMenuItemKey === null) {
+				break;
+			}
 		}
-		if ($selectedMenuItemKey !== null) { // a stale slug must not remove a sibling
+		if ($selectedMenuItemKey !== null) { // a stale slug must not remove a sibling or a same-named top-level item
 			unset($selectedMenuItemParent->{$selectedMenuItemKey});
 		}
 		$allMenuItems = $this->reindexObject($allMenuItems);
@@ -1675,10 +1678,10 @@ EOT;
 		$type = $_POST['pluginThemeType'];
 		$url = rtrim(trim($_POST['pluginThemeUrl']), '/');
 		$customModules = (array)$this->get('config', 'customModules', $type);
-		$wcmsModuleData = $this->fetchModuleConfig($url, $type);
+		$wcmsModuleData = $this->isValidModuleURL($url) ? $this->fetchModuleConfig($url, $type) : null;
 		$errorMessage = null;
 		switch (true) {
-			case null === $wcmsModuleData || !$this->isValidModuleURL($url):
+			case null === $wcmsModuleData:
 				$errorMessage = 'Invalid URL. The module URL needs to contain the full path to the raw wcms-modules.json file.';
 				break;
 			case !$this->validateWcmsModuleStructure($wcmsModuleData):
@@ -2153,7 +2156,10 @@ EOT;
 			if ($theme === 'sky' || !is_file($this->rootDir . '/themes/sky/theme.php')) {
 				throw $e;
 			}
-			$this->alert('danger', 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ' . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
+			if ($this->loggedIn) {
+				$this->alert('danger', 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ' . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
+			}
+			$this->db->config->theme = 'sky'; // in memory only, so asset() resolves to Sky for this request; the setting on disk is untouched
 			require $this->rootDir . '/themes/sky/theme.php';
 			return;
 		}
