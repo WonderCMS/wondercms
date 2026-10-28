@@ -314,8 +314,20 @@ class Wcms
 	 */
 	public function activeTheme(): string
 	{
-		$theme = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $this->get('config', 'theme'));
-		return ($theme !== '' && is_dir($this->rootDir . '/themes/' . $theme)) ? $theme : 'sky';
+		$theme = (string) $this->get('config', 'theme');
+		return $this->isThemeFolder($theme) ? $theme : 'sky';
+	}
+
+	/**
+	 * True when $theme names an existing folder directly inside themes/ (no path separators, no dot folders)
+	 *
+	 * @param string $theme
+	 * @return bool
+	 */
+	public function isThemeFolder(string $theme): bool
+	{
+		return $theme !== '' && $theme === basename($theme) && !in_array($theme, ['.', '..'], true)
+			&& is_dir($this->rootDir . '/themes/' . $theme);
 	}
 
 	/**
@@ -1066,7 +1078,7 @@ EOT;
 	{
 		if (isset($_REQUEST['selectModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
 			$theme = $_REQUEST['selectModule'];
-			if (!is_dir($this->rootDir . '/' . $_REQUEST['type'] . '/' . $theme)) {
+			if ($_REQUEST['type'] !== 'themes' || !$this->isThemeFolder($theme)) {
 				return;
 			}
 
@@ -2656,7 +2668,7 @@ EOT;
 				if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
 					return;
 				}
-				if ($fieldname === 'theme' && (basename($content) !== $content || !is_dir($this->rootDir . '/themes/' . $content))) {
+				if ($fieldname === 'theme' && !$this->isThemeFolder($content)) {
 					return;
 				}
 				$this->set('config', $fieldname, $content);
