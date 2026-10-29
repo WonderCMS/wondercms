@@ -240,6 +240,8 @@ class Wcms
 
 	/**
 	 * Add alert message for admin
+	 * A plugin replaces the text (a translation) by returning it from an 'alert' listener: the returned text is what is
+	 * queued, shown and compared by the duplicate check, so no listener needs $_SESSION['alert'] (not part of the API)
 	 *
 	 * @param string $class see bootstrap alerts classes
 	 * @param string $message the message to display
