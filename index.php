@@ -1083,7 +1083,7 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && is_string($_REQUEST['deleteModule']) && is_string($_REQUEST['type']) && $this->verifyFormActions(true)) {
 			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
 			$filename = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
