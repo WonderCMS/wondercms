@@ -4,5 +4,8 @@ RewriteEngine on
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.+)$ index.php?page=$1 [QSA,L]
-RewriteRule database.js - [F]
-RewriteRule cache.json - [F]
+# The denies below are reached only for existing files, which the two conditions above keep out of the rewrite: keep this order
+RewriteRule database\.js - [F,NC]
+RewriteRule ^tests/ - [F,NC]
+RewriteRule cache\.json - [F,NC]
+RewriteRule ^data/logs/ - [F,NC]

@@ -1,10 +1,8 @@
 <?php
-ob_start();
-define('PHPUNIT_TESTING', true);
 
 use PHPUnit\Framework\TestCase;
 
-require '../index.php';
+require_once __DIR__ . '/../index.php';
 
 final class WcmsTest extends TestCase
 {
@@ -20,10 +18,15 @@ final class WcmsTest extends TestCase
 		$_SERVER['SERVER_PORT'] = '80';
 
 		$this->wcms = $this->getMockBuilder(Wcms::class)
-			->setMethods(['redirect'])
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])
+			->onlyMethods(['redirect'])
 			->getMock();
+	}
 
-		$this->wcms->setPaths('data_test', 'files_test', 'database_test.js');
+	protected function tearDown(): void
+	{
+		$_GET = $_POST = $_REQUEST = [];
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
 	}
 
 	public function testGetDb(): void
@@ -49,9 +52,6 @@ final class WcmsTest extends TestCase
 		$this->assertTrue(property_exists($return->pages->home, 'content'));
 	}
 
-	/**
-	 * @depends testGetDb
-	 */
 	public function testLoginAction(): void
 	{
 		$this->assertFalse($this->wcms->loggedIn);
@@ -67,6 +67,7 @@ final class WcmsTest extends TestCase
 		$this->assertFalse(isset($_SESSION['loggedIn']));
 		$this->assertFalse(isset($_SESSION['rootDir']));
 		$this->assertEquals($_SESSION['alert']['danger'][0]['message'], 'Wrong password.');
+		$visitorToken = $this->wcms->getToken(); // the token the failed attempt's session carries (round-14 opus-7: a planted session must not know the admin's token)
 
 		// Test right password
 		$hashPass = password_hash(self::PASSWORD, PASSWORD_DEFAULT);
@@ -76,18 +77,39 @@ final class WcmsTest extends TestCase
 		$this->assertSame($hashPass, $password);
 
 		$_POST['password'] = self::PASSWORD;
+		$visitorSessionId = session_id();
+		$this->assertNotSame('', $visitorSessionId, 'a session is active');
 
 		$this->wcms->loginAction();
+		$this->assertNotSame($visitorSessionId, session_id(), 'a new session id at login: a session id planted before the login is worthless after it');
 		$this->wcms->loginStatus();
 
 		$this->assertTrue($_SESSION['loggedIn']);
 		$this->assertEquals($_SESSION['rootDir'], $this->wcms->rootDir);
 		$this->assertTrue($this->wcms->loggedIn);
+		$this->assertNotSame($visitorToken, $this->wcms->getToken(), 'the admin gets a token minted after login');
 	}
 
-	/**
-	 * @depends testLoginAction
-	 */
+	public function testALoginSuccessListenerSeesTheAdminsToken(): void
+	{
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$this->wcms->currentPage = 'loginURL';
+		$this->wcms->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_DEFAULT));
+		$visitorToken = $this->wcms->getToken();
+		$seen = null;
+		$wcms = $this->wcms;
+		$this->wcms->addListener('login_success', static function ($args) use (&$seen, $wcms) {
+			$seen = $wcms->getToken();
+			return $args;
+		});
+		$_POST['password'] = self::PASSWORD;
+
+		$this->wcms->loginAction();
+
+		$this->assertNotSame($visitorToken, $seen, 'the listener does not get the token the visitor session carried');
+		$this->assertSame($this->wcms->getToken(), $seen, 'it gets the token the admin keeps');
+	}
+
 	public function testLogoutAction(): void
 	{
 		$_REQUEST['token'] = $this->wcms->getToken();
@@ -115,11 +137,13 @@ final class WcmsTest extends TestCase
 
 		$_POST['token'] = $this->wcms->getToken();
 		$_POST['old_password'] = self::PASSWORD;
-		$_POST['new_password'] = 'test';
+		$_POST['new_password'] = 'testPassword';
+		$_POST['repeat_password'] = 'testPassword';
 
 		$this->wcms->loginStatus();
 		$this->wcms->changePasswordAction();
 
-		$this->assertEquals($_SESSION['alert']['success'][0]['message'], 'Password changed.');
+		$this->assertStringContainsString('Password changed.', $_SESSION['alert']['success'][0]['message']);
+		$this->assertTrue(password_verify('testPassword', $this->wcms->get('config', 'password')));
 	}
 }

@@ -525,13 +525,22 @@ input::-moz-focus-inner {
 		padding-left: 10px !important
 	}
 
-	#topMenu ul li:hover > ul,
+	/* Mouse and keyboard: open on hover or focus. Touch: open on tap (class "open", see theme.php) */
 	#topMenu ul li:focus-within > ul,
-	#topMenu ul li ul:hover,
-	#topMenu ul li ul:focus {
+	#topMenu ul li ul:focus,
+	#topMenu ul li.open > ul {
 		visibility: visible;
 		opacity: 1;
 		display: block
+	}
+
+	@media (hover: hover) {
+		#topMenu ul li:hover > ul,
+		#topMenu ul li ul:hover {
+			visibility: visible;
+			opacity: 1;
+			display: block
+		}
 	}
 
 	#topMenu ul li ul li {
