@@ -202,6 +202,25 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['apple.png', 'photo1.png', 'Photo2.png', 'photo10.png'], $m[1], 'scandir() alone gives Photo2, apple, photo1, photo10');
 	}
 
+	public function testADanglingSymlinkIsRemovedLikeAnyEntry(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		foreach (['themes' => '/themes/', 'plugins' => '/plugins/', 'files' => '/data_test/files_test/'] as $type => $folder) {
+			$link = $this->root . $folder . 'gone-' . $type;
+			symlink($this->root . '/no-such-target', $link); // realpath() is false for it
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => basename($link), 'type' => $type, 'token' => $this->wcms->getToken()];
+			$this->wcms->deleteFileModuleAction();
+			$this->assertFalse(is_link($link), $type);
+			$this->assertSame('Deleted ' . basename($link) . '.', $_SESSION['alert']['success'][0]['message'] ?? '', $type);
+		}
+		$this->assertDirectoryDoesNotExist($this->root . '/no-such-target', 'nothing is created behind the link');
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+	}
+
 	public function testAThemeFolderNamedSkyInAnyCaseHasNoRemoveButton(): void
 	{
 		mkdir($this->root . '/themes/Sky', 0777, true); // a distinct folder on a case-sensitive disk, the sky folder on Windows and macOS
