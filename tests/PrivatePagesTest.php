@@ -196,19 +196,31 @@ final class PrivatePagesTest extends TestCase
 		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
 	}
 
-	public function testDeletingTheHomePageWhenEveryOtherPageIsPrivateTellsTheAdmin(): void
+	public function testDeletingTheHomePageWhenEveryOtherPageIsPrivateIsRefused(): void
 	{
 		$this->wcms->set('config', 'defaultPage', 'diary');
 		foreach (['home', 'how-to', 'games'] as $slug) {
 			$this->toggle($this->menuKey($this->wcms, $slug));
 		}
 		unset($_SESSION['alert']);
+		$before = file_get_contents(self::DB);
 		$_REQUEST = $_GET = ['delete' => 'diary', 'token' => $this->wcms->getToken()];
 		$this->wcms->deletePageAction();
 		$_REQUEST = $_GET = [];
 
-		$this->assertSame('home', $this->wcms->get('config', 'defaultPage'), 'no public page is left: the first one, as before');
-		$this->assertStringContainsString('the new home page (home) is private too: visitors get the 404 page', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		$this->assertSame(['Make another page public first: the home page cannot be private.'], array_column($_SESSION['alert']['danger'] ?? [], 'message'));
+		$this->assertArrayNotHasKey('success', $_SESSION['alert']);
+		$this->assertSame($before, file_get_contents(self::DB), 'nothing deleted, nothing saved');
+
+		$this->toggle($this->menuKey($this->wcms, 'games'));
+		$this->wcms->set('config', 'defaultPage', 'games/board');
+		$this->toggle($this->menuKey($this->wcms, 'diary'));
+		unset($_SESSION['alert']);
+		$_REQUEST = $_GET = ['delete' => 'games/board', 'token' => $this->wcms->getToken()];
+		$this->wcms->deletePageAction();
+		$_REQUEST = $_GET = [];
+		$this->assertSame('games', $this->wcms->get('config', 'defaultPage'), 'a subpage home page: its public parent stays and takes over');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert']);
 	}
 
 	public function testAnArrayInsteadOfAMenuKeyChangesNothing(): void

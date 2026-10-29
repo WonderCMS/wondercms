@@ -199,6 +199,9 @@ final class CustomModulesTest extends TestCase
 		$this->remove('https://example.test/one/wcms-modules.json', 'files');
 		$this->assertStringContainsString('not found', json_encode($_SESSION['alert']));
 		$this->remove('https://example.test/theme/wcms-modules.json', 'plugins'); // the right URL under the wrong type
+		unset($_SESSION['alert']);
+		$this->remove('https://example.test/one/wcms-modules.json/', 'plugins'); // exact match only: the Remove link carries the URL as listed
+		$this->assertSame(['Custom module not found.'], array_column($_SESSION['alert']['danger'] ?? [], 'message'));
 		$_REQUEST = $_GET = ['removeCustomModule' => ['https://example.test/one/wcms-modules.json'], 'type' => 'plugins', 'token' => $this->wcms->getToken()];
 		$this->wcms->removeCustomModuleAction();
 		$_REQUEST = $_GET = ['removeCustomModule' => 'https://example.test/one/wcms-modules.json', 'type' => 'plugins', 'token' => 'nope'];

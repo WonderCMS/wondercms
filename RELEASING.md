@@ -8,9 +8,14 @@ below exists to make sure only a complete, versioned `index.php` ever gets there
 
 1. `index.php` reaches `main` only through a release branch (`370`, `371`, ...) merged with a
    merge commit. Never commit to `main` directly, never squash.
-2. The version bump is the **last** commit on the release branch: `define('VERSION', 'X.Y.Z')`
-   in `index.php` and the `version` file, together. CI fails when they differ, and fails a PR
-   into `main` that changes `index.php` without a higher version.
+2. The version bump changes `define('VERSION', 'X.Y.Z')` in `index.php` and the `version` file, together.
+   It need not be the last commit on the release branch: review-driven fixes may follow it (3.7.0 had
+   several). What protects the bump is CI on every commit (the `VERSION` line keeps the exact shape the
+   updater parses, and the `version` file equals the constant) and on the PR into `main` (a change to
+   `index.php` must carry a higher version than `main`'s, the check an older site's updater makes before
+   it offers the Update), plus the review greenlight for the sha that is merged. The fleet gets the
+   merge commit's `index.php`: the rehearsal, the precheck and the canary test that file, not an earlier
+   commit of the branch.
 3. The admin CSS and JS pins (`wcms-admin.min.css`, `wcms-admin.min.js` from
    `WonderCMS/wondercms-cdn-files`) use the **same** tag and both carry an `integrity` hash.
    If either file changes, tag the CDN repo first, then update the pin and hash on the

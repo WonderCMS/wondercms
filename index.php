@@ -1249,6 +1249,15 @@ EOT;
 			$this->redirect();
 			return;
 		}
+		$deletesHomePage = array_intersect_assoc(explode('/', $this->get(self::DB_CONFIG, 'defaultPage')), $slugTree) === $slugTree;
+		$publicItems = array_filter((array)$allMenuItems, function ($menuItem) use ($slugTree) {
+			return empty($menuItem->private) && (count($slugTree) > 1 || $menuItem->slug !== $slugTree[0]);
+		});
+		if ($deletesHomePage && !$publicItems) { // a private home page would answer 404 at the site address
+			$this->alert('danger', 'Make another page public first: the home page cannot be private.');
+			$this->redirect();
+			return;
+		}
 		$this->deletePageFromDb($slugTree);
 
 		$selectedMenuItemParent = $selectedMenuItemKey = null;
@@ -1271,15 +1280,8 @@ EOT;
 		}
 		$allMenuItems = $this->reindexObject($allMenuItems);
 
-		$defaultPage = $this->get(self::DB_CONFIG, 'defaultPage');
-		$defaultPageArray = explode('/', $defaultPage);
-		$treeIntersect = array_intersect_assoc($defaultPageArray, $slugTree);
-		if ($treeIntersect === $slugTree) {
-			$publicItems = array_filter((array)$allMenuItems, function ($menuItem) { return empty($menuItem->private); });
-			$this->set(self::DB_CONFIG, 'defaultPage', (reset($publicItems) ?: $allMenuItems->{0})->slug); // a private home page would answer 404 at the site address
-			if (!$publicItems) {
-				$this->alert('danger', 'Every remaining page is private, so the new home page (' . $allMenuItems->{0}->slug . ') is private too: visitors get the 404 page at the site address. Make it public in Settings -> Menu.');
-			}
+		if ($deletesHomePage) {
+			$this->set(self::DB_CONFIG, 'defaultPage', reset($publicItems)->slug);
 		}
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
 
@@ -2779,6 +2781,17 @@ EOT;
 			return $defaultPage;
 		}
 
+		$folder = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+		if ($folder !== '' && $folder !== '.' && strpos($page, $folder . '/') === 0) {
+			$level = $this->get(self::DB_PAGES_KEY);
+			foreach (explode('/', $page) as $slug) { // the stored tree, private pages included: a private sub/x stays the 404 page for a visitor, never another page
+				$node = $level->{$slug} ?? null;
+				$level = $node->{self::DB_PAGES_SUBPAGE_KEY} ?? null;
+			}
+			if ($node === null) {
+				$page = substr($page, strlen($folder) + 1); // a rewrite that passes the install's folder in page= (nginx try_files ... /sub/index.php?page=$uri gives sub/about), once, and only where no page of that name exists
+			}
+		}
 		$this->currentPageTree = explode('/', $page);
 		if ($page === $this->get('config', 'login')) {
 			return $page;
@@ -3383,7 +3396,7 @@ EOT;
 		foreach ($this->listAllModules($type) as $addonType => $addonModules) {
 			foreach ($addonModules as $directoryName => $addon) {
 				$rawName = (string)$addon['name'];
-				$name = htmlspecialchars($rawName, ENT_QUOTES); // list text comes from the CDN (two entries from third-party repositories) or a folder name
+				$name = htmlspecialchars($rawName, ENT_QUOTES); // list text comes from the CDN list, a custom repository the admin added, or a folder name: escaped, never trusted as markup
 				$info = htmlspecialchars((string)$addon['summary'], ENT_QUOTES);
 				$infoUrl = preg_match('#^https?://#i', (string)$addon['repo']) ? htmlspecialchars($addon['repo'], ENT_QUOTES) : ''; // list URLs are printed only as http(s) links, escaped
 				$imageUrl = preg_match('#^https?://#i', (string)$addon['image']) ? htmlspecialchars($addon['image'], ENT_QUOTES) : null;
@@ -3577,8 +3590,9 @@ EOT;
 	/**
 	 * Replace a file whole (index.php with the downloaded core, database.js and cache.json on every save): where a
 	 * temp file can be created next to it, the whole file lands there first and is renamed over it, so a full disk
-	 * cannot leave it half-written. A file that does not exist yet, a folder that is not writable, or a host that
-	 * disables a needed function, gets the direct write (3.6.0 behaviour), still checked for length.
+	 * cannot leave it half-written; where the temp file cannot be created or written, nothing is written and false comes
+	 * back. A file that does not exist yet, a folder that is not writable, a link, or a host that disables a needed
+	 * function, gets the direct write (3.6.0 behaviour), still checked for length.
 	 * @param string $path
 	 * @param string $contents
 	 * @return bool
@@ -3601,9 +3615,6 @@ EOT;
 		$temp = $this->tempPath($path);
 		@unlink($temp); // a leftover or planted temp file of that name (even a symlink) is never written through
 		$bytes = @file_put_contents($temp, $contents, LOCK_EX); // false on a full disk in practice; a short count is checked too
-		if ($bytes === false && !file_exists($temp)) {
-			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // the temp could not even be created (an SELinux label or a Windows ACL that lets PHP change the file but not create one, or no free inode): write in place as 3.6.0 did; a full disk still creates the empty temp and refuses
-		}
 		if ($bytes === strlen($contents)) {
 			if (fileowner($temp) !== fileowner($path) || filegroup($temp) !== filegroup($path)) {
 				@unlink($temp); // PHP runs as another user or group than the file's: a rename would change them, so write in place as 3.6.0 did
@@ -3616,7 +3627,7 @@ EOT;
 			@unlink($temp); // the host allows the write but not the rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the space proven for the folder
 			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 		}
-		@unlink($temp); // a full disk (blocks or inodes): the file is untouched
+		@unlink($temp); // a full disk (blocks or inodes), or a folder that lets PHP change the file but not create one (an SELinux label, a Windows ACL): the file is untouched, never written in place, since an in-place write on a full disk truncates it
 		return false;
 	}
 

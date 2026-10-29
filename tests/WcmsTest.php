@@ -77,8 +77,11 @@ final class WcmsTest extends TestCase
 		$this->assertSame($hashPass, $password);
 
 		$_POST['password'] = self::PASSWORD;
+		$visitorSessionId = session_id();
+		$this->assertNotSame('', $visitorSessionId, 'a session is active');
 
 		$this->wcms->loginAction();
+		$this->assertNotSame($visitorSessionId, session_id(), 'a new session id at login: a session id planted before the login is worthless after it');
 		$this->wcms->loginStatus();
 
 		$this->assertTrue($_SESSION['loggedIn']);

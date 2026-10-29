@@ -104,23 +104,23 @@ final class DatabaseLockTest extends TestCase
 		}
 	}
 
-	public function testAFolderThatRefusesToCreateTheTempFileGetsTheInPlaceWrite(): void
+	public function testAFolderThatRefusesToCreateTheTempFileRefusesTheSave(): void
 	{
 		// An SELinux label or a Windows ACL can let PHP change database.js but not create a file next to it; the temp path
-		// inside a read-only folder is the same state: no temp file exists after the failed write. The decision is that
-		// state, not the error text (no free inode lands here too, the CI tmpfs step); a full disk still creates the empty
-		// temp, and the directory in the previous test exists, so both refuse.
+		// inside a read-only folder is the same state, and so is no free inode (the CI tmpfs step). An in-place write there
+		// truncates the file first when the disk is also full, so the save is refused like any failed temp write.
 		if (DIRECTORY_SEPARATOR !== '/' || (function_exists('posix_getuid') && posix_getuid() === 0)) {
 			$this->markTestSkipped('needs a POSIX permission check (not Windows, not root)');
 		}
+		$before = file_get_contents(self::DB);
 		$readOnly = dirname(self::DB) . '/ro-' . bin2hex(random_bytes(4));
 		mkdir($readOnly, 0555);
 		try {
 			$wcms = $this->withTempPath($readOnly . '/database_probe.js.tmp');
 			$wcms->loggedIn = true;
-			$wcms->set('config', 'siteTitle', 'in place');
-			$this->assertSame('in place', json_decode(file_get_contents(self::DB))->config->siteTitle);
-			$this->assertStringNotContainsString('Could not write', json_encode($_SESSION['alert'] ?? []));
+			$wcms->set('config', 'siteTitle', 'after');
+			$this->assertSame($before, file_get_contents(self::DB), 'the file on disk is exactly what it was');
+			$this->assertStringContainsString('Could not write database_probe.js', json_encode($_SESSION['alert'] ?? []));
 		} finally {
 			rmdir($readOnly);
 			unset($_SESSION['alert']);

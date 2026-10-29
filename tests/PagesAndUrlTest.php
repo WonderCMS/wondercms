@@ -119,6 +119,55 @@ final class PagesAndUrlTest extends TestCase
 		$this->assertSame('loginURL', $this->wcms->parseUrl(), 'the login URL too');
 	}
 
+	public function testASubfolderInstallWhoseRewritePassesTheFolderInThePageParameterStillResolves(): void
+	{
+		// nginx `try_files $uri $uri/ /sub/index.php?page=$uri` (and some Apache setups without RewriteBase) send sub/about;
+		// 3.6.0 served about there through its first-segment lookup.
+		$this->wcms->createPage(['games'], true);
+		$this->wcms->createPage(['games', 'board'], true);
+		$this->wcms->createPage(['sub'], true);
+		$this->wcms->createPage(['sub', 'x'], true);
+		$_SERVER['SCRIPT_NAME'] = '/sub/index.php';
+		$cases = [
+			'sub/home' => ['home', ['home'], true],
+			'home' => ['home', ['home'], true],
+			'/sub/games/board/' => ['board', ['games', 'board'], true],
+			'sub' => ['sub', ['sub'], true], // a page named like the folder
+			'sub/x' => ['x', ['sub', 'x'], true], // its subpage exists, so nothing is stripped
+			'sub/sub/x' => ['x', ['sub', 'x'], true], // the folder prefix in front of it: stripped once
+			'sub/sub/sub/x' => ['x', ['sub', 'sub', 'x'], false], // once, not twice
+			'sub/loginURL' => ['loginURL', ['loginURL'], false],
+		];
+		try {
+			foreach ($cases as $param => [$page, $tree, $exists]) {
+				$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+				$_GET = ['page' => $param];
+				$visitor->pageStatus();
+				$this->assertSame($page, $visitor->currentPage, $param);
+				$this->assertSame($tree, $visitor->currentPageTree, $param);
+				$this->assertSame($exists, $visitor->currentPageExists, $param);
+			}
+			$this->wcms->createPage(['x'], true);
+			$this->wcms->set('pages', 'sub', 'private', true); // the folder-named page private; a public top-level x exists too
+			$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+			$_GET = ['page' => 'sub/x'];
+			$visitor->pageStatus();
+			$this->assertSame(['sub', 'x'], $visitor->currentPageTree, 'a private sub/x is not stripped to the public x');
+			$this->assertNull($visitor->getCurrentPageData(), 'the visitor gets the 404 page');
+			$this->assertFalse($visitor->currentPageExists);
+
+			$_SERVER['SCRIPT_NAME'] = '/index.php';
+			$_GET = ['page' => 'sub/home'];
+			$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+			$visitor->pageStatus();
+			$this->assertSame(['sub', 'home'], $visitor->currentPageTree, 'an install at the web root strips nothing');
+			$this->assertFalse($visitor->currentPageExists);
+		} finally {
+			$_SERVER['SCRIPT_NAME'] = '/index.php';
+			$_GET = [];
+		}
+	}
+
 	public function testUrlOnWindowsDoesNotStartWithDoubleSlash(): void
 	{
 		$_SERVER['SCRIPT_NAME'] = '\\index.php';
