@@ -101,6 +101,24 @@ final class PagesAndUrlTest extends TestCase
 		}
 	}
 
+	public function testLeadingAndTrailingSlashesInThePageParameterResolveLikeThePlainSlug(): void
+	{
+		// Caddy's try_files sends ?page={path}, which starts with a slash; since only the first segment is looked up at the
+		// top level, /home would otherwise be the 404 page for a visitor.
+		$this->wcms->createPage(['games'], true);
+		$this->wcms->createPage(['games', 'board'], true);
+		foreach (['home' => ['home', ['home']], '/home' => ['home', ['home']], 'home/' => ['home', ['home']], '/games/board/' => ['board', ['games', 'board']], '/' => ['home', ['home']]] as $param => [$page, $tree]) {
+			$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+			$_GET = ['page' => $param];
+			$visitor->pageStatus();
+			$this->assertSame($page, $visitor->currentPage, $param);
+			$this->assertSame($tree, $visitor->currentPageTree, $param);
+			$this->assertTrue($visitor->currentPageExists, $param . ' is not the 404 page');
+		}
+		$_GET = ['page' => '/loginURL'];
+		$this->assertSame('loginURL', $this->wcms->parseUrl(), 'the login URL too');
+	}
+
 	public function testUrlOnWindowsDoesNotStartWithDoubleSlash(): void
 	{
 		$_SERVER['SCRIPT_NAME'] = '\\index.php';

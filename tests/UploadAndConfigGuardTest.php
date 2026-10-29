@@ -300,8 +300,22 @@ final class UploadAndConfigGuardTest extends TestCase
 		// On a case-insensitive disk (Windows, macOS) Apache served /DATABASE.JS while /database.js was refused.
 		$htaccess = file_get_contents(__DIR__ . '/../.htaccess');
 		preg_match_all('~^RewriteRule (\S+) - \[([^\]]*)\]\r$~m', $htaccess, $m);
-		$this->assertSame(['database.js', '^tests/', 'cache.json', '^data/logs/'], $m[1]);
+		$this->assertSame(['database\.js', '^tests/', 'cache\.json', '^data/logs/'], $m[1], 'dots escaped: with NC an unescaped dot also refused data/files/Database_JS_Tutorial.pdf');
 		$this->assertSame(['F,NC', 'F,NC', 'F,NC', 'F,NC'], $m[2]);
+		$denied = static function (string $path) use ($m): bool {
+			foreach ($m[1] as $pattern) {
+				if (preg_match('~' . $pattern . '~i', $path)) {
+					return true;
+				}
+			}
+			return false;
+		};
+		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
+			$this->assertTrue($denied($path), $path);
+		}
+		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg'] as $path) {
+			$this->assertFalse($denied($path), $path);
+		}
 		$this->assertSame(substr_count($htaccess, "\n"), substr_count($htaccess, "\r\n"), 'CRLF line ends kept');
 	}
 

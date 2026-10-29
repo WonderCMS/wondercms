@@ -127,6 +127,20 @@ final class DatabaseLockTest extends TestCase
 		}
 	}
 
+	public function testEachSaveGetsItsOwnTempName(): void
+	{
+		// Two concurrent saves of one file must not share a temp: one would rename the other's half-written copy into place.
+		$method = new ReflectionMethod(Wcms::class, 'tempPath');
+		if (PHP_VERSION_ID < 80100) {
+			$method->setAccessible(true);
+		}
+		$wcms = new Wcms('data_test', 'files_test', 'database_probe.js');
+		$first = $method->invoke($wcms, self::DB);
+		$this->assertNotSame($first, $method->invoke($wcms, self::DB));
+		$this->assertStringStartsWith(self::DB . '.', $first, 'next to the file, so the rename stays on one filesystem');
+		$this->assertStringEndsWith('.tmp', $first, 'the shape the hourly sweep and the .htaccess deny expect');
+	}
+
 	public function testASaveRemovesTempFilesOlderThanAnHourAndKeepsFreshOnes(): void
 	{
 		// An interrupted save leaves a full copy of database.js (the password hash too) next to it; a fresh one may be

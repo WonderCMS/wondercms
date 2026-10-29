@@ -220,7 +220,7 @@ class Wcms
 			}
 			if ($this->isPrivatePage(implode('/', $this->currentPageTree))) { // currentPage is the last slug only
 				$this->alert('info',
-					'This page (' . $this->currentPage . ') is private: only you see it while logged in, visitors get the 404 page and search skips it. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#menu"><b>Open menu settings</b></a>');
+					'This page (' . implode('/', $this->currentPageTree) . ') is private: only you see it while logged in, visitors get the 404 page and search skips it. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#menu"><b>Open menu settings</b></a>');
 			}
 		}
 
@@ -1216,7 +1216,7 @@ EOT;
 			return;
 		}
 		$type = $_REQUEST['type'];
-		$customModules = in_array($type, ['plugins', 'themes'], true) ? array_values(array_filter((array)$this->get('config', 'customModules', $type), 'is_string')) : []; // a hand-edited entry that is not a URL is dropped
+		$customModules = in_array($type, ['plugins', 'themes'], true) ? array_values(array_filter((array)($this->get('config')->customModules->{$type} ?? []), 'is_string')) : []; // a hand-edited entry that is not a URL is dropped
 		$index = is_string($_REQUEST['removeCustomModule']) ? array_search($_REQUEST['removeCustomModule'], $customModules, true) : false;
 		if ($index === false) {
 			$this->alert('danger', 'Custom module not found.');
@@ -1830,7 +1830,8 @@ EOT;
 
 		$type = $_POST['pluginThemeType'];
 		$url = rtrim(trim($_POST['pluginThemeUrl']), '/');
-		$customModules = (array)$this->get('config', 'customModules', $type);
+		$custom = (object)($this->get('config')->customModules ?? $this->defaultCustomModules());
+		$customModules = (array)($custom->{$type} ?? []);
 		$wcmsModuleData = $this->isValidModuleURL($url) ? $this->fetchModuleConfig($url, $type) : null;
 		$errorMessage = null;
 		switch (true) {
@@ -1850,7 +1851,8 @@ EOT;
 		}
 
 		$customModules[] = $url;
-		$this->set('config', 'customModules', $type, $customModules);
+		$custom->{$type} = $customModules;
+		$this->set('config', 'customModules', $custom); // the whole object: set() creates only the last level
 		$this->cacheSingleCacheModuleData($url, $type);
 		$this->alert('success',
 			'Module successfully added to <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</b></a>.');
@@ -2763,7 +2765,7 @@ EOT;
 	public function parseUrl(): string
 	{
 		$page = $_GET['page'] ?? null;
-		$page = is_string($page) && $page !== '' ? trim(htmlspecialchars($page, ENT_QUOTES)) : null;
+		$page = is_string($page) && $page !== '' ? trim(htmlspecialchars($page, ENT_QUOTES), " \t\n\r\0\x0B/") : null; // whitespace and slashes: Caddy's {path} starts with one
 
 		if (!isset($page) || !$page) {
 			$defaultPage = $this->get('config', 'defaultPage');
@@ -3470,7 +3472,7 @@ EOT;
 		$output .= $installs;
 		$output .= '</div>
 					<p class="subTitle">Custom module</p>';
-		foreach (array_filter((array)$this->get('config', 'customModules', $type), 'is_string') as $customUrl) {
+		foreach (array_filter((array)($this->get('config')->customModules->{$type} ?? []), 'is_string') as $customUrl) {
 			$output .= '<p class="normalFont"><a class="wbtn wbtn-sm wbtn-danger" href="' . self::url($this->getCurrentPagePath() . '?removeCustomModule=' . rawurlencode($customUrl) . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Remove this repository from the list" data-confirm="' . htmlspecialchars('Remove ' . $customUrl . '? Anything installed from it stays.', ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"><i class="deleteIcon"></i></a> ' . htmlspecialchars($customUrl) . '</p>';
 		}
 		$output .= '<form action="' . $this->getCurrentPageUrl() . '" method="post" onsubmit="recheckPasswordPrompt(event)">

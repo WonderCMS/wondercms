@@ -156,6 +156,17 @@ final class PrivatePagesTest extends TestCase
 		$this->assertTrue($this->wcms->get('config', 'menuItems')->{$this->menuKey($this->wcms, 'home')}->private ?? false, 'the old home page is an ordinary page now');
 	}
 
+	public function testAPageWhoseSlugStartsLikeTheHomePageCanStillBePrivate(): void
+	{
+		$this->wcms->createPage(['public'], true);
+		$this->wcms->createPage(['pub'], true);
+		$this->wcms->set('config', 'defaultPage', 'public');
+		$this->toggle($this->menuKey($this->wcms, 'pub'));
+		$this->assertTrue($this->wcms->get('config', 'menuItems')->{$this->menuKey($this->wcms, 'pub')}->private ?? false, 'pub is not a page above public');
+		$this->toggle($this->menuKey($this->wcms, 'public'));
+		$this->assertObjectNotHasProperty('private', $this->wcms->get('config', 'menuItems')->{$this->menuKey($this->wcms, 'public')}, 'the home page itself still cannot');
+	}
+
 	public function testAPrivatePageCannotBecomeTheHomePage(): void
 	{
 		$this->toggle($this->menuKey($this->wcms, 'diary'));
@@ -220,14 +231,14 @@ final class PrivatePagesTest extends TestCase
 			$wcms->pageStatus(); // currentPage is 'board', currentPageTree ['games', 'board'], as in a real request
 			$_GET = [];
 			@$wcms->render(); // header() after PHPUnit's own output only warns
-			return json_encode($_SESSION['alert']['info'] ?? []);
+			return implode("\n", array_column($_SESSION['alert']['info'] ?? [], 'message'));
 		};
 		$this->assertStringNotContainsString('is private', $notice());
 		$this->toggle($gamesKey);
-		$this->assertStringContainsString('This page (board) is private', $notice(), 'a public subpage under a private parent');
+		$this->assertStringContainsString('This page (games/board) is private', $notice(), 'a public subpage under a private parent');
 		$this->toggle($gamesKey);
 		$this->toggle($boardKey);
-		$this->assertStringContainsString('This page (board) is private', $notice(), 'a private subpage under a public parent');
+		$this->assertStringContainsString('This page (games/board) is private', $notice(), 'a private subpage under a public parent');
 	}
 
 	public function testASubpageCanBePrivateOnItsOwn(): void
@@ -243,6 +254,30 @@ final class PrivatePagesTest extends TestCase
 		$this->assertStringNotContainsString('subPageDropdown', $visitor->menu(), 'no empty dropdown for a parent whose only shown subpage is private');
 		$this->assertStringNotContainsString('subpage-nav', $visitor->menu());
 		$this->assertStringContainsString('subPageDropdown', $this->admin()->menu(), 'the admin still gets it');
+	}
+
+	public function testTheVisitorDropdownListsThePublicSubpageAndNotThePrivateOne(): void
+	{
+		$this->wcms->createPage(['games', 'chess'], true);
+		$db = json_decode(file_get_contents(self::DB));
+		$gamesKey = $this->menuKey($this->wcms, 'games');
+		$chessKey = null;
+		foreach ($db->config->menuItems->{$gamesKey}->subpages as $key => $subpage) {
+			$subpage->visibility = 'show';
+			$chessKey = $subpage->slug === 'chess' ? (string)$key : $chessKey;
+		}
+		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+		$this->wcms = $this->admin();
+		$this->toggle($gamesKey . '-' . $chessKey);
+
+		$visitor = $this->visitor()->menu();
+		$this->assertStringContainsString('subPageDropdown', $visitor, 'one public subpage is shown, so the parent keeps its dropdown');
+		$this->assertStringContainsString('games/board', $visitor);
+		$this->assertStringNotContainsString('games/chess', $visitor, 'no link to the private subpage');
+		$this->assertStringNotContainsString('Chess', $visitor, 'nor its title');
+		$admin = $this->admin()->menu();
+		$this->assertStringContainsString('games/board', $admin);
+		$this->assertStringContainsString('games/chess', $admin);
 	}
 
 	public function testAWrongTokenOrAnUnknownMenuKeyChangesNothing(): void

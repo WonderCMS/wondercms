@@ -353,6 +353,18 @@ final class ThemeFolderTest extends TestCase
 		$this->assertSame($token($unbuffered), $token($out), 'identical to the unbuffered (3.6.0) render');
 	}
 
+	public function testTheFallbackLogLineIsOneLineWhateverTheMessage(): void
+	{
+		// An exception message with line breaks must not split the log entry (or forge a second one).
+		file_put_contents($this->root . '/themes/sky/theme.php', '<?php echo "SKY";');
+		mkdir($this->root . '/themes/multiline');
+		file_put_contents($this->root . '/themes/multiline/theme.php', '<?php throw new RuntimeException("first\nPHP Fatal error: forged\r\nthird");');
+		[$out, $err] = $this->probeRender('multiline');
+		$this->assertStringContainsString('SKY', $out);
+		$this->assertSame(1, substr_count($err, "\n"), 'one line: ' . $err);
+		$this->assertStringContainsString('showing Sky: first PHP Fatal error: forged  third in ', $err);
+	}
+
 	public function testAPluginsOwnOutputBufferSurvivesAThemeFailure(): void
 	{
 		// The drain after a failure stops at the level the core found: a buffer a plugin opened before the theme loaded

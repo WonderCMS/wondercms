@@ -60,6 +60,64 @@ final class CustomModulesTest extends TestCase
 		$this->assertSame(['themes' => [], 'plugins' => []], json_decode(file_get_contents(self::DB), true)['config']['customModules'], 'an unknown repository changes nothing, in the same request too');
 	}
 
+	public function testAnOldDatabaseWithAFreshCacheAndNoCustomModulesOpensSettings(): void
+	{
+		$this->wcms->settings(); // builds cache.json and stamps lastModulesSync
+		$this->assertFileExists(self::CACHE);
+		$db = json_decode(file_get_contents(self::DB));
+		unset($db->config->customModules); // created on 3.2.0 or older, then run on 3.3.0 to 3.4.0: a fresh stamp and cache, no customModules
+		$db->config->lastModulesSync = date('Y/m/d');
+		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT));
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'getFileFromRepo'])->getMock();
+		$wcms->method('getFileFromRepo')->willReturn('{"version":1,"themes":{},"plugins":{}}');
+		$wcms->loggedIn = true;
+
+		$this->assertStringContainsString('Custom module', $wcms->settings(), 'no rebuild runs, and the list still reads');
+		unset($_SESSION['alert']);
+		$_REQUEST = $_GET = ['removeCustomModule' => 'https://example.test/one/wcms-modules.json', 'type' => 'plugins', 'token' => $wcms->getToken()];
+		$wcms->removeCustomModuleAction();
+		$this->assertSame('Custom module not found.', $_SESSION['alert']['danger'][0]['message'] ?? '');
+	}
+
+	public function testAnOldDatabaseWithAFreshCacheAndNoCustomModulesCanAddOne(): void
+	{
+		$this->wcms->settings();
+		$db = json_decode(file_get_contents(self::DB));
+		unset($db->config->customModules); // the shape of the test above
+		$db->config->lastModulesSync = date('Y/m/d');
+		$db->config->password = password_hash('secret', PASSWORD_DEFAULT);
+		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT));
+		$dir = sys_get_temp_dir() . '/wcms-custom-' . bin2hex(random_bytes(4));
+		mkdir($dir);
+		file_put_contents($dir . '/wcms-modules.json', json_encode(['plugins' => ['probe' => ['name' => 'Probe', 'repo' => 'https://example.test/probe', 'zip' => 'https://example.test/probe.zip', 'summary' => 's', 'version' => '1.0.0', 'image' => '']]]));
+		$socket = stream_socket_server('tcp://127.0.0.1:0');
+		$address = stream_socket_get_name($socket, false);
+		fclose($socket);
+		$null = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
+		$server = proc_open([PHP_BINARY, '-S', $address, '-t', $dir], [1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']], $pipes); // the module list is fetched for real, from a local server
+		$url = 'http://' . $address . '/wcms-modules.json';
+		for ($i = 0; $i < 50 && @file_get_contents($url) === false; $i++) {
+			usleep(100000);
+		}
+		try {
+			$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'getFileFromRepo'])->getMock();
+			$wcms->method('getFileFromRepo')->willReturn('{"version":1,"themes":{},"plugins":{}}');
+			$wcms->loggedIn = true;
+			unset($_SESSION['alert']);
+			$_POST = ['pluginThemeUrl' => $url, 'pluginThemeType' => 'plugins', 'password_recheck' => 'secret', 'token' => $wcms->getToken()];
+			$wcms->addCustomModule();
+		} finally {
+			proc_terminate($server);
+			proc_close($server);
+			unlink($dir . '/wcms-modules.json');
+			rmdir($dir);
+		}
+
+		$this->assertStringStartsWith('Module successfully added', $_SESSION['alert']['success'][0]['message'] ?? '');
+		$this->assertSame(['themes' => [], 'plugins' => [$url]], json_decode(file_get_contents(self::DB), true)['config']['customModules']);
+		$this->assertSame('Probe', json_decode(file_get_contents(self::CACHE), true)['plugins']['probe']['name'] ?? null);
+	}
+
 	public function testAHandEditedEntryThatIsNotAUrlIsSkipped(): void
 	{
 		$db = json_decode(file_get_contents(self::DB));
