@@ -1739,7 +1739,7 @@ EOT;
 
 		// If custom modules is missing from the DB, we add it
 		if (!property_exists($db->config, 'customModules')) {
-			$this->set('config', 'customModules', $this->defaultCustomModules());
+			$this->set('config', 'customModules', (object)$this->defaultCustomModules()); // an object like a decoded database: get() and set() walk into it later in this request
 			$db = $this->getDb();
 		}
 

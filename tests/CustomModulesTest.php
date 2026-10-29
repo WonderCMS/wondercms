@@ -41,6 +41,25 @@ final class CustomModulesTest extends TestCase
 		$_REQUEST = $_GET = [];
 	}
 
+	public function testAnOldDatabaseWithoutCustomModulesOpensSettingsAfterTheCacheRebuild(): void
+	{
+		$db = json_decode(file_get_contents(self::DB));
+		unset($db->config->customModules, $db->config->lastModulesSync); // a database written by 3.0.4 or 3.2.0
+		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT));
+		@unlink(self::CACHE);
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'getFileFromRepo'])->getMock();
+		$wcms->method('getFileFromRepo')->willReturn('{"version":1,"themes":{},"plugins":{}}');
+		$wcms->loggedIn = true;
+
+		$settings = $wcms->settings(); // the cache rebuild writes the customModules defaults, then the list reads them in the same request
+
+		$this->assertStringContainsString('Custom module', $settings);
+		$this->assertSame(['themes' => [], 'plugins' => []], json_decode(file_get_contents(self::DB), true)['config']['customModules']);
+		$_REQUEST = $_GET = ['removeCustomModule' => 'https://example.test/none/wcms-modules.json', 'type' => 'plugins', 'token' => $wcms->getToken()];
+		$wcms->removeCustomModuleAction();
+		$this->assertSame(['themes' => [], 'plugins' => []], json_decode(file_get_contents(self::DB), true)['config']['customModules'], 'an unknown repository changes nothing, in the same request too');
+	}
+
 	public function testTheListShowsEachRepositoryWithARemoveLinkAndRemovingOneKeepsTheOthers(): void
 	{
 		$settings = $this->wcms->settings();
