@@ -1112,8 +1112,9 @@ EOT;
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
 			$path = realpath("{$folder}/{$filename}");
-			if (file_exists($path)) {
-				function_exists('is_link') && is_link("{$folder}/{$filename}") ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
+			$isLink = function_exists('is_link') && is_link("{$folder}/{$filename}"); // a link whose target is gone has no realpath() and is removed too
+			if ($isLink || file_exists($path)) {
+				$isLink ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
 				// If a plugin was deleted, also remove it from the disabled list (if present).
 				if ($type === self::PLUGINS_DIR) {
 					$disabled = $this->getDisabledPlugins();
