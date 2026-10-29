@@ -202,6 +202,43 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['apple.png', 'photo1.png', 'Photo2.png', 'photo10.png'], $m[1], 'scandir() alone gives Photo2, apple, photo1, photo10');
 	}
 
+	public function testTheFilesTabSortsAnAccentedNameAmongItsLetter(): void
+	{
+		if (!class_exists('Collator')) {
+			$this->markTestSkipped('without intl the Files tab sorts byte-wise past ASCII, as 3.7.0 did');
+		}
+		foreach (['zebra.png', 'Édith.png', 'apple.png', 'photo10.png', 'photo2.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'Édith.png', 'photo2.png', 'photo10.png', 'zebra.png'], array_map('rawurldecode', $m[1]), 'natcasesort() alone puts Édith after zebra');
+	}
+
+	public function testAThemeFolderNameThatFoldsToSkyIsRefusedLikeSky(): void
+	{
+		// macOS resolves 'ſky' and 'SKY' with a Kelvin sign (U+212A) to sky/; strcasecmp() compares bytes and let both through.
+		$name = "S\u{212A}Y";
+		mkdir($this->root . '/themes/' . $name, 0777, true);
+		file_put_contents($this->root . '/themes/' . $name . '/theme.php', '<?php');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('<h4>' . $name . '</h4>', $html, 'listed');
+		$this->assertStringNotContainsString('deleteModule=' . rawurlencode($name) . '&', $html);
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		foreach ([$name, 'ſky'] as $request) {
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => $request, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+			try {
+				$this->wcms->deleteFileModuleAction();
+				$this->fail('no redirect');
+			} catch (RuntimeException $e) {
+				$this->assertStringStartsWith('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '', $request);
+			}
+		}
+		$this->assertFileExists($this->root . '/themes/' . $name . '/theme.php');
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+	}
+
 	public function testAThemeFolderNamedSkyInAnyCaseHasNoRemoveButton(): void
 	{
 		mkdir($this->root . '/themes/Sky', 0777, true); // a distinct folder on a case-sensitive disk, the sky folder on Windows and macOS

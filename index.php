@@ -1104,10 +1104,10 @@ EOT;
 					'Wrong delete folder path.');
 				$this->redirect();
 			}
-			$folderName = DIRECTORY_SEPARATOR === '\\' ? rtrim($filename, '. ') : $filename; // Windows drops trailing dots and spaces from a name, so 'sky.' would reach the sky folder there
-			if ($type === 'themes' && (strcasecmp($folderName, (string)$this->get('config', 'theme')) === 0 || strcasecmp($folderName, 'sky') === 0)) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
+			$folderName = mb_convert_case(DIRECTORY_SEPARATOR === '\\' ? rtrim($filename, '. ') : $filename, MB_CASE_FOLD); // Windows drops trailing dots and spaces from a name, so 'sky.' would reach the sky folder there; Unicode case folding, since macOS also resolves 'ſky' and 'SKY' with a Kelvin sign to sky/
+			if ($type === 'themes' && ($folderName === mb_convert_case((string)$this->get('config', 'theme'), MB_CASE_FOLD) || $folderName === 'sky')) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
 				$this->alert('danger',
-					(strcasecmp($folderName, 'sky') === 0 ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
+					($folderName === 'sky' ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
 				$this->redirect();
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
@@ -2971,7 +2971,8 @@ EOT;
 		}
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_diff(scandir($this->filesPath) ?: [], ['.', '..']); // scandir() sorts byte-wise, so a name that sorts before '..' is not the third entry
-		natcasesort($fileList); // photo2 before photo10, upper and lower case together
+		$collator = class_exists('Collator') ? new Collator('root') : null; // intl, where loaded, sorts Édith.jpg among the e's; natcasesort() compares bytes past ASCII and puts it after z
+		$collator && $collator->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON) ? $collator->asort($fileList) : natcasesort($fileList); // photo2 before photo10, upper and lower case together
 		$logoutTo = $this->logoutToUrl();
 		$isHttpsForced = $this->isHttpsForced();
 		$isSaveChangesPopupEnabled = $this->isSaveChangesPopupEnabled();
@@ -3435,7 +3436,7 @@ EOT;
 					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . htmlspecialchars((string)$addon['version'], ENT_QUOTES) . '</a>'
 					: '';
 
-				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName)) && !($type === 'themes' && strcasecmp($directoryName, 'sky') === 0) ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName)) && !($type === 'themes' && mb_convert_case($directoryName, MB_CASE_FOLD) === 'sky') ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
 				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
