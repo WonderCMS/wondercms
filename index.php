@@ -3585,12 +3585,12 @@ EOT;
 
 	/**
 	 * Replace a file whole (index.php with the downloaded core, database.js and cache.json on every save): a symlink is
-	 * followed to its target first. In a writable folder the whole file lands in a temp file next to it; where that fails
-	 * (no free block or inode) nothing is written and false comes back. Then it is renamed over the file, or, for a hard
-	 * link, another owner or group, or a refused rename, written in place with the room just proven. A file that does not
-	 * exist yet, a folder that is not writable (a folder that lets PHP change files but not create them reads as not
-	 * writable), or a host that disables a needed function, gets the direct write (3.6.0 behaviour), still checked for
-	 * length.
+	 * followed first to a target in a writable folder. In a writable folder the whole file lands in a temp file next to
+	 * it; where that fails (no free block or inode) nothing is written and false comes back. Then it is renamed over the
+	 * file, or, for a hard link, a symlink not followed, another owner or group, or a refused rename, written in place
+	 * with the room just proven. A file that does not exist yet, a folder that is not writable (a folder that lets PHP
+	 * change files but not create them reads as not writable), or a host that disables a needed function, gets the
+	 * direct write (3.6.0 behaviour), still checked for length.
 	 * @param string $path
 	 * @param string $contents
 	 * @return bool
@@ -3602,8 +3602,8 @@ EOT;
 				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 			}
 		}
-		if (is_link($path) && ($real = realpath($path)) !== false) {
-			$path = $real; // the target is written, not the link: the temp, the room proof and the rename happen next to it, on its own disk
+		if (is_link($path) && ($real = realpath($path)) !== false && is_writable(dirname($real))) {
+			$path = $real; // the target is written, not the link: the temp, the room proof and the rename happen next to it, on its own disk; a target in a folder PHP cannot write keeps the link's path, so the temp still proves room next to the link
 		}
 		if (!is_file($path) || !is_writable(dirname($path))) {
 			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, or a folder not writable (no temp possible): write directly as 3.6.0 did
@@ -3626,7 +3626,7 @@ EOT;
 				return true;
 			}
 		}
-		@unlink($temp); // a hard link or a symlink realpath() could not resolve (a rename would detach it), another owner or group (a rename would change them), or a refused rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the copy just written proving the room; removed first, since an in-place write needs that room again after the truncate
+		@unlink($temp); // a hard link or a symlink not followed (a rename would detach it), another owner or group (a rename would change them), or a refused rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the copy just written proving the room; removed first, since an in-place write needs that room again after the truncate
 		return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 	}
 

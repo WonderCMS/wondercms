@@ -1,6 +1,7 @@
 # Releasing WonderCMS
 
-Before a release: grep this file for `<robert-si-[a-z-]*>` and fill in every placeholder (checklist step 6).
+Before a release: grep this file for `<[a-z-]*>`; fill in every `<robert-si-...>` placeholder before the release
+(checklist step 6), and `<backup-folder>`, `<merge-sha>` and `<branch>` at the step that uses them.
 
 The `main` branch is the update channel: when an admin clicks **Update**, their site downloads
 `main/index.php` and writes it over itself. Merging into `main` is the release. Everything
@@ -111,8 +112,10 @@ tag, rule 3 above; every push is read back through the API and recorded).
    release's code with `VERSION` set to `X.Y.Z+1` (sites already on `X.Y.Z` only accept a higher version). Nothing is announced until that patch is live and verified.
 
    **Backup, error log and restore per site.** The backup goes to a dated folder outside the web root; write its name
-   into the release record at once. The restore keeps the failed state, puts `index.php` back atomically and copies
-   `data/` back over the live folder, so `data/` is never missing and no request can start a fresh install.
+   into the release record at once. The restore keeps the failed state, puts `index.php` and `data/database.js` back
+   atomically (a temp name, then a rename) and copies the rest of `data/` back over the live folder, so `data/` is never
+   missing and no request can start a fresh install. Files created in `data/` after the backup (an upload, say) are
+   kept: the restore overwrites what the backup holds and removes only leftover `*.tmp` copies.
    www.wondercms.com (ssh host `wondercms`, web root `~/public_html`; the host writes PHP errors to `error_log` in the
    script's folder):
 
@@ -122,7 +125,7 @@ tag, rule 3 above; every push is read back through the API and recorded).
    # after the click and the checks: what the update added to the error log (expect nothing new)
    ssh wondercms 'tail -n 20 ~/public_html/error_log 2>/dev/null'
    # restore, only if the canary failed
-   ssh wondercms 'B=<backup-folder> && cp -p ~/public_html/index.php "$B/index.php.failed" && cp -Rp ~/public_html/data "$B/data.failed" && cp -p "$B/index.php" ~/public_html/index.php.restore && mv ~/public_html/index.php.restore ~/public_html/index.php && cp -Rp "$B/data/." ~/public_html/data/ && rm -f ~/public_html/data/*.tmp && shasum -a 256 ~/public_html/index.php "$B/index.php"'
+   ssh wondercms 'B=<backup-folder> && cp -p ~/public_html/index.php "$B/index.php.failed" && cp -Rp ~/public_html/data "$B/data.failed" && cp -p "$B/index.php" ~/public_html/index.php.restore && mv ~/public_html/index.php.restore ~/public_html/index.php && find "$B/data" -mindepth 1 -maxdepth 1 ! -name database.js -exec cp -Rp {} ~/public_html/data/ \; && cp -p "$B/data/database.js" ~/public_html/data/database.js.restore && mv ~/public_html/data/database.js.restore ~/public_html/data/database.js && rm -f ~/public_html/data/*.tmp && shasum -a 256 ~/public_html/index.php "$B/index.php" ~/public_html/data/database.js "$B/data/database.js"'
    ```
 
    robert.si: the same three commands with its own values. Before the release, grep this file for `<robert-si-[a-z-]*>`
@@ -131,7 +134,7 @@ tag, rule 3 above; every push is read back through the API and recorded).
    ```sh
    ssh <robert-si-ssh-host> 'B=~/backups/canary-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && cp -p <robert-si-web-root>/index.php "$B/index.php" && cp -Rp <robert-si-web-root>/data "$B/data" && echo "backup: $B" && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php" && du -sh "$B/data"; wc -l <robert-si-error-log> 2>/dev/null'
    ssh <robert-si-ssh-host> 'tail -n 20 <robert-si-error-log> 2>/dev/null'
-   ssh <robert-si-ssh-host> 'B=<backup-folder> && cp -p <robert-si-web-root>/index.php "$B/index.php.failed" && cp -Rp <robert-si-web-root>/data "$B/data.failed" && cp -p "$B/index.php" <robert-si-web-root>/index.php.restore && mv <robert-si-web-root>/index.php.restore <robert-si-web-root>/index.php && cp -Rp "$B/data/." <robert-si-web-root>/data/ && rm -f <robert-si-web-root>/data/*.tmp && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php"'
+   ssh <robert-si-ssh-host> 'B=<backup-folder> && cp -p <robert-si-web-root>/index.php "$B/index.php.failed" && cp -Rp <robert-si-web-root>/data "$B/data.failed" && cp -p "$B/index.php" <robert-si-web-root>/index.php.restore && mv <robert-si-web-root>/index.php.restore <robert-si-web-root>/index.php && find "$B/data" -mindepth 1 -maxdepth 1 ! -name database.js -exec cp -Rp {} <robert-si-web-root>/data/ \; && cp -p "$B/data/database.js" <robert-si-web-root>/data/database.js.restore && mv <robert-si-web-root>/data/database.js.restore <robert-si-web-root>/data/database.js && rm -f <robert-si-web-root>/data/*.tmp && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php" <robert-si-web-root>/data/database.js "$B/data/database.js"'
    ```
 
    On a cPanel or LiteSpeed host the error log is `error_log` in the web root, as on wondercms.com; otherwise read

@@ -280,19 +280,31 @@ final class DatabaseLockTest extends TestCase
 			if ($groups) {
 				$cases['other group'] = static function () use ($db, $groups) { chgrp($db, $groups[0]); };
 			}
+			if (!function_exists('posix_getuid') || posix_getuid() !== 0) { // root writes a 0555 folder
+				$cases['symlink into a read-only folder'] = static function () use ($db) { // the target's folder takes no temp: the copy proves the room next to the link
+					mkdir(dirname($db) . '/ro');
+					rename($db, dirname($db) . '/ro/target.js');
+					symlink(dirname($db) . '/ro/target.js', $db);
+					chmod(dirname($db) . '/ro', 0555);
+				};
+			}
 			foreach ($cases as $case => $arrange) {
 				@unlink(dirname($db) . '/second.js');
 				if (is_link($db)) {
+					$target = realpath($db);
 					unlink($db);
-					rename(dirname($db) . '/target.js', $db);
+					@chmod(dirname($db) . '/ro', 0755);
+					rename($target, $db);
 				}
 				$arrange();
 				clearstatcache();
+				$linked = is_link($db);
 				$group = filegroup($db);
 				$wcms->set('config', 'siteTitle', 'with room ' . $case);
 				clearstatcache();
 				$this->assertSame('with room ' . $case, json_decode(file_get_contents($db))->config->siteTitle, $case . ': saved while there is room');
 				$this->assertSame($group, filegroup($db), $case . ': the group is kept');
+				$this->assertSame($linked, is_link($db), $case . ': a link stays a link');
 				$this->assertSame([], glob($db . '.*.tmp'), $case . ': no temp left');
 
 				$before = file_get_contents($db);
@@ -302,6 +314,7 @@ final class DatabaseLockTest extends TestCase
 					$wcms->set('config', 'siteTitle', 'on a full disk ' . $case);
 					$this->assertSame($before, file_get_contents($db), $case . ': byte-identical, not truncated (3.6.0 wrote in place here and emptied it)');
 					$this->assertStringContainsString('Could not write database.js', json_encode($_SESSION['alert'] ?? []), $case);
+					$this->assertSame($linked, is_link($db), $case . ': a link stays a link');
 					$this->assertSame([], glob($db . '.*.tmp'), $case . ': no temp left');
 				} finally {
 					$this->unfill($site);
@@ -309,6 +322,7 @@ final class DatabaseLockTest extends TestCase
 			}
 		} finally {
 			unset($_SESSION['alert']);
+			@chmod($site . '/data/ro', 0755);
 			exec('rm -rf ' . escapeshellarg($site) . ' 2>/dev/null'); // the ramdisk's root is not ours: the folder stays there until the detach
 		}
 	}
