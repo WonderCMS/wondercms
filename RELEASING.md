@@ -83,8 +83,9 @@ tag, rule 3 above; every push is read back through the API and recorded).
    loops both URLs until both match. Then run its `livecopy.sh <merge-sha> main` and `livecopy-robertsi.sh <merge-sha>
    main` (one per canary site: a copy of that site's data, themes and plugins in a fenced folder, running its own core,
    which clicks Update against the raw URL of `main` and is then checked on the public and the admin side), write the compare results into the release record at once, and run the canary (step 6) as soon
-   as the first comparison matches on both URLs; compare once more five minutes after that. The second
-   comparison confirms the cache stayed right, it does not delay the canary. Check https://www.githubstatus.com
+   as the first comparison matches on both URLs; compare once more five minutes after that, and again 30 minutes
+   and 2 hours after the merge (GitHub's raw cache is per edge; a stale edge serves the old file long after the
+   first one matched). The later comparisons confirm the cache stayed right, they do not delay the canary. Check https://www.githubstatus.com
    before the news post: a GitHub incident during the first hours means sites download nothing, not a bad file.
 6. Canary: two sites with the maintainer's login, one after the other: www.wondercms.com first, then robert.si
    (a custom theme, `skyPersonal`, so a theme that is not shipped with the release meets the new core too). Start
@@ -101,7 +102,10 @@ tag, rule 3 above; every push is read back through the API and recorded).
    that the home page body references `themes/skyPersonal/` (the custom theme rendered, not the Sky fallback), that
    no "Showing the Sky theme instead" alert appears after the login, and that the server error log has no
    `failed to load, showing Sky` line. Wait a few seconds between clicks: a second
-   Update within opcache's revalidation window still runs the old updater. Hold the news post and any announcement
+   Update within opcache's revalidation window still runs the old updater. While on wondercms.com, check that
+   `/data/database.js` and `/data/cache.json` answer 403 (not 200) from the public side; a site that predates the
+   shipped `.htaccess` carries its own and must add the four deny lines the release notes tell every existing site
+   to add, the maintainer's own site first. Hold the news post and any announcement
    until both canary sites have passed; sites on the previous release have no update notice, so publicity is what
    drives the fleet's updates.
    **If the canary fails:** restore the backed-up `index.php` and `data/` on the site that failed, and fix forward.
@@ -156,9 +160,10 @@ tag, rule 3 above; every push is read back through the API and recorded).
    built on another machine or in another timezone has other member timestamps and another hash).
 9. wondercms.com: copy the ZIP next to the previous ones, point `download-latest.php` at the new
    asset, update the latest/download/news/contributors pages and the docs. The demo is rebuilt only on its own
-   host with its own document root (`demo.wondercms.com`), never under the live site's origin, which it would
-   share with the admin's and the forum's cookies; until that host exists the old demo folder stays as it is or is
-   taken offline. On the shared server a new host is created in this order: the cPanel subdomain with its own document
+   host with its own document root (`demo.wondercms.com`, created 2026-10-29 with a placeholder page), never under
+   the live site's origin, which it would share with the admin's and the forum's cookies; the old demo folder under
+   the live site stays as it is until the new host serves the build, then redirects to it. On the shared server a new
+   host is created in this order: the cPanel subdomain with its own document
    root and a placeholder page, a check that the origin answers for that name (`curl --resolve`), then the DNS record,
    then the certificate (AutoSSL validates over HTTP, so it needs the name to resolve first); a DNS record before the
    vhost served another customer's default vhost under the demo name for four minutes on 2026-10-29. Delete any
@@ -173,3 +178,12 @@ tag, rule 3 above; every push is read back through the API and recorded).
 12. Every remote write (a push, a workflow dispatch, a comment) is read back through the GitHub API before it is
     recorded as done; a pipe after `git push` hides a rejected push. While a review panel is reading a snapshot,
     no remote action is taken.
+
+## After the checklist
+
+The steps above end with the issues closed. What follows a release lives in the maintainer's private release
+record (`release-370/` for 3.7.0: `STATUS.md`, its "Exact remaining sequence" and "Day-after wave"), not here:
+the Docker image built from the tag (`docker-post-tag.md`), the 24-hour error-log watch on both canary sites and
+the 48-hour watch on the forum and the issues, the day-after compare of each canary site's `data/database.js`
+mode, owner and inode against its pre-release backup, the announcements, the ecosystem follow-ups, and the
+cleanup of the rehearsal folders, keys and local branches. A release is closed when that record says so.
