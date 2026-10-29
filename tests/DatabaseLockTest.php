@@ -25,8 +25,33 @@ final class DatabaseLockTest extends TestCase
 	{
 		@unlink(self::DB);
 		foreach ($this->detach as $dev) {
-			exec('/usr/bin/hdiutil detach ' . $dev . ' -force >/dev/null 2>&1');
+			$this->runWithin(['/usr/bin/hdiutil', 'detach', $dev, '-force']);
 		}
+	}
+
+	/**
+	 * Run $argv, killed once $seconds have passed (hdiutil and diskutil hung under load and the suite waited forever, #375)
+	 * @return array{0: ?int, 1: string} the exit code, null when the deadline passed, and what it printed
+	 */
+	private function runWithin(array $argv, int $seconds = 60): array
+	{
+		$process = proc_open($argv, [1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+		stream_set_blocking($pipes[1], false);
+		$out = '';
+		$deadline = microtime(true) + $seconds;
+		while (($status = proc_get_status($process))['running'] && microtime(true) < $deadline) {
+			$out .= stream_get_contents($pipes[1]);
+			usleep(100000);
+		}
+		if ($status['running']) {
+			proc_terminate($process, 9); // no proc_close(): it waits for a process stuck in the kernel; the handle is reaped without waiting
+		}
+		$out .= stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+		if (!$status['running']) {
+			proc_close($process);
+		}
+		return [$status['running'] ? null : $status['exitcode'], $out];
 	}
 
 	/** A Wcms on database_probe.js whose writeFile() uses $temp as its temp file */
@@ -240,17 +265,27 @@ final class DatabaseLockTest extends TestCase
 			$dir = rtrim(getenv('WCMS_FULL_DISK_DIR'), '/') . '/site-' . bin2hex(random_bytes(3));
 			mkdir($dir);
 		} elseif (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/hdiutil') && function_exists('exec')) {
-			exec('/usr/bin/hdiutil attach -nomount ram://4096 2>/dev/null', $out);
-			$dev = strtok($out[0] ?? '', " \t");
+			[$code, $out] = $this->runWithin(['/usr/bin/hdiutil', 'attach', '-nomount', 'ram://4096']);
+			$dev = strtok($out, " \t\n");
+			if (preg_match('#^/dev/disk\d+$#', (string)$dev)) {
+				$this->detach[] = $dev; // also when the deadline passed after the device appeared
+			}
+			if ($code === null) {
+				$this->markTestSkipped('hdiutil attach did not finish within 60 seconds (a loaded machine, #375)');
+			}
 			if (!preg_match('#^/dev/disk\d+$#', (string)$dev)) {
 				$this->markTestSkipped('hdiutil could not attach a ramdisk');
 			}
 			$name = 'wcmsrd' . bin2hex(random_bytes(3));
-			$this->detach[] = $dev;
-			exec('/usr/sbin/diskutil erasevolume HFS+ ' . $name . ' ' . $dev . ' >/dev/null 2>&1');
+			if ($this->runWithin(['/usr/sbin/diskutil', 'erasevolume', 'HFS+', $name, $dev])[0] === null) {
+				$this->markTestSkipped('diskutil erasevolume did not finish within 60 seconds (a loaded machine, #375)');
+			}
 			$dir = '/Volumes/' . $name . '/site';
 			mkdir($dir); // created while ownership is ignored, so it belongs to this user once owners are honoured
-			exec('/usr/sbin/diskutil unmount ' . $dev . ' >/dev/null 2>&1 && /usr/sbin/diskutil mount -mountOptions owners ' . $dev . ' >/dev/null 2>&1'); // group changes stick (the other-group case)
+			$unmount = $this->runWithin(['/usr/sbin/diskutil', 'unmount', $dev])[0];
+			if ($unmount === null || ($unmount === 0 && $this->runWithin(['/usr/sbin/diskutil', 'mount', '-mountOptions', 'owners', $dev])[0] === null)) { // group changes stick (the other-group case)
+				$this->markTestSkipped('diskutil unmount or mount did not finish within 60 seconds (a loaded machine, #375)');
+			}
 			exec('/sbin/mount', $mounts);
 			$this->assertContains($dev . ' on /Volumes/' . $name . ' (hfs, local, nodev, nosuid, mounted by ' . get_current_user() . ')', $mounts, 'the ramdisk is mounted where the test writes, with owners');
 		} else {
@@ -287,6 +322,17 @@ final class DatabaseLockTest extends TestCase
 	private function unfill(string $dir): void
 	{
 		unlink($dir . '/filler');
+	}
+
+	public function testARamdiskCommandPastItsDeadlineIsKilledNotWaitedFor(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('the ramdisk commands are POSIX-only');
+		}
+		$start = microtime(true);
+		$this->assertSame([null, "started\n"], $this->runWithin(['/bin/sh', '-c', 'echo started; exec sleep 30'], 1));
+		$this->assertLessThan(5, microtime(true) - $start, 'killed at the deadline');
+		$this->assertSame([0, "done\n"], $this->runWithin(['/bin/echo', 'done'], 5), 'a command that finishes gives its exit code and output');
 	}
 
 	public function testOnAFullDiskALinkedOrOtherGroupDatabaseIsRefusedNotTruncated(): void
