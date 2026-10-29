@@ -248,6 +248,7 @@ class Wcms
 	 */
 	public function alert(string $class, string $message, bool $sticky = false): void
 	{
+		$message = $this->hook('alert', $message)[0]; // before the duplicate check: the stored message is the translated one
 		if (isset($_SESSION['alert'][$class])) {
 			foreach ($_SESSION['alert'][$class] as $v) {
 				if ($v['message'] === $message) {
@@ -255,7 +256,7 @@ class Wcms
 				}
 			}
 		}
-		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $this->hook('alert', $message)[0], 'sticky' => $sticky];
+		$_SESSION['alert'][$class][] = ['class' => $class, 'message' => $message, 'sticky' => $sticky];
 	}
 
 	/**
@@ -304,7 +305,7 @@ class Wcms
 			return '';
 		}
 		$output = '';
-		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'' . $this->getToken() . '\');"><small>Hide all alerts until next login</small></a></div>';
+		$output .= '<br><a href="" onclick="localStorage.setItem(\'displayAlerts\', \'' . $this->getToken() . '\');"><small>' . $this->hook('alert', 'Hide all alerts until next login')[0] . '</small></a></div>';
 		return $output;
 	}
 

@@ -480,6 +480,36 @@ final class ThemeFolderTest extends TestCase
 		unset($_SESSION['alert']);
 	}
 
+	public function testTheSameAlertRaisedTwiceIsQueuedOnceWhenAListenerTranslatesIt(): void
+	{
+		$this->wcms->addListener('alert', static function ($args) { // what the translation plugins do
+			$args[0] = str_replace('Wrong password.', 'Falsches Passwort.', $args[0]);
+			return $args;
+		});
+		unset($_SESSION['alert']);
+		$this->wcms->alert('danger', 'Wrong password.');
+		$this->wcms->alert('danger', 'Wrong password.');
+		$this->assertSame(['Falsches Passwort.'], array_column($_SESSION['alert']['danger'], 'message'));
+		unset($_SESSION['alert']);
+	}
+
+	public function testAnAlertListenerTranslatesTheHideLinkAndNothingElse(): void
+	{
+		$queued = ['danger' => [['class' => 'danger', 'message' => 'Wrong password.', 'sticky' => false]]];
+		$this->wcms->loggedIn = true;
+		$_SESSION['alert'] = $queued;
+		$plain = $this->wcms->alerts();
+		$this->wcms->addListener('alert', static function ($args) {
+			$args[0] = str_replace('Hide all alerts until next login', 'Alle Hinweise bis zur Abmeldung ausblenden', $args[0]);
+			return $args;
+		});
+		$_SESSION['alert'] = $queued;
+		$translated = $this->wcms->alerts();
+		$this->assertStringContainsString('<small>Hide all alerts until next login</small>', $plain);
+		$this->assertSame(str_replace('Hide all alerts until next login', 'Alle Hinweise bis zur Abmeldung ausblenden', $plain), $translated);
+		unset($_SESSION['alert']);
+	}
+
 	public function testABrokenThemesAlertListenerDoesNotFatalTheAdminsFallback(): void
 	{
 		// The fallback tells the admin through alert(), which runs the alert hook: a theme whose functions.php registered a
