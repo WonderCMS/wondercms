@@ -85,8 +85,43 @@ final class CustomModulesTest extends TestCase
 		$db = json_decode(file_get_contents(self::DB));
 		unset($db->config->customModules); // the shape of the test above
 		$db->config->lastModulesSync = date('Y/m/d');
-		$db->config->password = password_hash('secret', PASSWORD_DEFAULT);
 		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT));
+		$url = $this->addPluginFromALocalList();
+
+		$this->assertStringStartsWith('Module successfully added', $_SESSION['alert']['success'][0]['message'] ?? '');
+		$this->assertSame(['themes' => [], 'plugins' => [$url]], json_decode(file_get_contents(self::DB), true)['config']['customModules']);
+		$this->assertSame('Probe', json_decode(file_get_contents(self::CACHE), true)['plugins']['probe']['name'] ?? null);
+	}
+
+	public function testAddingARepositoryKeepsTheOnesAlreadyListed(): void
+	{
+		$url = $this->addPluginFromALocalList();
+
+		$this->assertStringStartsWith('Module successfully added', $_SESSION['alert']['success'][0]['message'] ?? '');
+		$this->assertSame([
+			'themes' => ['https://example.test/theme/wcms-modules.json'],
+			'plugins' => ['https://example.test/one/wcms-modules.json', 'https://example.test/two/wcms-modules.json', $url],
+		], json_decode(file_get_contents(self::DB), true)['config']['customModules']);
+	}
+
+	public function testAWrongModuleTypeIsRefused(): void
+	{
+		$this->wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+		$before = file_get_contents(self::DB);
+		unset($_SESSION['alert']);
+		$_POST = ['pluginThemeUrl' => 'https://example.test/files/wcms-modules.json', 'pluginThemeType' => 'files', 'password_recheck' => 'secret', 'token' => $this->wcms->getToken()];
+		$this->wcms->addCustomModule();
+
+		$this->assertSame(['Invalid module type.'], array_column($_SESSION['alert']['danger'] ?? [], 'message'), 'refused before the list is fetched, and nothing after it runs');
+		$this->assertSame($before, file_get_contents(self::DB));
+	}
+
+	/**
+	 * Adds a plugin repository through a wcms-modules.json served by a local server: the list is fetched for real
+	 * @return string the repository URL
+	 */
+	private function addPluginFromALocalList(): string
+	{
 		$dir = sys_get_temp_dir() . '/wcms-custom-' . bin2hex(random_bytes(4));
 		mkdir($dir);
 		file_put_contents($dir . '/wcms-modules.json', json_encode(['plugins' => ['probe' => ['name' => 'Probe', 'repo' => 'https://example.test/probe', 'zip' => 'https://example.test/probe.zip', 'summary' => 's', 'version' => '1.0.0', 'image' => '']]]));
@@ -94,7 +129,7 @@ final class CustomModulesTest extends TestCase
 		$address = stream_socket_get_name($socket, false);
 		fclose($socket);
 		$null = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
-		$server = proc_open([PHP_BINARY, '-S', $address, '-t', $dir], [1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']], $pipes); // the module list is fetched for real, from a local server
+		$server = proc_open([PHP_BINARY, '-S', $address, '-t', $dir], [1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']], $pipes);
 		$url = 'http://' . $address . '/wcms-modules.json';
 		for ($i = 0; $i < 50 && @file_get_contents($url) === false; $i++) {
 			usleep(100000);
@@ -103,6 +138,7 @@ final class CustomModulesTest extends TestCase
 			$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'getFileFromRepo'])->getMock();
 			$wcms->method('getFileFromRepo')->willReturn('{"version":1,"themes":{},"plugins":{}}');
 			$wcms->loggedIn = true;
+			$wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
 			unset($_SESSION['alert']);
 			$_POST = ['pluginThemeUrl' => $url, 'pluginThemeType' => 'plugins', 'password_recheck' => 'secret', 'token' => $wcms->getToken()];
 			$wcms->addCustomModule();
@@ -112,10 +148,7 @@ final class CustomModulesTest extends TestCase
 			unlink($dir . '/wcms-modules.json');
 			rmdir($dir);
 		}
-
-		$this->assertStringStartsWith('Module successfully added', $_SESSION['alert']['success'][0]['message'] ?? '');
-		$this->assertSame(['themes' => [], 'plugins' => [$url]], json_decode(file_get_contents(self::DB), true)['config']['customModules']);
-		$this->assertSame('Probe', json_decode(file_get_contents(self::CACHE), true)['plugins']['probe']['name'] ?? null);
+		return $url;
 	}
 
 	public function testAHandEditedEntryThatIsNotAUrlIsSkipped(): void

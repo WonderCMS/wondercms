@@ -77,17 +77,20 @@ tag, rule 3 above; every push is read back through the API and recorded).
    as the first comparison matches on both URLs; compare once more five minutes after that. The second
    comparison confirms the cache stayed right, it does not delay the canary. Check https://www.githubstatus.com
    before the news post: a GitHub incident during the first hours means sites download nothing, not a bad file.
-6. Canary: confirm the live `index.php` is the stock previous release (compare its SHA-256), back up `index.php`
-   and `data/`, click **Update** on wondercms.com, check the site, the login, a save, and the `VERSION` in the
-   file on disk (opcache may serve the old code for a moment). "Check the site" means reading the page body, not
+6. Canary: two sites with the maintainer's login, one after the other: www.wondercms.com first, then robert.si
+   (a custom theme, `skyPersonal`, so a theme that is not shipped with the release meets the new core too). Start
+   robert.si only once wondercms.com has passed. On each site: confirm the live `index.php` is the stock previous
+   release (compare its SHA-256), back up `index.php` and `data/` before its click, click **Update**, check the
+   site, the login, a save, and the `VERSION` in the file on disk (opcache may serve the old code for a moment). "Check the site" means reading the page body, not
    the status code: a boot fatal comes back as HTTP 200 with the error in the body on some servers, so `curl -s -w '%{http_code}'` the
    home page (expect 200) and the login page (expect 404: the login URL is not a stored page, by design, in every
    version) and grep both bodies for `Fatal error`, `Parse error`, `Warning:`, `Deprecated:` and `Notice:` before the
    login (with display_errors off a fatal is a blank 500, which the status code catches). Wait a few seconds between clicks: a second
    Update within opcache's revalidation window still runs the old updater. Hold the news post and any announcement
-   until the canary has passed; sites on the previous release have no update notice, so publicity is what
+   until both canary sites have passed; sites on the previous release have no update notice, so publicity is what
    drives the fleet's updates.
-   **If the canary fails:** restore the backed-up `index.php` on wondercms.com, and fix forward. `main` cannot be
+   **If the canary fails:** restore the backed-up `index.php` on the site that failed (robert.si is not updated
+   while wondercms.com fails), and fix forward. `main` cannot be
    reverted (CI requires a higher version for any change to `index.php`, and protection applies to admins):
    the remedy is the next patch release (`X.Y.Z+1`) carrying the fix, or, in the worst case, the previous
    release's code with `VERSION` set to `X.Y.Z+1` (sites already on `X.Y.Z` only accept a higher version). Nothing is announced until that patch is live and verified.

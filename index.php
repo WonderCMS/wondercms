@@ -1829,6 +1829,11 @@ EOT;
 		}
 
 		$type = $_POST['pluginThemeType'];
+		if (!in_array($type, self::VALID_DIRS, true)) {
+			$this->alert('danger', 'Invalid module type.');
+			$this->redirect();
+			return;
+		}
 		$url = rtrim(trim($_POST['pluginThemeUrl']), '/');
 		$custom = (object)($this->get('config')->customModules ?? $this->defaultCustomModules());
 		$customModules = (array)($custom->{$type} ?? []);
@@ -2773,7 +2778,7 @@ EOT;
 			return $defaultPage;
 		}
 
-		$this->currentPageTree = explode('/', rtrim($page, '/'));
+		$this->currentPageTree = explode('/', $page);
 		if ($page === $this->get('config', 'login')) {
 			return $page;
 		}
