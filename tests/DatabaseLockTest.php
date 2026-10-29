@@ -451,14 +451,22 @@ final class DatabaseLockTest extends TestCase
 			$read->setAccessible(true);
 		}
 		$reporting = error_reporting(E_ALL); // PHPUnit runs a test with warnings left out of error_reporting()
-		set_error_handler(function (int $level, string $message): bool {
+		$logged = [];
+		set_error_handler(function (int $level, string $message) use (&$logged): bool {
 			if (error_reporting() & $level) { // what PHP would log; an @ lowers error_reporting() for its call
-				$this->fail('no warning reaches the log: ' . $message);
+				$logged[] = $message;
 			}
 			return true;
 		});
 		try {
 			$this->assertSame('', $read->invoke($wcms, self::DB . '.gone'));
+			$this->assertSame([], $logged, 'no warning reaches the log for a vanished file');
+			if (DIRECTORY_SEPARATOR === '/' && !(function_exists('posix_getuid') && posix_getuid() === 0)) { // root reads a 000 file
+				chmod(self::DB, 0000);
+				$read->invoke($wcms, self::DB);
+				chmod(self::DB, 0644);
+				$this->assertStringContainsString('Permission denied', implode("\n", $logged), 'a file that exists but cannot be opened still logs why (gate on #385)');
+			}
 		} finally {
 			restore_error_handler();
 			error_reporting($reporting);
