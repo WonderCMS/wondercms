@@ -166,6 +166,8 @@ class Wcms
 			$this->modalPersistence();
 			$this->saveLogoutToLoginScreenAction();
 			$this->deletePageAction();
+			$this->privatePageAction();
+			$this->removeCustomModuleAction();
 			$this->saveAction();
 			$this->updateAction();
 			$this->uploadFileAction();
@@ -215,6 +217,10 @@ class Wcms
 			if ($loadingPage && $loadingPage->visibility === 'hide') {
 				$this->alert('info',
 					'This page (' . $this->currentPage . ') is currently hidden from the menu. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#menu"><b>Open menu visibility settings</b></a>');
+			}
+			if ($this->isPrivatePage($this->currentPage)) {
+				$this->alert('info',
+					'This page (' . $this->currentPage . ') is private: only you see it while logged in, visitors get the 404 page and search skips it. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#menu"><b>Open menu settings</b></a>');
 			}
 		}
 
@@ -283,7 +289,7 @@ class Wcms
 			}
 		}
 		$output .= '</div>';
-		$this->printedAlerts = $_SESSION['alert'];
+		$this->printedAlerts = array_merge_recursive($this->printedAlerts, $_SESSION['alert']); // a theme may call alerts() more than once
 		unset($_SESSION['alert']);
 		return $output;
 	}
@@ -709,7 +715,10 @@ class Wcms
 		$menuKey = array_pop($menuTree);
 		if (count($menuTree) > 0) {
 			foreach ($menuTree as $childMenuKey) {
-				$childMenu = $menuSelectionObject->{$childMenuKey};
+				if (!is_object($childMenu = $menuSelectionObject->{$childMenuKey} ?? null)) {
+					$this->alert('danger', 'Page not found.');
+					return;
+				}
 
 				if (!property_exists($childMenu, self::DB_MENU_ITEMS_SUBPAGE)) {
 					$childMenu->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
@@ -718,6 +727,10 @@ class Wcms
 				$menuSelectionObject = $childMenu->{self::DB_MENU_ITEMS_SUBPAGE};
 				$slugTree[] = $childMenu->slug;
 			}
+		}
+		if (!is_object($menuSelectionObject->{$menuKey} ?? null)) {
+			$this->alert('danger', 'Page not found.');
+			return;
 		}
 
 		$slugTree[] = $menuSelectionObject->{$menuKey}->slug;
@@ -1019,9 +1032,10 @@ EOT;
 	}
 
 	/**
-	 * Read a file under a shared lock. save() writes under an exclusive lock (file_put_contents() with LOCK_EX locks before
-	 * it truncates), but the read side took none, so a request reading database.js during a save could see it emptied or
-	 * half-written; json_decode() then gave null and the request died on getDb()'s return type (nothing on disk was lost)
+	 * Read a file under a shared lock. save() renames a whole new file into place, or where that is not possible writes
+	 * under an exclusive lock (file_put_contents() with LOCK_EX locks before it truncates); 3.6.0 wrote in place and took
+	 * no lock on the read side, so a request reading database.js during a save could see it emptied or half-written;
+	 * json_decode() then gave null and the request died on getDb()'s return type (nothing on disk was lost)
 	 * @param string $path
 	 * @return string
 	 */
@@ -1050,7 +1064,7 @@ EOT;
 	public function getJsonFileData(string $path): ?array
 	{
 		if (is_file($path) && file_exists($path)) {
-			return json_decode(file_get_contents($path), true);
+			return json_decode($this->lockedRead($path), true); // cache.json is saved under the same lock as database.js
 		}
 
 		return null;
@@ -1086,15 +1100,16 @@ EOT;
 					'Wrong delete folder path.');
 				$this->redirect();
 			}
-			if ($type === 'themes' && (strcasecmp($filename, (string)$this->get('config', 'theme')) === 0 || strcasecmp($filename, 'sky') === 0)) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
+			$folderName = DIRECTORY_SEPARATOR === '\\' ? rtrim($filename, '. ') : $filename; // Windows drops trailing dots and spaces from a name, so 'sky.' would reach the sky folder there
+			if ($type === 'themes' && (strcasecmp($folderName, (string)$this->get('config', 'theme')) === 0 || strcasecmp($folderName, 'sky') === 0)) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
 				$this->alert('danger',
-					(strcasecmp($filename, 'sky') === 0 ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
+					(strcasecmp($folderName, 'sky') === 0 ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
 				$this->redirect();
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
 			$path = realpath("{$folder}/{$filename}");
 			if (file_exists($path)) {
-				is_link("{$folder}/{$filename}") ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder
+				function_exists('is_link') && is_link("{$folder}/{$filename}") ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
 				// If a plugin was deleted, also remove it from the disabled list (if present).
 				if ($type === self::PLUGINS_DIR) {
 					$disabled = $this->getDisabledPlugins();
@@ -1122,13 +1137,105 @@ EOT;
 	}
 
 	/**
+	 * Make a page private (served to the logged-in admin only; visitors get the 404 page and search skips it, subpages
+	 * included) or public again. The flag lives on the menu item, like visibility, and is synced to the page (#366)
+	 * @return void
+	 * @throws Exception
+	 */
+	public function privatePageAction(): void
+	{
+		if (!isset($_REQUEST['privatePage']) || !is_string($_REQUEST['privatePage']) || !$this->verifyFormActions(true)) {
+			return;
+		}
+		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$slugs = [];
+		foreach (explode('-', $_REQUEST['privatePage']) as $depth => $menuKey) {
+			$menuSelectionObject = $depth === 0 ? ($menuItems->{$menuKey} ?? null) : ($menuSelectionObject->subpages->{$menuKey} ?? null);
+			if (!is_object($menuSelectionObject)) {
+				$this->alert('danger', 'Page not found.');
+				$this->redirect();
+				return;
+			}
+			$slugs[] = $menuSelectionObject->slug;
+		}
+		if (empty($menuSelectionObject->private) && $this->cannotBePrivate(implode('/', $slugs))) {
+			$this->alert('danger', 'The home page, the pages above it and the 404 page cannot be private: visitors would get the 404 page at the site address. Choose another home page first.');
+			$this->redirect();
+			return;
+		}
+		if (empty($menuSelectionObject->private)) {
+			$menuSelectionObject->private = true;
+		} else {
+			unset($menuSelectionObject->private); // a public page carries no flag, so the database keeps its 3.6.0 shape
+		}
+		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
+		$this->syncPageVisibility();
+		$this->alert('success', 'Page <b>' . htmlspecialchars($menuSelectionObject->name) . '</b> is now ' . (!empty($menuSelectionObject->private) ? 'private: only you see it while logged in, visitors get the 404 page and search skips it.' : 'public.'));
+		$this->redirect();
+	}
+
+	/**
+	 * The home page (config.defaultPage), every page above it and the 404 page stay public: a visitor at the site address
+	 * would get the 404 page
+	 * @param string $slugTree
+	 * @return bool
+	 */
+	private function cannotBePrivate(string $slugTree): bool
+	{
+		return $slugTree === '404' || strpos($this->get(self::DB_CONFIG, 'defaultPage') . '/', $slugTree . '/') === 0;
+	}
+
+	/**
+	 * Whether a page, or a page above it, is private (the flag syncPageVisibility() writes to the pages)
+	 * @param string $slugTree
+	 * @return bool
+	 */
+	private function isPrivatePage(string $slugTree): bool
+	{
+		$pageData = $this->get(self::DB_PAGES_KEY);
+		foreach (explode('/', $slugTree) as $depth => $slug) {
+			$pageData = $depth === 0 ? ($pageData->{$slug} ?? null) : ($pageData->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null);
+			if (!empty($pageData->private)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Remove a custom module repository from the list. Modules already installed from it stay until the admin removes them
+	 * @return void
+	 * @throws Exception
+	 */
+	public function removeCustomModuleAction(): void
+	{
+		if (!isset($_REQUEST['removeCustomModule'], $_REQUEST['type']) || !$this->verifyFormActions(true)) {
+			return;
+		}
+		$type = $_REQUEST['type'];
+		$customModules = in_array($type, ['plugins', 'themes'], true) ? array_values((array)$this->get('config', 'customModules', $type)) : [];
+		$index = is_string($_REQUEST['removeCustomModule']) ? array_search($_REQUEST['removeCustomModule'], $customModules, true) : false;
+		if ($index === false) {
+			$this->alert('danger', 'Custom module not found.');
+			$this->redirect();
+			return;
+		}
+		$url = $customModules[$index];
+		unset($customModules[$index]);
+		$this->set('config', 'customModules', $type, array_values($customModules));
+		$this->cacheModulesData(); // the list is rebuilt from the official list and the remaining custom repositories
+		$this->alert('success', 'Custom module <b>' . htmlspecialchars($url) . '</b> removed from <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">' . ucfirst($type) . '</a>. Anything installed from it stays until you remove it.');
+		$this->redirect();
+	}
+
+	/**
 	 * Delete page
 	 * @return void
 	 * @throws Exception
 	 */
 	public function deletePageAction(): void
 	{
-		if (!isset($_GET['delete']) || !$this->verifyFormActions(true)) {
+		if (!isset($_GET['delete']) || !is_string($_GET['delete']) || !$this->verifyFormActions(true)) {
 			return;
 		}
 		$slugTree = explode('/', $_GET['delete']);
@@ -1164,7 +1271,8 @@ EOT;
 		$defaultPageArray = explode('/', $defaultPage);
 		$treeIntersect = array_intersect_assoc($defaultPageArray, $slugTree);
 		if ($treeIntersect === $slugTree) {
-			$this->set(self::DB_CONFIG, 'defaultPage', $allMenuItems->{0}->slug);
+			$publicItems = array_filter((array)$allMenuItems, function ($menuItem) { return empty($menuItem->private); });
+			$this->set(self::DB_CONFIG, 'defaultPage', (reset($publicItems) ?: $allMenuItems->{0})->slug); // a private home page would answer 404 at the site address
 		}
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
 
@@ -1270,7 +1378,8 @@ EOT;
 		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		$content = curl_exec($ch);
 		if (false === $content) {
-			$this->alert('danger', 'Cannot get content from url.');
+			$status = function_exists('curl_getinfo') ? (int)curl_getinfo($ch, CURLINFO_HTTP_CODE) : 0;
+			$this->alert('danger', $status ? 'Cannot get content from url (HTTP ' . $status . ').' : 'Cannot get content from url.'); // 0: no answer at all (the sentence translations already match)
 		}
 
 		return (string)$content;
@@ -1359,10 +1468,10 @@ EOT;
 			foreach ($data as $dirName => $addon) {
 				$exists = is_dir($this->rootDir . "/$type/" . $dirName) && ($type !== self::THEMES_DIR || $this->isThemeFolder($dirName)); // a theme folder without theme.php gets Install back, which repairs it
 				$currentVersion = $exists ? $this->getModuleVersion($type, $dirName) : null;
-				$newVersion = $addon['version'];
+				$newVersion = is_scalar($addon['version'] ?? null) ? (string)$addon['version'] : null; // a custom repository's list is not ours to trust
 				$update = $newVersion !== null
 					&& $currentVersion !== null
-					&& version_compare((string)$newVersion, (string)$currentVersion, '>');
+					&& version_compare($newVersion, (string)$currentVersion, '>');
 				if ($update) {
 					$this->alert('info',
 						'New ' . $type . ' update available. <b><a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#' . $type . '">Open ' . $type . '</a></b>');
@@ -1378,7 +1487,7 @@ EOT;
 			}
 
 			// Themes and plugins uploaded by hand: present on disk, not in the official list (#345, Almorca)
-			foreach (glob($this->rootDir . '/' . $type . '/*', GLOB_ONLYDIR) as $dir) {
+			foreach (glob($this->rootDir . '/' . $type . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
 				$dirName = basename($dir);
 				$entryFile = $type === self::THEMES_DIR ? 'theme.php' : $dirName . '.php';
 				if (isset($data[$dirName]) || !is_file($dir . '/' . $entryFile)) {
@@ -1429,6 +1538,11 @@ EOT;
 				// Find matching page in hierarchy
 				if (property_exists($pageNode, $menuItem->slug)) {
 					$pageNode->{$menuItem->slug}->visibility = $menuItem->visibility;
+					if (!empty($menuItem->private)) { // written only when set, so a database without private pages keeps its shape
+						$pageNode->{$menuItem->slug}->private = true;
+					} else {
+						unset($pageNode->{$menuItem->slug}->private);
+					}
 					
 					// Recursively sync subpages
 					if (property_exists($menuItem, 'subpages') && 
@@ -1753,6 +1867,7 @@ EOT;
 			if (is_file($wcmsModulesPath)) {
 				$wcmsModules = json_decode(trim(file_get_contents($wcmsModulesPath)));
 				$version = $wcmsModules->{$type}->{$name}->version ?? null;
+				$version = is_scalar($version) ? (string)$version : null; // a hand-made file with an object or list here must not take the settings panel down
 			} else {
 				$version = trim(file_get_contents($versionPath));
 			}
@@ -1799,6 +1914,9 @@ EOT;
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($ch, CURLOPT_FILE, $zipResource);
+		curl_setopt($ch, CURLOPT_FAILONERROR, true); // a 404 or 429 page is an error with its status, not a "ZIP" to open
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 120); // a module ZIP is bigger than the version and list files downloadFileFromUrl() fetches in 30
 		curl_exec($ch);
 		$curlError = curl_error($ch);
 		if (is_resource($zipResource)) {
@@ -1832,7 +1950,7 @@ EOT;
 		}
 
 		// First delete old plugin/theme folder (a link is removed, never followed, as in deleteFileModuleAction())
-		is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+		function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
 
 		// Then extract new one
 		$zip->extractTo($path);
@@ -1860,7 +1978,7 @@ EOT;
 			$group = $this->getPluginGroup($folderName, $cached);
 			if ($this->isExclusivePluginGroup($group) && !$wasDisabled) {
 				$pluginsDir = $this->rootDir . '/' . self::PLUGINS_DIR;
-				foreach (glob($pluginsDir . '/*', GLOB_ONLYDIR) as $dir) {
+				foreach (glob($pluginsDir . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
 					$other = basename($dir);
 					if ($other === $folderName) {
 						continue;
@@ -2093,7 +2211,7 @@ EOT;
 			$group = $this->getPluginGroup($pluginName);
 			if ($this->isExclusivePluginGroup($group)) {
 				$pluginsDir = $this->rootDir . '/' . self::PLUGINS_DIR;
-				foreach (glob($pluginsDir . '/*', GLOB_ONLYDIR) as $dir) {
+				foreach (glob($pluginsDir . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
 					$other = basename($dir);
 					if ($other === $pluginName) {
 						continue;
@@ -2146,7 +2264,7 @@ EOT;
 			return;
 		}
 		$disabled = $this->getDisabledPlugins();
-		foreach (glob($plugins . '/*', GLOB_ONLYDIR) as $dir) {
+		foreach (glob($plugins . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
 			$pluginName = basename($dir);
 			$pluginFile = $dir . '/' . $pluginName . '.php';
 			if (!file_exists($pluginFile)) {
@@ -2194,19 +2312,24 @@ EOT;
 			require_once file_exists($customPageTemplate) ? $customPageTemplate : $location . '/theme.php';
 		} catch (Throwable $e) {
 			// A broken theme (parse error, fatal) must not take the site and its login screen down with it
+			$buffered = $buffered && ob_get_level() > $level; // a theme that ended the core buffer itself has sent its output, alerts included: nothing to discard or repeat
 			while ($buffered && ob_get_level() > $level && ob_end_clean()) { // including any buffer the theme itself opened before it failed; stops on one that cannot be removed
 			}
 			if ($theme === 'sky' || !is_file($this->rootDir . '/themes/sky/theme.php')) {
 				throw $e;
 			}
 			$this->listeners = $listeners; // a listener the broken theme registered must not fatal Sky, nor the alert below (alert() runs the alert hook)
+			if (function_exists('error_log')) { // visitors see Sky without a word; the server log keeps the cause for an admin who is not logged in
+				error_log(str_replace(["\r", "\n"], ' ', 'WonderCMS: theme ' . $theme . ' failed to load, showing Sky: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()));
+			}
 			if ($buffered && $this->printedAlerts) { // what the theme printed is gone with its output; Sky prints them again, before anything queued since (unbuffered, the output stayed, so no repeat)
 				$_SESSION['alert'] = array_merge_recursive($this->printedAlerts, $_SESSION['alert'] ?? []);
-				$this->printedAlerts = [];
 			}
 			if ($this->loggedIn) {
-				$blame = strpos($e->getFile(), $this->rootDir . '/plugins/') === 0 // a plugin hook that throws while the theme renders is the plugin's fault
-					? 'Plugin <b>' . htmlspecialchars(strtok(substr($e->getFile(), strlen($this->rootDir) + 9), '/')) . '</b> failed while theme <b>' . htmlspecialchars($theme) . '</b> rendered: '
+				$file = str_replace('\\', '/', $e->getFile()); // PHP reports the resolved path, with backslashes on Windows
+				$plugins = str_replace('\\', '/', (realpath($this->rootDir) ?: $this->rootDir)) . '/plugins/';
+				$blame = strpos($file, $plugins) === 0 // a plugin hook that throws while the theme renders is the plugin's fault
+					? 'Plugin <b>' . htmlspecialchars(strtok(substr($file, strlen($plugins)), '/')) . '</b> failed while theme <b>' . htmlspecialchars($theme) . '</b> rendered: '
 					: 'Theme <b>' . htmlspecialchars($theme) . '</b> failed to load: ';
 				$this->alert('danger', $blame . htmlspecialchars($e->getMessage()) . '. Showing the Sky theme instead. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Open themes</b></a>');
 			}
@@ -2243,6 +2366,8 @@ EOT;
 		$valid = password_verify($password, $this->get('config', 'password'));
 	
 		if ($valid) {
+			session_regenerate_id(true);
+			unset($_SESSION['token']); // a token the visitor's session already carried (the alert hide script, the search form, a failed login) is not the admin's: mint a new one after login, before a login_success listener reads it
 			// Success hook before any redirects
 			$this->hook('login_success', [
 				'ip' => $ip,
@@ -2250,8 +2375,6 @@ EOT;
 				'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
 			]);
 	
-			session_regenerate_id(true);
-			unset($_SESSION['token']); // a token the visitor's session already carried (the alert hide script, the search form, a failed login) is not the admin's: mint a new one after login
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
@@ -2366,7 +2489,7 @@ EOT;
 	{
 		$output = '';
 		foreach ($this->get('config', 'menuItems') as $item) {
-			if ($item->visibility === 'hide') {
+			if ($item->visibility === 'hide' || (!empty($item->private) && !$this->loggedIn)) {
 				continue;
 			}
 			$output .= $this->renderPageNavMenuItem($item);
@@ -2468,10 +2591,14 @@ EOT;
 		// Find sub menu item
 		if ($menuTree) {
 			$mainParentMenu = array_shift($menuTree);
-			$menuSelectionObject = $menuItems->{$mainParentMenu};
+			$menuSelectionObject = $menuItems->{$mainParentMenu} ?? null;
 			foreach ($menuTree as $childMenuKey) {
-				$menuSelectionObject = $menuSelectionObject->subpages->{$childMenuKey};
+				$menuSelectionObject = $menuSelectionObject->subpages->{$childMenuKey} ?? null;
 			}
+		}
+		if (!is_object($menuSelectionObject)) {
+			$this->alert('danger', 'Page not found.');
+			return;
 		}
 
 		$menuSelectionObject->visibility = $visibility;
@@ -2569,16 +2696,16 @@ EOT;
 	{
 		$arraySlugTree = explode('/', $slugTree);
 		$pageData = null;
-		foreach ($arraySlugTree as $slug) {
-			if ($pageData === null) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$slug} ?? null;
-				continue;
-			}
-
-			$pageData = $pageData->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
+		$private = false;
+		foreach ($arraySlugTree as $depth => $slug) {
+			$pageData = $depth === 0 ? $this->get(self::DB_PAGES_KEY)->{$slug} ?? null : $pageData->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null; // missing/diary is not diary
 			if (!$pageData) {
 				return null;
 			}
+			$private = $private || !empty($pageData->private);
+		}
+		if ($private && !$this->loggedIn) {
+			return null; // a private page, and every subpage under it, does not exist for a visitor: the 404 page, no content, no search hit
 		}
 
 		if ($pageData && !property_exists($pageData, 'visibility')) {
@@ -2714,7 +2841,9 @@ EOT;
 			);
 			return;
 		}
-		file_put_contents($path, $json, LOCK_EX);
+		if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
+			$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+		}
 	}
 
 	/**
@@ -2760,6 +2889,10 @@ EOT;
 				if ($fieldname === 'defaultPage' && $content !== 'blog' && $this->getPageData($content) === null) {
 					return;
 				}
+				if ($fieldname === 'defaultPage' && $content !== 'blog' && $this->isPrivatePage($content)) {
+					$this->alert('danger', 'A private page cannot be the home page: visitors would get the 404 page at the site address. Make it public first.');
+					return;
+				}
 				if ($fieldname === 'login' && (empty($content) || $this->getPageData($content) !== null)) {
 					return;
 				}
@@ -2770,6 +2903,11 @@ EOT;
 			} elseif ($target === 'blocks') {
 				$this->set('blocks', $fieldname, 'content', $content);
 			} elseif ($target === 'pages') {
+				$parentTree = array_slice($this->currentPageTree, 0, -1);
+				if (!$this->currentPageExists && $parentTree && $this->getPageData(implode('/', $parentTree)) === null) {
+					$this->alert('danger', 'This page cannot be saved: its parent page does not exist. Create the parent page first.');
+					return;
+				}
 				if (!$this->currentPageExists) {
 					$this->createPage($this->currentPageTree, true);
 				}
@@ -2809,7 +2947,8 @@ EOT;
 			return '';
 		}
 		$currentPageData = $this->getCurrentPageData();
-		$fileList = array_slice(scandir($this->filesPath), 2);
+		$fileList = array_diff(scandir($this->filesPath) ?: [], ['.', '..']); // scandir() sorts byte-wise, so a name that sorts before '..' is not the third entry
+		natcasesort($fileList); // photo2 before photo10, upper and lower case together
 		$logoutTo = $this->logoutToUrl();
 		$isHttpsForced = $this->isHttpsForced();
 		$isSaveChangesPopupEnabled = $this->isSaveChangesPopupEnabled();
@@ -2855,7 +2994,7 @@ EOT;
 									<div data-target="pages" id="description" class="editText">' . ($currentPageData->description ?: '') . '</div>
 								</div>
 								<a href="' . self::url('?delete=' . implode('/',
-						$this->currentPageTree) . '&token=' . $this->getToken()) . '" class="wbtn wbtn-danger pull-right marginTop40" title="Delete page" onclick="return confirm(\'Delete ' . $this->currentPage . '?\')"><i class="deleteIconInButton"></i> Delete page (' . $this->currentPage . ')</a>';
+						$this->currentPageTree) . '&token=' . $this->getToken()) . '" class="wbtn wbtn-danger pull-right marginTop40" title="Delete page" data-confirm="Delete ' . htmlspecialchars($this->currentPage, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)"><i class="deleteIconInButton"></i> Delete page (' . $this->currentPage . ')</a>';
 		} else {
 			$output .= 'This page doesn\'t exist. More settings will be displayed here after this page is created.';
 		}
@@ -3071,7 +3210,9 @@ EOT;
 		$subpages = $visibleSubpage = false;
 		if (property_exists($item, 'subpages') && !empty((array)$item->subpages)) {
 			$subpages = $item->subpages;
-			$visibleSubpage = $subpages && in_array('show', array_column((array)$subpages, 'visibility'));
+			$visibleSubpage = $subpages && array_filter((array)$subpages, function ($subpage) {
+				return ($subpage->visibility ?? '') === 'show' && ($this->loggedIn || empty($subpage->private)); // a visitor gets no empty dropdown for private subpages
+			});
 		}
 
 		$parentSlug .= $subpages ? $item->slug . '/' : $item->slug;
@@ -3082,7 +3223,7 @@ EOT;
 		if ($visibleSubpage) {
 			$output .= '<ul class="subPageDropdown">';
 			foreach ($subpages as $subpage) {
-				if ($subpage->visibility === 'hide') {
+				if ($subpage->visibility === 'hide' || (!empty($subpage->private) && !$this->loggedIn)) {
 					continue;
 				}
 				$output .= $this->renderPageNavMenuItem($subpage, $parentSlug);
@@ -3130,11 +3271,14 @@ EOT;
 		if (!$isLastEl) {
 			$output .= '<a class="arrowIcon downArrowIcon toolbar menu-item-down cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" data-menu-slug="' . $value->slug . '" title="Move down"></a>';
 		}
+		if (!empty($value->private) || !$this->cannotBePrivate($slugTree)) {
+			$output .= '	<a class="wbtn wbtn-sm wbtn-secondary" href="' . self::url($this->getCurrentPagePath() . '?privatePage=' . $menuKeyTree . '&token=' . $this->getToken()) . '" title="' . (!empty($value->private) ? 'Make page public' : 'Make page private (only you see it while logged in)') . '"><i class="lockIcon"></i> ' . (!empty($value->private) ? 'private' : 'public') . '</a>';
+		}
 		$output .= '	<a class="linkIcon" href="' . self::url($slugTree) . '" title="Visit page" style="display: inline;" onclick="var c=document.querySelector(\'#settingsModal .close\');if(c){c.click();}">visit</a>
 					</div>
 					<div class="coll-xs-12 text-right marginTop5 marginBottom20">
 						<a class="menu-item-add wbtn wbtn-sm wbtn-info cursorPointer" data-toggle="tooltip" data-menu="' . $menuKeyTree . '" title="Add new sub-page"><i class="addNewIcon"></i> Add subpage</a>
-						<a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="wbtn wbtn-sm wbtn-danger" data-menu="' . $menuKeyTree . '" onclick="return confirm(\'Delete ' . $value->slug . '?\')"><i class="deleteIcon"></i></a>
+						<a href="' . self::url('?delete=' . urlencode($slugTree) . '&token=' . $this->getToken()) . '" title="Delete page" class="wbtn wbtn-sm wbtn-danger" data-menu="' . $menuKeyTree . '" data-confirm="Delete ' . htmlspecialchars($value->slug, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)"><i class="deleteIcon"></i></a>
 					</div>';
 
 		return $output;
@@ -3268,7 +3412,7 @@ EOT;
 					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . htmlspecialchars((string)$addon['version'], ENT_QUOTES) . '</a>'
 					: '';
 
-				$removeButton = !$addon['install'] && !($type === 'themes' && $directoryName === 'sky') ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName)) && !($type === 'themes' && strcasecmp($directoryName, 'sky') === 0) ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
 				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
@@ -3319,8 +3463,11 @@ EOT;
 		$output .= $exists;
 		$output .= $installs;
 		$output .= '</div>
-					<p class="subTitle">Custom module</p>
-					<form action="' . $this->getCurrentPageUrl() . '" method="post" onsubmit="recheckPasswordPrompt(event)">
+					<p class="subTitle">Custom module</p>';
+		foreach ((array)$this->get('config', 'customModules', $type) as $customUrl) {
+			$output .= '<p class="normalFont"><a class="wbtn wbtn-sm wbtn-danger" href="' . self::url($this->getCurrentPagePath() . '?removeCustomModule=' . rawurlencode($customUrl) . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Remove this repository from the list" data-confirm="' . htmlspecialchars('Remove ' . $customUrl . '? Anything installed from it stays.', ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"><i class="deleteIcon"></i></a> ' . htmlspecialchars($customUrl) . '</p>';
+		}
+		$output .= '<form action="' . $this->getCurrentPageUrl() . '" method="post" onsubmit="recheckPasswordPrompt(event)">
 						<div class="wform-group">
 							<div class="change winput-group marginTop5"><input type="text" name="pluginThemeUrl" class="wform-control normalFont" placeholder="Enter full URL to wcms-modules.json file">
 								<span class="winput-group-btn"><button type="submit" class="wbtn wbtn-info" onclick="return confirm(\'Adding unknown modules can be VERY dangerous, are you sure you want to continue?\')"><i class="addNewIcon"></i> Add</button></span>
@@ -3402,7 +3549,7 @@ EOT;
 		$contents = $this->getFileFromRepo('index.php');
 		if (!$this->isValidCoreUpdate($contents)) {
 			$this->alert('danger', 'The downloaded file was not a complete, newer WonderCMS core; nothing was changed. Try again in a few minutes.');
-		} elseif ($this->writeCore($contents)) {
+		} elseif ($this->writeFile(__FILE__, $contents)) {
 			if (function_exists('opcache_invalidate')) {
 				@opcache_invalidate(__FILE__, true); // warns under opcache.restrict_api
 			}
@@ -3414,40 +3561,61 @@ EOT;
 	}
 
 	/**
-	 * Replace index.php with the downloaded core: where a temp file can be created next to it, the whole
-	 * file lands there first and is renamed over it, so a full disk cannot leave a half-written core. A
-	 * folder that is not writable, or a host that disables a needed function, gets the direct write
-	 * (3.6.0 behaviour), still checked for length.
+	 * Replace a file whole (index.php with the downloaded core, database.js and cache.json on every save): where a
+	 * temp file can be created next to it, the whole file lands there first and is renamed over it, so a full disk
+	 * cannot leave it half-written. A file that does not exist yet, a folder that is not writable, or a host that
+	 * disables a needed function, gets the direct write (3.6.0 behaviour), still checked for length.
+	 * @param string $path
 	 * @param string $contents
 	 * @return bool
 	 */
-	private function writeCore(string $contents): bool
+	private function writeFile(string $path, string $contents): bool
 	{
-		foreach (['is_writable', 'fileowner', 'filegroup', 'fileperms', 'chmod', 'rename', 'unlink'] as $function) {
+		foreach (['is_writable', 'is_link', 'stat', 'fileowner', 'filegroup', 'fileperms', 'chmod', 'rename', 'unlink'] as $function) {
 			if (!function_exists($function)) { // a host that disables one of these (disable_functions): write in place as 3.6.0 did
-				return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
+				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 			}
 		}
-		if (!is_writable(__DIR__)) {
-			return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents); // folder not writable: no temp file possible, write directly as 3.6.0 did
+		if (!is_file($path) || !is_writable(dirname($path)) || is_link($path) || (int)(@stat($path)['nlink'] ?? 1) > 1) {
+			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, a folder not writable, a symlink or a hard link (a rename would detach it): write directly as 3.6.0 did
 		}
-		$temp = __FILE__ . '.tmp';
-		@unlink($temp); // a leftover or planted index.php.tmp (even a symlink) is never written through
+		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.*.tmp') ?: []) : [] as $old) {
+			if (@filemtime($old) < time() - 3600) {
+				@unlink($old); // a temp an interrupted save left behind is a full copy of the file (database.js holds the password hash)
+			}
+		}
+		$temp = $this->tempPath($path);
+		@unlink($temp); // a leftover or planted temp file of that name (even a symlink) is never written through
 		$bytes = @file_put_contents($temp, $contents, LOCK_EX); // false on a full disk in practice; a short count is checked too
+		if ($bytes === false && !file_exists($temp)) {
+			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // the temp could not even be created (an SELinux label or a Windows ACL that lets PHP change the file but not create one, or no free inode): write in place as 3.6.0 did; a full disk still creates the empty temp and refuses
+		}
 		if ($bytes === strlen($contents)) {
-			if (fileowner($temp) !== fileowner(__FILE__) || filegroup($temp) !== filegroup(__FILE__)) {
+			if (fileowner($temp) !== fileowner($path) || filegroup($temp) !== filegroup($path)) {
 				@unlink($temp); // PHP runs as another user or group than the file's: a rename would change them, so write in place as 3.6.0 did
-				return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
+				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 			}
-			@chmod($temp, fileperms(__FILE__) & 0777); // the rename keeps the mode index.php had
-			if (@rename($temp, __FILE__)) {
+			@chmod($temp, fileperms($path) & 0777); // the rename keeps the mode the file had
+			if (@rename($temp, $path)) {
 				return true;
 			}
 			@unlink($temp); // the host allows the write but not the rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the space proven for the folder
-			return @file_put_contents(__FILE__, $contents, LOCK_EX) === strlen($contents);
+			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 		}
-		@unlink($temp); // a full disk (blocks or inodes): index.php is untouched
+		@unlink($temp); // a full disk (blocks or inodes): the file is untouched
 		return false;
+	}
+
+	/**
+	 * The temp file writeFile() renames into place: one name per call, so two requests saving at once (or two threads of
+	 * one process, where a pid would be shared) never rename each other's half-written file
+	 * @param string $path
+	 * @return string
+	 * @throws Exception
+	 */
+	protected function tempPath(string $path): string
+	{
+		return $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
 	}
 
 	/**
@@ -3669,7 +3837,7 @@ EOT;
 			if (is_dir($file)) {
 				$zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
 			} elseif (is_file($file)) {
-				$zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
+				$zip->addFromString(str_replace($source . '/', '', $file), $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
 			}
 		}
 		$zip->close();
@@ -3905,8 +4073,8 @@ EOT;
 	{
 		$results = [];
 		foreach ($pages as $slug => $page) {
-			// 404 is never a result; a top-level key containing '/' is a legacy duplicate (#360)
-			if ($slug === '404' || strpos($slug, '/') !== false || !is_object($page)) {
+			// 404 is never a result; a top-level key containing '/' is a legacy duplicate (#360); a private page and its subpages are the admin's alone
+			if ($slug === '404' || strpos($slug, '/') !== false || !is_object($page) || (!empty($page->private) && !$this->loggedIn)) {
 				continue;
 			}
 			if ($this->pageMatchesQuery($page, $query)) {

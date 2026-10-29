@@ -1,7 +1,7 @@
 <?php global $Wcms ?>
 
 <!DOCTYPE html>
-<html lang="<?= $Wcms->getSiteLanguage() ?>">
+<html lang="<?= method_exists($Wcms, 'getSiteLanguage') ? $Wcms->getSiteLanguage() : 'en' ?>">
 	<head>
 		<!-- Encoding, browser compatibility, viewport -->
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">

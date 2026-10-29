@@ -55,6 +55,52 @@ final class PagesAndUrlTest extends TestCase
 		$this->assertFalse(isset($db->pages->{'legacy/child'}), 'no top-level duplicate');
 	}
 
+	public function testSavingUnderAMissingParentPageChangesNothing(): void
+	{
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		$this->wcms->loginStatus();
+		$this->wcms->currentPage = 'child';
+		$this->wcms->currentPageTree = ['missing', 'child'];
+		$this->wcms->currentPageExists = false;
+		$before = file_get_contents($this->dbPath);
+		$_POST = ['fieldname' => 'content', 'content' => 'x', 'target' => 'pages', 'token' => $this->wcms->getToken()];
+
+		$this->wcms->saveAction();
+
+		$this->assertSame($before, file_get_contents($this->dbPath), 'no page and no stray top-level entry');
+		$this->assertStringContainsString('parent page', $_SESSION['alert']['danger'][0]['message'] ?? '');
+	}
+
+	public function testAnUnknownFirstSegmentIsAMissingPageNotTheTopLevelPageOfTheSecond(): void
+	{
+		$this->wcms->createPage(['diary'], true);
+		$this->wcms->createPage(['games'], true);
+		$this->wcms->createPage(['games', 'board'], true);
+		$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+		foreach ([$this->wcms, $visitor] as $wcms) {
+			$this->assertNull($wcms->getPageData('missing/diary'), 'it served diary before');
+			$this->assertNull($wcms->getPageData('missing/games/board'));
+			$this->assertNotNull($wcms->getPageData('diary'));
+			$this->assertNotNull($wcms->getPageData('games/board'));
+		}
+
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		$this->wcms->loginStatus();
+		$before = file_get_contents($this->dbPath);
+		foreach ([['missing', 'diary'], ['missing', 'games', 'child']] as $tree) {
+			unset($_SESSION['alert']);
+			$this->wcms->currentPageTree = $tree;
+			$this->wcms->currentPage = end($tree);
+			$this->wcms->currentPageExists = !empty($this->wcms->getPageData(implode('/', $tree)));
+			$_POST = ['fieldname' => 'content', 'content' => 'x', 'target' => 'pages', 'token' => $this->wcms->getToken()];
+			$this->wcms->saveAction(); // missing/diary was a TypeError (HTTP 500) in updatePage()
+			$this->assertSame($before, file_get_contents($this->dbPath), implode('/', $tree));
+			$this->assertStringContainsString('parent page', $_SESSION['alert']['danger'][0]['message'] ?? '', implode('/', $tree));
+		}
+	}
+
 	public function testUrlOnWindowsDoesNotStartWithDoubleSlash(): void
 	{
 		$_SERVER['SCRIPT_NAME'] = '\\index.php';
@@ -145,6 +191,28 @@ final class PagesAndUrlTest extends TestCase
 
 		$this->wcms->orderMenuItem(1, '0');
 		$this->assertNotSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'a real neighbour swap still happens');
+	}
+
+	public function testRenamingThroughACraftedMenuKeyChangesNothing(): void
+	{
+		$before = file_get_contents($this->dbPath);
+		foreach (['99-7', 'a-b', '99', '0-99'] as $menu) {
+			unset($_SESSION['alert']);
+			$this->wcms->updateMenuItem('Renamed', $menu, 'show');
+			$this->assertSame('Page not found.', $_SESSION['alert']['danger'][0]['message'] ?? '', $menu);
+			$this->assertSame($before, file_get_contents($this->dbPath), $menu . ': database.js byte-identical');
+		}
+	}
+
+	public function testShowingOrHidingThroughACraftedMenuKeyChangesNothing(): void
+	{
+		$before = file_get_contents($this->dbPath);
+		foreach (['99-7', 'a-b', '99', '0-99'] as $menu) {
+			unset($_SESSION['alert']);
+			$this->wcms->updateMenuItemVisibility('hide', $menu);
+			$this->assertSame('Page not found.', $_SESSION['alert']['danger'][0]['message'] ?? '', $menu);
+			$this->assertSame($before, file_get_contents($this->dbPath), $menu . ': database.js byte-identical');
+		}
 	}
 
 	public function testDeletingASubpageLeavesNoGapSoTheNextSubpageDoesNotReplaceASibling(): void

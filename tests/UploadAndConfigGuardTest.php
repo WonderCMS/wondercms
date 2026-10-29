@@ -259,6 +259,52 @@ final class UploadAndConfigGuardTest extends TestCase
 		$_REQUEST = [];
 	}
 
+	public function testTrailingDotsAndSpacesOnTheSkyName(): void
+	{
+		// Windows drops trailing dots and spaces from a path, so 'sky.' there is the sky folder; elsewhere it is a different name.
+		// A trailing space never gets that far on any platform: trim() changes the name, so it is refused as cleaned.
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$_REQUEST = ['deleteModule' => 'sky ', 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		try {
+			$this->wcms->deleteFileModuleAction();
+			$this->fail('no redirect for "sky "');
+		} catch (RuntimeException $e) {
+			$this->assertSame('Invalid file name.', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		}
+		unset($_SESSION['alert']);
+		$_REQUEST = ['deleteModule' => 'sky.', 'type' => 'themes', 'token' => $this->wcms->getToken()];
+		if (DIRECTORY_SEPARATOR === '\\') {
+			try {
+				$this->wcms->deleteFileModuleAction();
+				$this->fail('no redirect for "sky."');
+			} catch (RuntimeException $e) {
+				$this->assertStringContainsString('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '', 'refused with the Sky sentence, not the active-theme one');
+			}
+		} else {
+			mkdir(__DIR__ . '/../themes/sky.'); // a distinct folder here
+			try {
+				$this->wcms->deleteFileModuleAction();
+			} catch (RuntimeException $e) {
+			} finally {
+				$left = is_dir(__DIR__ . '/../themes/sky.');
+				@rmdir(__DIR__ . '/../themes/sky.');
+			}
+			$this->assertFalse($left, 'deleted as the distinct folder it is');
+			$this->assertSame('Deleted sky..', $_SESSION['alert']['success'][0]['message'] ?? '');
+		}
+		$this->assertFileExists(__DIR__ . '/../themes/sky/theme.php');
+	}
+
+	public function testTheHtaccessDeniesIgnoreCase(): void
+	{
+		// On a case-insensitive disk (Windows, macOS) Apache served /DATABASE.JS while /database.js was refused.
+		$htaccess = file_get_contents(__DIR__ . '/../.htaccess');
+		preg_match_all('~^RewriteRule (\S+) - \[([^\]]*)\]\r$~m', $htaccess, $m);
+		$this->assertSame(['database.js', '^tests/', 'cache.json', '^data/logs/'], $m[1]);
+		$this->assertSame(['F,NC', 'F,NC', 'F,NC', 'F,NC'], $m[2]);
+		$this->assertSame(substr_count($htaccess, "\n"), substr_count($htaccess, "\r\n"), 'CRLF line ends kept');
+	}
+
 	public function testLogoutIgnoresAnArrayRedirectTarget(): void
 	{
 		$this->wcms->set('config', 'logoutToLoginScreen', false); // the default (true) never reads ?to, so the guard is only reached with it off

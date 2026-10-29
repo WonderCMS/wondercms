@@ -252,6 +252,23 @@ final class ThemeFolderTest extends TestCase
 		ob_end_clean();
 		$this->assertSame(['Saved', 'queued after printing'], array_column($_SESSION['alert']['success'], 'message'), 'the printed one first, then the one queued since, each once');
 		$this->assertCount(1, $_SESSION['alert']['danger'], 'plus the one failure alert');
+
+		// Prints, queues, prints again, then fails: both printed batches come back, not only the last.
+		mkdir($this->root . '/themes/twiceboom');
+		file_put_contents($this->root . '/themes/twiceboom/theme.php', '<?php global $Wcms; echo $Wcms->alerts(); $Wcms->alert("success", "second batch"); echo $Wcms->alerts(); throw new RuntimeException("after two batches");');
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect'])
+			->getMock();
+		$wcms->set('config', 'theme', 'twiceboom');
+		$wcms->loggedIn = true;
+		$GLOBALS['Wcms'] = $wcms;
+		unset($_SESSION['alert']);
+		$wcms->alert('success', 'Saved');
+		ob_start();
+		$wcms->loadThemeAndFunctions();
+		ob_end_clean();
+		$this->assertSame(['Saved', 'second batch'], array_column($_SESSION['alert']['success'], 'message'), 'both batches the theme printed, each once');
 		unset($_SESSION['alert'], $GLOBALS['Wcms']);
 		exec('rm -rf ' . escapeshellarg($this->root . '/data_test'));
 	}
@@ -273,12 +290,54 @@ final class ThemeFolderTest extends TestCase
 			fclose($pipes[2]);
 			proc_close($process);
 			$label = $disabled === '' ? 'buffered' : $disabled . ' disabled';
-			$this->assertSame('', $err, $label . ': nothing on stderr');
+			$this->assertSame(1, substr_count($err, "\n"), $label . ': exactly one line on stderr, the fallback log line: ' . $err);
+			$this->assertStringContainsString('WonderCMS: theme lateboom failed to load, showing Sky: after alerts in ', $err, $label . ': the cause reaches the server log');
 			$this->assertStringNotContainsString('Fatal error', $out, $label);
 			$this->assertStringContainsString('SKY', $out, $label . ': Sky rendered');
 			$this->assertSame(1, substr_count($out, 'Wrong password.'), $label . ': the alert exactly once');
 			$this->assertStringContainsString('failed to load', $out, $label . ': the admin is told');
 		}
+		@unlink(__DIR__ . '/../data_test/database_probe.js');
+	}
+
+	public function testAThemeThatFlushedTheCoreBufferThenThrowsDoesNotGetItsAlertsRepeated(): void
+	{
+		// Its output, the alerts with it, has already been sent; Sky follows it and must not print them a second time.
+		$root = realpath($this->root);
+		file_put_contents($root . '/themes/sky/theme.php', '<?php global $Wcms; echo "SKY"; echo $Wcms->alerts();');
+		mkdir($root . '/themes/flushboom');
+		file_put_contents($root . '/themes/flushboom/theme.php', '<?php global $Wcms; echo $Wcms->alerts(); ob_end_flush(); throw new RuntimeException("after flushing");');
+		$cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' render ' . escapeshellarg($root) . ' flushboom';
+		$process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__));
+		$out = stream_get_contents($pipes[1]);
+		stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($process);
+		$this->assertStringNotContainsString('Fatal error', $out);
+		$this->assertStringContainsString('SKY', $out);
+		$this->assertSame(1, substr_count($out, 'Wrong password.'), 'the alert exactly once');
+		$this->assertStringContainsString('failed to load', $out, 'the admin is told');
+		@unlink(__DIR__ . '/../data_test/database_probe.js');
+	}
+
+	public function testAWorkingThemeRendersWithOnlyObEndFlushDisabled(): void
+	{
+		// The success path ends with ob_end_flush(); with that one function disabled the theme must render unbuffered, not fatal.
+		$root = realpath($this->root);
+		mkdir($root . '/themes/good');
+		file_put_contents($root . '/themes/good/theme.php', '<?php global $Wcms; echo "GOOD"; echo $Wcms->alerts();');
+		$cmd = escapeshellarg(PHP_BINARY) . ' -d disable_functions=ob_end_flush ' . escapeshellarg(__DIR__ . '/probe.php') . ' render ' . escapeshellarg($root) . ' good';
+		$process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__));
+		$out = stream_get_contents($pipes[1]);
+		$err = stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($process);
+		$this->assertStringNotContainsString('Fatal error', $out . $err);
+		$this->assertSame('', $err);
+		$this->assertStringContainsString('GOOD', $out, 'the theme rendered');
+		$this->assertSame(1, substr_count($out, 'Wrong password.'));
 		@unlink(__DIR__ . '/../data_test/database_probe.js');
 	}
 
@@ -304,6 +363,40 @@ final class ThemeFolderTest extends TestCase
 		$this->assertStringContainsString('Plugin <b>badplug</b> failed while theme <b>my.theme</b> rendered: plugin broke', $_SESSION['alert']['danger'][0]['message'] ?? '');
 		unset($_SESSION['alert'], $GLOBALS['Wcms']);
 		exec('rm -rf ' . escapeshellarg($this->root . '/data_test'));
+	}
+
+	public function testThePluginIsBlamedWhenTheSiteRootIsASymlink(): void
+	{
+		// rootDir is the path the site was reached by; PHP reports the resolved file path (and backslashes on Windows).
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		$root = realpath($this->root);
+		$link = $root . '-link';
+		symlink($root, $link);
+		try {
+			file_put_contents($root . '/themes/sky/theme.php', '<?php echo "SKY";');
+			mkdir($root . '/plugins/linkplug', 0777, true);
+			file_put_contents($root . '/plugins/linkplug/linkplug.php', '<?php global $Wcms; $Wcms->addListener("css", function ($args) { throw new RuntimeException("plugin broke"); });');
+			file_put_contents($root . '/themes/underscore_theme/theme.php', '<?php global $Wcms; echo $Wcms->css();');
+			$wcms = $this->getMockBuilder(Wcms::class)
+				->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $link])
+				->onlyMethods(['redirect'])
+				->getMock();
+			$wcms->set('config', 'theme', 'underscore_theme');
+			$wcms->loggedIn = true;
+			$GLOBALS['Wcms'] = $wcms;
+			require $link . '/plugins/linkplug/linkplug.php';
+			unset($_SESSION['alert']);
+			ob_start();
+			$wcms->loadThemeAndFunctions();
+			$this->assertSame('SKY', ob_get_clean());
+			$this->assertStringContainsString('Plugin <b>linkplug</b> failed while theme <b>underscore_theme</b> rendered: plugin broke', $_SESSION['alert']['danger'][0]['message'] ?? '');
+		} finally {
+			unset($_SESSION['alert'], $GLOBALS['Wcms']);
+			unlink($link);
+			exec('rm -rf ' . escapeshellarg($root . '/data_test'));
+		}
 	}
 
 	public function testHidingAlertsLastsForTheLoginItWasClickedIn(): void

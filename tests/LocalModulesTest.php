@@ -24,8 +24,10 @@ final class LocalModulesTest extends TestCase
 		mkdir($this->root . '/plugins/hello', 0777, true);
 		file_put_contents($this->root . '/plugins/hello/hello.php', '<?php');
 		file_put_contents($this->root . '/plugins/hello/version', '1.2.3');
-		mkdir($this->root . '/plugins/broken<b>', 0777, true);
-		file_put_contents($this->root . '/plugins/broken<b>/broken<b>.php', '<?php');
+		if (DIRECTORY_SEPARATOR === '/') { // < and > are not allowed in a Windows file name
+			mkdir($this->root . '/plugins/broken<b>', 0777, true);
+			file_put_contents($this->root . '/plugins/broken<b>/broken<b>.php', '<?php');
+		}
 		@unlink(__DIR__ . '/../data_test/database_test.js');
 		$this->wcms = $this->getMockBuilder(Wcms::class)
 			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
@@ -66,8 +68,41 @@ final class LocalModulesTest extends TestCase
 		$this->assertStringContainsString('not in the official list', $wcms->listAllModules('plugins')['exist']['hello']['summary'], 'with a loaded list a stray folder is unofficial');
 	}
 
+	public function testAnOfficialThemeFolderWithoutThemePhpCanAlsoBeRemoved(): void
+	{
+		mkdir($this->root . '/themes/parallax', 0777, true); // no theme.php
+		mkdir($this->root . '/themes/sky', 0777, true); // no theme.php either: Sky is the fallback and keeps no Remove button
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect', 'getModulesCachedData'])
+			->getMock();
+		$official = ['summary' => 's', 'repo' => 'https://github.com/robiso/x', 'zip' => 'z', 'group' => null, 'version' => '1.0.0', 'image' => null];
+		$wcms->method('getModulesCachedData')->willReturn(['parallax' => $official + ['name' => 'Parallax'], 'sky' => $official + ['name' => 'Sky'], 'clean' => $official + ['name' => 'Clean']]);
+		$wcms->loggedIn = true;
+		$html = $wcms->settings();
+		$this->assertStringContainsString('installModule=parallax&type=themes', $html, 'Install repairs it');
+		$this->assertStringContainsString('deleteModule=parallax&type=themes', $html, 'Remove clears it');
+		$this->assertStringNotContainsString('selectModule=parallax', $html, 'it cannot be activated');
+		$this->assertStringNotContainsString('deleteModule=sky&', $html);
+		$this->assertStringNotContainsString('deleteModule=clean&', $html, 'an official theme with no folder offers Install only');
+
+		$_REQUEST = ['deleteModule' => 'parallax', 'type' => 'themes', 'token' => $wcms->getToken()];
+		try {
+			$wcms->deleteFileModuleAction();
+		} finally {
+			$_REQUEST = [];
+			unset($_SESSION['alert'], $_SESSION['token']);
+		}
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/parallax');
+		$this->assertDirectoryExists($this->root . '/themes/sky');
+		$this->assertFileExists($this->root . '/themes/my.theme/theme.php');
+	}
+
 	public function testLocalPluginsNeedTheirEntryFileAndNamesAreEscaped(): void
 	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('< and > are not allowed in a Windows file name');
+		}
 		$listed = $this->wcms->listAllModules('plugins');
 		$this->assertArrayHasKey('hello', $listed['exist']);
 		$this->assertSame('1.2.3', $listed['exist']['hello']['currentVersion']);
@@ -80,6 +115,114 @@ final class LocalModulesTest extends TestCase
 		$this->assertStringContainsString('<h4>broken&lt;b&gt;</h4>', $html, 'the card title is escaped at render');
 		$this->assertStringContainsString('<h4>o&#039;neil</h4>', $html, 'quotes too, on every PHP version');
 		$this->assertStringContainsString('data-confirm="Disable o&#039;neil?"', $html, 'the toggle text is built from the raw name and escaped once');
+	}
+
+	public function testTheFilesTabListsNamesThatSortBeforeTheDotEntries(): void
+	{
+		// scandir() sorts byte-wise: '!' and '-' come before '.', so dropping the first two entries dropped these files instead.
+		file_put_contents($this->root . '/data_test/files_test/!x.pdf', 'x'); // the constructor created the folder
+		file_put_contents($this->root . '/data_test/files_test/-dash.png', 'x');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('deleteModule=%21x.pdf&type=files', $html);
+		$this->assertStringContainsString('deleteModule=-dash.png&type=files', $html);
+		$this->assertStringNotContainsString('deleteModule=.&type=files', $html);
+		$this->assertStringNotContainsString('deleteModule=..&type=files', $html);
+	}
+
+	public function testAVersionThatIsNotTextReadsAsNoVersion(): void
+	{
+		file_put_contents($this->root . '/plugins/hello/wcms-modules.json', '{"plugins": {"hello": {"version": {"major": 1}}}}');
+		$this->assertNull($this->wcms->getModuleVersion('plugins', 'hello'), 'an object there was a TypeError on the ?string return');
+		file_put_contents($this->root . '/plugins/hello/wcms-modules.json', '{"plugins": {"hello": {"version": 2.1}}}');
+		$this->assertSame('2.1', $this->wcms->getModuleVersion('plugins', 'hello'), 'a number still reads as before');
+		$this->assertStringContainsString('hello', $this->wcms->settings());
+		file_put_contents($this->root . '/plugins/hello/wcms-modules.json', '{"plugins": {"hello": {"version": ["9.9.9"]}}}');
+		$this->assertNull($this->wcms->getModuleVersion('plugins', 'hello'), 'nor a list');
+	}
+
+	public function testAListEntryWhoseVersionIsNotTextOffersNoUpdate(): void
+	{
+		file_put_contents($this->root . '/plugins/hello/wcms-modules.json', '{"plugins": {"hello": {"version": "1.0.0"}}}');
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect', 'getModulesCachedData'])
+			->getMock();
+		$hostile = ['name' => 'Hello', 'summary' => 's', 'repo' => 'https://example.test/hello', 'zip' => 'z', 'group' => null, 'version' => ['9.9.9'], 'image' => null];
+		$wcms->method('getModulesCachedData')->willReturn(['hello' => $hostile]);
+		$wcms->loggedIn = true;
+		$listed = $wcms->listAllModules('plugins');
+		$this->assertFalse($listed['exist']['hello']['update'] ?? false, 'no update offered and no Array to string conversion');
+		$this->assertStringContainsString('Hello', $wcms->settings());
+	}
+
+	private function probe(string ...$args): array
+	{
+		$cmd = escapeshellarg(PHP_BINARY) . ' -d disable_functions=is_link ' . escapeshellarg(__DIR__ . '/probe.php') . ' ' . implode(' ', array_map('escapeshellarg', $args));
+		$process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__));
+		$out = stream_get_contents($pipes[1]);
+		$err = stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($process);
+		$this->assertStringNotContainsString('Fatal error', $out . $err);
+		$json = json_decode($out, true);
+		$this->assertIsArray($json, 'probe output: ' . $out . $err);
+		return $json;
+	}
+
+	public function testAHostThatDisablesIsLinkStillDeletesAndUpdatesModules(): void
+	{
+		// The link checks on delete and install are guarded; such a host deletes and replaces folders as 3.6.0 did.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$root = realpath($this->root);
+		$result = $this->probe('module-delete', $root, 'plugins', 'hello');
+		$this->assertSame('Deleted hello.', $result['alert']['success'][0]['message'] ?? '');
+		$this->assertDirectoryDoesNotExist($root . '/plugins/hello');
+
+		mkdir($root . '/themes/probetheme');
+		file_put_contents($root . '/themes/probetheme/theme.php', 'old');
+		$zipPath = $root . '/probetheme.zip';
+		$zip = new ZipArchive();
+		$zip->open($zipPath, ZipArchive::CREATE);
+		$zip->addFromString('probetheme-master/theme.php', 'new');
+		$zip->close();
+		$result = $this->probe('module-install', $root, 'themes', 'probetheme', 'file://' . $zipPath);
+		$this->assertArrayNotHasKey('danger', $result['alert'], json_encode($result['alert']));
+		$this->assertSame('new', file_get_contents($root . '/themes/probetheme/theme.php'), 'the old folder was replaced');
+	}
+
+	public function testTheFilesTabSortsNaturallyAndIgnoresCase(): void
+	{
+		foreach (['photo10.png', 'Photo2.png', 'photo1.png', 'apple.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'photo1.png', 'Photo2.png', 'photo10.png'], $m[1], 'scandir() alone gives Photo2, apple, photo1, photo10');
+	}
+
+	public function testAThemeFolderNamedSkyInAnyCaseHasNoRemoveButton(): void
+	{
+		mkdir($this->root . '/themes/Sky', 0777, true); // a distinct folder on a case-sensitive disk, the sky folder on Windows and macOS
+		file_put_contents($this->root . '/themes/Sky/theme.php', '<?php');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('<h4>Sky</h4>', $html, 'listed');
+		$this->assertStringNotContainsString('deleteModule=Sky&', $html);
+		$this->assertStringContainsString('deleteModule=my.theme&', $html, 'another hand-uploaded theme keeps its Remove button');
+	}
+
+	public function testThePageDeleteConfirmsAreDataAttributesTheTranslationPluginsMatch(): void
+	{
+		// The translation plugins' rows match data-confirm="Delete (.*?)\?"; the inline confirm('Delete ...?') they also
+		// carry rows for is gone, so a broken row of that shape can no longer strip the confirmation.
+		$this->wcms->currentPage = 'how-to';
+		$this->wcms->currentPageTree = ['how-to'];
+		$this->wcms->currentPageExists = true;
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('title="Delete page" data-confirm="Delete how-to?" onclick="return confirm(this.dataset.confirm)"', $html, 'the Delete page button');
+		$this->assertStringContainsString('data-confirm="Delete home?" onclick="return confirm(this.dataset.confirm)"', $html, 'the menu row delete');
+		$this->assertStringNotContainsString("return confirm('Delete", $html);
 	}
 
 	public function testAFolderThatIsAlsoOnTheOfficialListIsListedOnceAsOfficial(): void

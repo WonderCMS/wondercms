@@ -20,7 +20,7 @@ final class UpdateGuardTest extends TestCase
 
 	private function core(string $version): string
 	{
-		return "<?php\ndefine('VERSION', '" . $version . "');\nclass Wcms {}\n";
+		return "<?php\ndefine('VERSION', '" . $version . "');\nclass Wcms\n{\n}\n"; // ends like the real core, so the no-tokenizer structural check (the no-tokenizer CI job) accepts it too
 	}
 
 	private function newer(): string
@@ -188,19 +188,14 @@ final class UpdateGuardTest extends TestCase
 		// 3. The temp path cannot be written (a folder sits there; what a full disk looks like to file_put_contents): index.php untouched.
 		$site = $this->siteCopy();
 		$before = hash_file('sha256', $site . '/index.php');
-		mkdir($site . '/index.php.tmp');
-		$result = $this->probe('', 'update-run', $site, $newCore);
+		$result = $this->probe('', 'update-run', $site, $newCore, 'dir');
 		$this->assertSame($before, $result['sha'], 'a failed temp write must never fall through to the direct write');
 		$this->assertNotContains('success', $result['alerts']);
 		$this->removeDir($site);
 
 		// 3b. A stale temp file from an earlier run (even read-only) is removed first, so the update goes through.
 		$site = $this->siteCopy();
-		file_put_contents($site . '/index.php.tmp', 'stale');
-		if (DIRECTORY_SEPARATOR === '/') {
-			chmod($site . '/index.php.tmp', 0444); // Windows cannot unlink a read-only file: there such a leftover still blocks the update, and index.php is untouched
-		}
-		$result = $this->probe('', 'update-run', $site, $newCore);
+		$result = $this->probe('', 'update-run', $site, $newCore, 'stale');
 		$this->assertSame(hash('sha256', $real), $result['sha'], 'the stale temp file does not block the update');
 		$this->assertFalse($result['tmpLeft']);
 		$this->removeDir($site);
@@ -209,8 +204,7 @@ final class UpdateGuardTest extends TestCase
 		if (DIRECTORY_SEPARATOR === '/') {
 			$site = $this->siteCopy();
 			file_put_contents($site . '/victim.txt', 'keep');
-			symlink($site . '/victim.txt', $site . '/index.php.tmp');
-			$result = $this->probe('', 'update-run', $site, $newCore);
+			$result = $this->probe('', 'update-run', $site, $newCore, 'symlink');
 			$this->assertSame(hash('sha256', $real), $result['sha'], 'index.php is the downloaded core');
 			$this->assertSame('keep', file_get_contents($site . '/victim.txt'), 'the link target is untouched');
 			$this->assertFalse(is_link($site . '/index.php'), 'index.php is a regular file, not the planted link');
@@ -237,8 +231,7 @@ final class UpdateGuardTest extends TestCase
 		// 4b. A dangling symlink at the temp path is removed like any leftover; the update goes through and nothing is created behind the link.
 		if (DIRECTORY_SEPARATOR === '/') {
 			$site = $this->siteCopy();
-			symlink($site . '/no-such-dir/index.php.tmp', $site . '/index.php.tmp');
-			$result = $this->probe('', 'update-run', $site, $newCore);
+			$result = $this->probe('', 'update-run', $site, $newCore, 'dangling');
 			$this->assertSame(hash('sha256', $real), $result['sha'], 'index.php is the downloaded core');
 			$this->assertDirectoryDoesNotExist($site . '/no-such-dir');
 			$this->assertFalse($result['tmpLeft']);
@@ -246,10 +239,10 @@ final class UpdateGuardTest extends TestCase
 		}
 
 		// 5. A host that disables rename(), chmod() or the stat functions (disable_functions) still updates, in place, with no temp file left.
-		// Every function writeCore() calls besides file_put_contents, one at a time (is_writable is pinned by step 6b, where its branch runs).
+		// Every function writeFile() calls besides file_put_contents, one at a time (is_writable is pinned by step 6b, where its branch runs).
 		// A symlinked index.php needs no branch: __FILE__ is the resolved target on every SAPI, so the temp file and the rename happen in the
 		// target's folder and the link stays (the server rehearsal's symlink leg checks it; a stale opcache compile once made it look otherwise).
-		foreach (['rename', 'chmod', 'fileowner', 'filegroup', 'fileperms', 'unlink', 'is_writable'] as $disabled) {
+		foreach (['rename', 'chmod', 'fileowner', 'filegroup', 'fileperms', 'unlink', 'is_writable', 'is_link', 'stat', 'opcache_invalidate', 'getmypid'] as $disabled) { // opcache_invalidate: the post-write call is guarded too; getmypid: the temp name must not need it (hardening lists carry it)
 			$site = $this->siteCopy();
 			$this->probe('', 'update-run', $site, $truncated); // an installed site (checkFolder() needs is_writable only on first install)
 			chmod($site . '/index.php', 0644);
@@ -283,15 +276,13 @@ final class UpdateGuardTest extends TestCase
 		$this->assertFalse($result['tmpLeft']);
 		$this->removeDir($site);
 
-		// 6c. A read-only folder that still holds a writable temp from an interrupted run: the in-place decision is made before the
-		//     temp is touched, so the update lands in index.php and the stale temp is left as it was (3.6.0 updated this shape too).
+		// 6c. A read-only folder after an interrupted run: the in-place decision is made before any temp is touched, so the update
+		//     lands in index.php (3.6.0 updated this shape too).
 		$site = $this->siteCopy();
 		$this->probe('', 'update-run', $site, $truncated);
-		file_put_contents($site . '/index.php.tmp', 'stale');
 		chmod($site, 0555);
 		$result = $this->probe('', 'update-run', $site, $newCore);
-		$this->assertSame(hash('sha256', $real), $result['sha'], 'the stale temp must not divert a read-only folder from the direct write');
-		$this->assertSame('stale', file_get_contents($site . '/index.php.tmp'), 'nothing was written into the stale temp');
+		$this->assertSame(hash('sha256', $real), $result['sha'], 'a read-only folder takes the direct write');
 		$this->removeDir($site);
 
 		// 6e. Read-only folder AND read-only index.php: the in-place write fails and the admin gets the alert, with no PHP warning ahead of it

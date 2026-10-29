@@ -87,6 +87,26 @@ final class WcmsTest extends TestCase
 		$this->assertNotSame($visitorToken, $this->wcms->getToken(), 'the admin gets a token minted after login');
 	}
 
+	public function testALoginSuccessListenerSeesTheAdminsToken(): void
+	{
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$this->wcms->currentPage = 'loginURL';
+		$this->wcms->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_DEFAULT));
+		$visitorToken = $this->wcms->getToken();
+		$seen = null;
+		$wcms = $this->wcms;
+		$this->wcms->addListener('login_success', static function ($args) use (&$seen, $wcms) {
+			$seen = $wcms->getToken();
+			return $args;
+		});
+		$_POST['password'] = self::PASSWORD;
+
+		$this->wcms->loginAction();
+
+		$this->assertNotSame($visitorToken, $seen, 'the listener does not get the token the visitor session carried');
+		$this->assertSame($this->wcms->getToken(), $seen, 'it gets the token the admin keeps');
+	}
+
 	public function testLogoutAction(): void
 	{
 		$_REQUEST['token'] = $this->wcms->getToken();

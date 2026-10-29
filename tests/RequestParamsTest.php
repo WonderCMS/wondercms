@@ -69,6 +69,17 @@ final class RequestParamsTest extends TestCase
 		$this->assertSame(['error' => 'No matching content found'], json_decode($out, true), 'invalid UTF-8 query: ' . $out);
 	}
 
+	public function testAnArrayPageToDeleteChangesNothing(): void
+	{
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		$this->wcms->loginStatus();
+		$before = file_get_contents(__DIR__ . '/../data_test/database_test.js');
+		$_GET = $_REQUEST = ['delete' => ['home'], 'token' => $this->wcms->getToken()];
+		$this->wcms->deletePageAction();
+		$this->assertSame($before, file_get_contents(__DIR__ . '/../data_test/database_test.js'));
+	}
+
 	public function testArraySearchQueryIsIgnored(): void
 	{
 		$_POST['query'] = ['x'];

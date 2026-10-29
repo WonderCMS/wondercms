@@ -55,12 +55,28 @@ jobs:
         run: |
           rm -rf /tmp/site2 && mkdir /tmp/site2 && cp index.php .htaccess /tmp/site2/ && cp -r themes /tmp/site2/
           cd /tmp/site2
-          php -d display_errors=1 -d error_reporting=-1 -d disable_functions=flock,fopen,stream_get_contents,fclose,ob_start,ob_get_level,ob_end_clean,ob_end_flush,chmod,rename,unlink,fileowner,filegroup,fileperms,exec,shell_exec,system,passthru,proc_open,popen -S 127.0.0.1:8081 >/tmp/server2.log 2>&1 &
+          php -d display_errors=1 -d error_reporting=-1 -d disable_functions=flock,fopen,stream_get_contents,fclose,ob_start,ob_get_level,ob_end_clean,ob_end_flush,chmod,rename,unlink,fileowner,filegroup,fileperms,getmypid,exec,shell_exec,system,passthru,proc_open,popen -S 127.0.0.1:8081 >/tmp/server2.log 2>&1 &
           sleep 2
           BODY=$(curl -s http://127.0.0.1:8081/)
           echo "$BODY" | grep -q "<html" || { echo "no HTML with functions disabled"; cat /tmp/server2.log; exit 1; }
           if echo "$BODY" | grep -qiE "Warning:|Deprecated:|Notice:|Fatal error"; then echo "$BODY" | grep -iE "Warning:|Deprecated:|Notice:|Fatal error"; exit 1; fi
           grep -iE "Warning|Deprecated|Fatal" /tmp/server2.log && exit 1 || echo "clean boot with functions disabled"
+
+      - name: A login saves through the rename path with getmypid and the other non-file hardening functions disabled
+        # The step above disables rename(), so every save there is the direct write; here the file functions stay and the login's save renames a temp file into place.
+        run: |
+          rm -rf /tmp/site3 && mkdir /tmp/site3 && cp index.php .htaccess /tmp/site3/ && cp -r themes /tmp/site3/
+          cd /tmp/site3
+          php -d display_errors=1 -d error_reporting=-1 -d disable_functions=getmypid,flock,fopen,stream_get_contents,fclose,ob_start,ob_get_level,ob_end_clean,ob_end_flush,exec,shell_exec,system,passthru,proc_open,popen -S 127.0.0.1:8082 >/tmp/server3.log 2>&1 &
+          sleep 2
+          PW=$(curl -s -c /tmp/jar3 -b /tmp/jar3 http://127.0.0.1:8082/ | grep -o 'everything is: <b>[^<]*' | sed 's/.*<b>//')
+          test -n "$PW" || { echo "no install password on the first page"; cat /tmp/server3.log; exit 1; }
+          BEFORE=$(cksum < data/database.js)
+          curl -s -c /tmp/jar3 -b /tmp/jar3 -o /dev/null -X POST -d "password=$PW" "http://127.0.0.1:8082/?page=loginURL"
+          curl -s -c /tmp/jar3 -b /tmp/jar3 http://127.0.0.1:8082/ | grep -q 'id="settingsModal"' || { echo "login did not land"; cat /tmp/server3.log; exit 1; }
+          test "$(cksum < data/database.js)" != "$BEFORE" || { echo "the login saved nothing"; exit 1; }
+          if ls data/database.js.*.tmp 2>/dev/null; then echo "temp file left"; exit 1; fi
+          grep -iE "Warning|Deprecated|Fatal" /tmp/server3.log && exit 1 || echo "login saved through the rename path with getmypid disabled"
 
       - name: PHPUnit
         run: phpunit --no-coverage
@@ -101,7 +117,7 @@ jobs:
           test "$(stat -c %U "$SITE/index.php")" = "$(id -un)"
           test ! -e "$SITE/index.php.tmp"
 
-      - name: Updater on a disk with no free inode or block refuses and leaves index.php whole
+      - name: Updater on a disk with no free block refuses and leaves index.php whole; with no free inode it writes in place
         run: |
           # A real ENOSPC, the shape the atomic write exists for: a tmpfs with room for the site and nothing else.
           SITE=$(mktemp -d) && sudo mount -t tmpfs -o size=1m,nr_inodes=12,mode=0777 tmpfs "$SITE"
@@ -109,9 +125,9 @@ jobs:
           head -c 20 index.php > /tmp/truncated.php && php tests/probe.php update-run "$SITE" /tmp/truncated.php > /dev/null  # a first run creates data/, themes/, plugins/ and the database, as the PHPUnit steps do
           i=0; while touch "$SITE/filler$i" 2>/dev/null; do i=$((i+1)); done; echo "fillers: $i"   # use up every remaining inode
           php tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
-          test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$BEFORE"   # untouched (3.6.0's in-place write would have succeeded here; the refusal is the price of never half-writing)
-          test ! -e "$SITE/index.php.tmp"
-          grep -q '"success"' /tmp/probe.json && exit 1 || true
+          test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$(sha256sum /tmp/newcore.php | cut -d' ' -f1)"   # no temp could be created, so the write went in place as in 3.6.0 (the blocks are free)
+          test -z "$(ls "$SITE" | grep '\.tmp$')"
+          grep -q '"success"' /tmp/probe.json
           # the same site with the blocks exhausted instead of the inodes
           sudo umount "$SITE" && sudo mount -t tmpfs -o size=192k,nr_inodes=100,mode=0777 tmpfs "$SITE"
           cp index.php "$SITE/" && php tests/probe.php update-run "$SITE" /tmp/truncated.php > /dev/null
@@ -120,6 +136,23 @@ jobs:
           test ! -e "$SITE/index.php.tmp"
           grep -q '"success"' /tmp/probe.json && exit 1 || true
           sudo umount "$SITE"
+
+  no-tokenizer:
+    name: Suite without token_get_all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, zip, fileinfo
+          ini-values: disable_functions=token_get_all  # php.ini, so the probe subprocesses run without it too
+          tools: phpunit:11
+          coverage: none
+      - name: token_get_all really is disabled
+        run: "php -r 'exit((int) function_exists(\"token_get_all\"));'"
+      - name: PHPUnit (the updater validates a new core structurally here)
+        run: phpunit --no-coverage
 
   windows-url:
     name: url() on Windows
@@ -136,3 +169,9 @@ jobs:
       # Two lines: the phpunit .bat shim re-parses a "|" in the filter as a pipe.
       - run: phpunit --no-coverage --filter PagesAndUrlTest
       - run: phpunit --no-coverage --filter UpdateGuardTest
+      # save() renames database.js into place; with another process holding the file open Windows may refuse the rename and take the locked in-place write.
+      - run: phpunit --no-coverage --filter DatabaseLockTest
+      # 'sky.' is the sky folder only on Windows: the delete guard's trailing-dot branch and its Sky sentence run here only.
+      - run: phpunit --no-coverage --filter testTrailingDotsAndSpacesOnTheSkyName
+      # themes/Sky is the sky folder here (no Remove button either way), and the Files tab listing and sort on NTFS.
+      - run: phpunit --no-coverage --filter LocalModulesTest

@@ -5,10 +5,15 @@
  *
  * php tests/probe.php update <file>                 isValidCoreUpdate() on the file's contents
  * php tests/probe.php upload <tmpfile> <name>       uploadFileAction() with that file; prints the alert
- * php tests/probe.php update-run <dir> <newcore>    updateAction() inside <dir> (a copy of the site), downloading <newcore>
+ * php tests/probe.php update-run <dir> <newcore> [plant]  updateAction() inside <dir> (a copy of the site), downloading <newcore>;
+ *                                                   plant = dir | stale | symlink | dangling puts that in the way at the temp path first (fixed by ProbeWcms::tempPath())
  * php tests/probe.php search <query>                searchAction() as a visitor with a valid token; prints its JSON
  * php tests/probe.php locked-save <title>           save() with config.siteTitle set; prints the title read back
  * php tests/probe.php locked-read                   getDb(); prints the title it read (the wait happens in the constructor's read; the test times it from outside)
+ * php tests/probe.php locked-json <file>            getJsonFileData() on the file (cache.json's read); prints what it decoded
+ * php tests/probe.php locked-zip <root>             zipBackup() of <root> into <root>/data/files; prints the archive paths
+ * php tests/probe.php module-delete <root> <type> <name>          deleteFileModuleAction() as the admin; prints the alerts
+ * php tests/probe.php module-install <root> <type> <name> <zip>  installUpdateModuleAction() as the admin, the module's ZIP at the URL <zip>; prints the alerts
  * php tests/probe.php render <root> <theme>          loadThemeAndFunctions() as an admin with <theme> active and "Wrong password." queued; prints the page
  */
 PHP_SAPI === 'cli' || exit; // never over HTTP (a git-clone install has tests/ public)
@@ -25,6 +30,10 @@ final class ProbeWcms extends Wcms
 {
 	/** @var string */
 	public static $download = '';
+	/** @var bool */
+	public static $fixedTemp = false;
+	/** @var string */
+	public static $moduleZip = '';
 
 	public function redirect(string $location = ''): void
 	{
@@ -34,12 +43,22 @@ final class ProbeWcms extends Wcms
 	{
 		return self::$download;
 	}
+
+	public function getSingleModuleCachedData(string $moduleKey, string $type = self::THEMES_DIR): array
+	{
+		return self::$moduleZip === '' ? parent::getSingleModuleCachedData($moduleKey, $type) : ['zip' => self::$moduleZip];
+	}
+
+	protected function tempPath(string $path): string
+	{
+		return self::$fixedTemp ? $path . '.probe.tmp' : parent::tempPath($path); // a fixed name only where update-run plants at it
+	}
 }
 
 $_SERVER['SERVER_NAME'] = 'wondercms.doc';
 $_SERVER['SERVER_PORT'] = '80';
 $_SERVER['SCRIPT_NAME'] = '/index.php';
-$wcms = $mode === 'update-run' ? new ProbeWcms() : ($mode === 'render' ? new ProbeWcms('data_test', 'files_test', 'database_probe.js', $argv[2]) : new ProbeWcms('data_test', 'files_test', 'database_probe.js'));
+$wcms = $mode === 'update-run' ? new ProbeWcms() : (in_array($mode, ['render', 'locked-zip', 'module-delete', 'module-install'], true) ? new ProbeWcms('data_test', 'files_test', 'database_probe.js', $argv[2]) : new ProbeWcms('data_test', 'files_test', 'database_probe.js'));
 if ($mode !== 'update-run' && strpos($mode, 'locked-') !== 0) { // the lock probes work on a database the test owns and inspects afterwards
 	register_shutdown_function(static function () { @unlink(__DIR__ . '/../data_test/database_probe.js'); }); // also after exit() inside an action
 }
@@ -84,8 +103,41 @@ switch ($mode) {
 		$db = $wcms->getDb(); // the shared lock was already waited for in the constructor's getDb(); this read takes it again
 		echo json_encode(['title' => $db->config->siteTitle ?? null]);
 		break;
+	case 'locked-json':
+		echo json_encode(['data' => $wcms->getJsonFileData($argv[2])]);
+		break;
+	case 'locked-zip':
+		$wcms->zipBackup();
+		echo json_encode(['zips' => glob($argv[2] . '/data/files/*.zip')]);
+		break;
+	case 'module-delete':
+	case 'module-install':
+		$wcms->loggedIn = true;
+		$_SESSION['loggedIn'] = true;
+		ProbeWcms::$moduleZip = $argv[5] ?? '';
+		$_REQUEST = $_GET = [($mode === 'module-delete' ? 'deleteModule' : 'installModule') => $argv[4], 'type' => $argv[3], 'token' => $wcms->getToken()];
+		$mode === 'module-delete' ? $wcms->deleteFileModuleAction() : $wcms->installUpdateModuleAction();
+		echo json_encode(['alert' => $_SESSION['alert'] ?? []]);
+		break;
 	case 'update-run':
 		ProbeWcms::$download = file_get_contents($argv[3]);
+		ProbeWcms::$fixedTemp = isset($argv[4]);
+		$temp = $argv[2] . '/index.php.probe.tmp'; // ProbeWcms::tempPath() with a plant
+		switch ($argv[4] ?? '') {
+			case 'dir': // what a full disk looks like to file_put_contents(): the temp cannot be written
+				mkdir($temp);
+				break;
+			case 'stale':
+				file_put_contents($temp, 'stale');
+				DIRECTORY_SEPARATOR === '/' && chmod($temp, 0444); // Windows cannot unlink a read-only file: there such a leftover still blocks the update, and index.php is untouched
+				break;
+			case 'symlink':
+				symlink($argv[2] . '/victim.txt', $temp);
+				break;
+			case 'dangling':
+				symlink($argv[2] . '/no-such-dir/index.php.tmp', $temp);
+				break;
+		}
 		$wcms->loggedIn = true;
 		$_SESSION['loggedIn'] = true;
 		$_POST['update'] = '1';
@@ -93,7 +145,7 @@ switch ($mode) {
 		$wcms->updateAction();
 		echo json_encode([
 			'sha' => hash_file('sha256', $argv[2] . '/index.php'),
-			'tmpLeft' => file_exists($argv[2] . '/index.php.tmp'),
+			'tmpLeft' => glob($argv[2] . '/index.php.*.tmp') !== [] || file_exists($temp),
 			'alerts' => array_keys($_SESSION['alert'] ?? []),
 			'message' => $_SESSION['alert']['danger'][0]['message'] ?? ($_SESSION['alert']['success'][0]['message'] ?? ''),
 		]);
