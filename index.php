@@ -3570,10 +3570,10 @@ EOT;
 			return;
 		}
 		$contents = $this->getFileFromRepo('index.php');
-		if (!$this->isValidCoreUpdate($contents)) {
-			$this->alert('danger', 'The downloaded file was not a complete, newer WonderCMS core; nothing was changed. Try again in a few minutes.');
-		} elseif (preg_match('/PHP_VERSION_ID < (\d+)\) \{\s*die\(/', $contents, $floor) && PHP_VERSION_ID < (int)$floor[1]) { // the new core's own checkMinimumRequirements() gate: written, it would only print its "PHP required" page
+		if (preg_match('/PHP_VERSION_ID < (\d+)\) \{\s*die\(/', $contents, $floor) && PHP_VERSION_ID < (int)$floor[1]) { // the new core's own checkMinimumRequirements() gate: written, it would only print its "PHP required" page; checked before the parse, which fails on a newer PHP's syntax
 			$this->alert('danger', 'The new WonderCMS needs a newer PHP version than this server runs (PHP ' . PHP_VERSION . '); nothing was changed. Ask your host to upgrade PHP, then update again.');
+		} elseif (!$this->isValidCoreUpdate($contents)) {
+			$this->alert('danger', 'The downloaded file was not a complete, newer WonderCMS core; nothing was changed. Try again in a few minutes.');
 		} elseif ($this->writeFile(__FILE__, $contents)) {
 			if (function_exists('opcache_invalidate')) {
 				@opcache_invalidate(__FILE__, true); // warns under opcache.restrict_api
