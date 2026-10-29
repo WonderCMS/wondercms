@@ -2971,7 +2971,7 @@ EOT;
 		}
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_diff(scandir($this->filesPath) ?: [], ['.', '..']); // scandir() sorts byte-wise, so a name that sorts before '..' is not the third entry
-		$collator = class_exists('Collator') ? new Collator('root') : null; // intl, where loaded, sorts Édith.jpg among the e's; natcasesort() compares bytes past ASCII and puts it after z
+		$collator = extension_loaded('intl') && mb_check_encoding(implode("\n", $fileList), 'UTF-8') ? new Collator('root') : null; // intl, where loaded, sorts Édith.jpg among the e's; natcasesort() compares bytes past ASCII and puts it after z; not a polyfill Collator (throws on 'root'), and not on a name that is not UTF-8 (the sort fails to byte order)
 		$collator && $collator->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON) ? $collator->asort($fileList) : natcasesort($fileList); // photo2 before photo10, upper and lower case together
 		$logoutTo = $this->logoutToUrl();
 		$isHttpsForced = $this->isHttpsForced();

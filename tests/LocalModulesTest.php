@@ -204,7 +204,7 @@ final class LocalModulesTest extends TestCase
 
 	public function testTheFilesTabSortsAnAccentedNameAmongItsLetter(): void
 	{
-		if (!class_exists('Collator')) {
+		if (!extension_loaded('intl')) {
 			$this->markTestSkipped('without intl the Files tab sorts byte-wise past ASCII, as 3.7.0 did');
 		}
 		foreach (['zebra.png', 'Édith.png', 'apple.png', 'photo10.png', 'photo2.png'] as $name) {
@@ -212,6 +212,34 @@ final class LocalModulesTest extends TestCase
 		}
 		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
 		$this->assertSame(['apple.png', 'Édith.png', 'photo2.png', 'photo10.png', 'zebra.png'], array_map('rawurldecode', $m[1]), 'natcasesort() alone puts Édith after zebra');
+	}
+
+	public function testAPolyfillCollatorWithoutIntlIsNotUsed(): void
+	{
+		if (extension_loaded('intl')) {
+			$this->markTestSkipped('intl is loaded, so no stub Collator can be declared');
+		}
+		if (!class_exists('Collator')) {
+			eval('class Collator { public function __construct($locale) { throw new RuntimeException("polyfill Collator"); } }');
+		}
+		foreach (['zebra.png', 'Édith.png', 'apple.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'zebra.png', 'Édith.png'], array_map('rawurldecode', $m[1]), 'natcasesort(), as 3.7.0');
+	}
+
+	public function testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort(): void
+	{
+		$names = ['zebra.png', "\xE9dith.png", 'apple.png', 'photo10.png', 'Photo2.png'];
+		foreach ($names as $name) {
+			if (@file_put_contents($this->root . '/data_test/files_test/' . $name, 'x') === false) {
+				$this->markTestSkipped('this file system refuses a name that is not UTF-8');
+			}
+		}
+		natcasesort($names);
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(array_values($names), array_map('rawurldecode', $m[1]));
 	}
 
 	public function testAThemeFolderNameThatFoldsToSkyIsRefusedLikeSky(): void
