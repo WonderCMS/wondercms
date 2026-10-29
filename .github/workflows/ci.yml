@@ -140,6 +140,12 @@ jobs:
           grep -q '"success"' /tmp/probe.json && exit 1 || true
           sudo umount "$SITE"
 
+      - name: Saves on a full tmpfs refuse a linked or other-group database instead of truncating it
+        run: |
+          DISK=$(mktemp -d) && sudo mount -t tmpfs -o size=2m,mode=0777 tmpfs "$DISK"
+          WCMS_FULL_DISK_DIR="$DISK" phpunit --no-coverage --filter 'testOnAFullDisk|testOnANearlyFullDisk' --fail-on-skipped
+          sudo umount "$DISK"
+
   no-tokenizer:
     name: Suite without token_get_all
     runs-on: ubuntu-latest

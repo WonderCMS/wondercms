@@ -180,6 +180,18 @@ final class PrivatePagesTest extends TestCase
 		$this->assertSame('how-to', $this->wcms->get('config', 'defaultPage'), 'a public page still can');
 	}
 
+	public function testAnAlertRaisedByTheEditorsBackgroundSaveShowsOnTheReloadThatFollows(): void
+	{
+		$this->toggle($this->menuKey($this->wcms, 'diary'));
+		unset($_SESSION['alert']);
+		$_POST = ['fieldname' => 'defaultPage', 'content' => 'diary', 'target' => 'config', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertSame('', $this->wcms->alerts(), 'the save request answers without the alert: the admin JS discards that response');
+		$_POST = [];
+		$this->assertStringContainsString('A private page cannot be the home page', $this->wcms->alerts(), 'the reload shows it');
+		$this->assertArrayNotHasKey('alert', $_SESSION, 'and then it is gone');
+	}
+
 	public function testDeletingTheHomePageNeverHandsTheHomeToAPrivatePage(): void
 	{
 		$this->wcms->set('config', 'defaultPage', 'diary');

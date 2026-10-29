@@ -265,7 +265,7 @@ class Wcms
 	 */
 	public function alerts(): string
 	{
-		if (!isset($_SESSION['alert'])) {
+		if (!isset($_SESSION['alert']) || isset($_POST['fieldname'], $_POST['content'], $_POST['target'])) { // the editor's background save: the admin JS discards its response and reloads, so its alerts stay queued for that reload
 			return '';
 		}
 		$output = '<div id="alertWrapperId" class="alertWrapper" style="z-index:1060">'; // above the settings modal (1050)
@@ -2782,15 +2782,9 @@ EOT;
 		}
 
 		$folder = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-		if ($folder !== '' && $folder !== '.' && strpos($page, $folder . '/') === 0) {
-			$level = $this->get(self::DB_PAGES_KEY);
-			foreach (explode('/', $page) as $slug) { // the stored tree, private pages included: a private sub/x stays the 404 page for a visitor, never another page
-				$node = $level->{$slug} ?? null;
-				$level = $node->{self::DB_PAGES_SUBPAGE_KEY} ?? null;
-			}
-			if ($node === null) {
-				$page = substr($page, strlen($folder) + 1); // a rewrite that passes the install's folder in page= (nginx try_files ... /sub/index.php?page=$uri gives sub/about), once, and only where no page of that name exists
-			}
+		$requestPath = trim(htmlspecialchars(rawurldecode(explode('?', (string)($_SERVER['REQUEST_URI'] ?? ''), 2)[0]), ENT_QUOTES), " \t\n\r\0\x0B/");
+		if ($folder !== '' && $folder !== '.' && $page === $requestPath && strpos($page, $folder . '/') === 0) {
+			$page = substr($page, strlen($folder) + 1); // the rewrite passed the whole path, folder included (nginx try_files ... /sub/index.php?page=$uri); a folder .htaccess passes the part after the folder, which may itself start with the folder's name
 		}
 		$this->currentPageTree = explode('/', $page);
 		if ($page === $this->get('config', 'login')) {
@@ -3588,11 +3582,12 @@ EOT;
 	}
 
 	/**
-	 * Replace a file whole (index.php with the downloaded core, database.js and cache.json on every save): where a
-	 * temp file can be created next to it, the whole file lands there first and is renamed over it, so a full disk
-	 * cannot leave it half-written; where the temp file cannot be created or written, nothing is written and false comes
-	 * back. A file that does not exist yet, a folder that is not writable, a link, or a host that disables a needed
-	 * function, gets the direct write (3.6.0 behaviour), still checked for length.
+	 * Replace a file whole (index.php with the downloaded core, database.js and cache.json on every save): in a writable
+	 * folder the whole file lands in a temp file next to it first; where that fails (no free block or inode) nothing is
+	 * written and false comes back. Then it is renamed over the file, or, for a link, another owner or group, or a
+	 * refused rename, written in place with the room just proven. A file that does not exist yet, a folder that is not
+	 * writable (a folder that lets PHP change files but not create them reads as not writable), or a host that disables
+	 * a needed function, gets the direct write (3.6.0 behaviour), still checked for length.
 	 * @param string $path
 	 * @param string $contents
 	 * @return bool
@@ -3604,8 +3599,8 @@ EOT;
 				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 			}
 		}
-		if (!is_file($path) || !is_writable(dirname($path)) || is_link($path) || (int)(@stat($path)['nlink'] ?? 1) > 1) {
-			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, a folder not writable, a symlink or a hard link (a rename would detach it): write directly as 3.6.0 did
+		if (!is_file($path) || !is_writable(dirname($path))) {
+			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, or a folder not writable (no temp possible): write directly as 3.6.0 did
 		}
 		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.*.tmp') ?: []) : [] as $old) {
 			if (@filemtime($old) < time() - 3600) {
@@ -3615,20 +3610,18 @@ EOT;
 		$temp = $this->tempPath($path);
 		@unlink($temp); // a leftover or planted temp file of that name (even a symlink) is never written through
 		$bytes = @file_put_contents($temp, $contents, LOCK_EX); // false on a full disk in practice; a short count is checked too
-		if ($bytes === strlen($contents)) {
-			if (fileowner($temp) !== fileowner($path) || filegroup($temp) !== filegroup($path)) {
-				@unlink($temp); // PHP runs as another user or group than the file's: a rename would change them, so write in place as 3.6.0 did
-				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
-			}
+		if ($bytes !== strlen($contents)) {
+			@unlink($temp); // no room for a copy (no free block or inode): the file is untouched, never written in place, since an in-place write on a full disk truncates it
+			return false;
+		}
+		if (!is_link($path) && (int)(@stat($path)['nlink'] ?? 1) === 1 && fileowner($temp) === fileowner($path) && filegroup($temp) === filegroup($path)) {
 			@chmod($temp, fileperms($path) & 0777); // the rename keeps the mode the file had
 			if (@rename($temp, $path)) {
 				return true;
 			}
-			@unlink($temp); // the host allows the write but not the rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the space proven for the folder
-			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 		}
-		@unlink($temp); // a full disk (blocks or inodes), or a folder that lets PHP change the file but not create one (an SELinux label, a Windows ACL): the file is untouched, never written in place, since an in-place write on a full disk truncates it
-		return false;
+		@unlink($temp); // a symlink or a hard link (a rename would detach it), another owner or group (a rename would change them), or a refused rename (a deny-delete ACL, a single-file bind mount): write in place as 3.6.0 did, the copy just written proving the room; removed first, since an in-place write needs that room again after the truncate
+		return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
 	}
 
 	/**

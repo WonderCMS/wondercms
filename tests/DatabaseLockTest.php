@@ -24,6 +24,9 @@ final class DatabaseLockTest extends TestCase
 	protected function tearDown(): void
 	{
 		@unlink(self::DB);
+		foreach ($this->detach as $dev) {
+			exec('/usr/bin/hdiutil detach ' . $dev . ' -force >/dev/null 2>&1');
+		}
 	}
 
 	/** A Wcms on database_probe.js whose writeFile() uses $temp as its temp file */
@@ -106,9 +109,10 @@ final class DatabaseLockTest extends TestCase
 
 	public function testAFolderThatRefusesToCreateTheTempFileRefusesTheSave(): void
 	{
-		// An SELinux label or a Windows ACL can let PHP change database.js but not create a file next to it; the temp path
-		// inside a read-only folder is the same state, and so is no free inode (the CI tmpfs step). An in-place write there
-		// truncates the file first when the disk is also full, so the save is refused like any failed temp write.
+		// A writable folder where the temp file still cannot be created: no free inode (the CI tmpfs step) or an inode
+		// quota; a temp path inside a read-only folder is the same state for writeFile(). An in-place write there truncates
+		// the file first when the disk is also full, so the save is refused like any failed temp write. (A folder that lets
+		// PHP change files but not create them reads as not writable, so it takes the direct write instead, as in 3.6.0.)
 		if (DIRECTORY_SEPARATOR !== '/' || (function_exists('posix_getuid') && posix_getuid() === 0)) {
 			$this->markTestSkipped('needs a POSIX permission check (not Windows, not root)');
 		}
@@ -196,6 +200,153 @@ final class DatabaseLockTest extends TestCase
 			$this->assertSame('both names', json_decode(file_get_contents($second))->config->siteTitle);
 		} finally {
 			@unlink($second);
+		}
+	}
+
+	/**
+	 * A small real disk: a 2 MB ramdisk on macOS (hdiutil), or a tmpfs the CI step mounts and names in WCMS_FULL_DISK_DIR.
+	 * Returns a writable folder on it; never one on a disk larger than 8 MB, so the filling cannot reach a real disk.
+	 */
+	private function smallDisk(): string
+	{
+		if (getenv('WCMS_FULL_DISK_DIR')) {
+			$dir = rtrim(getenv('WCMS_FULL_DISK_DIR'), '/') . '/site-' . bin2hex(random_bytes(3));
+			mkdir($dir);
+		} elseif (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/hdiutil') && function_exists('exec')) {
+			exec('/usr/bin/hdiutil attach -nomount ram://4096 2>/dev/null', $out);
+			$dev = strtok($out[0] ?? '', " \t");
+			if (!preg_match('#^/dev/disk\d+$#', (string)$dev)) {
+				$this->markTestSkipped('hdiutil could not attach a ramdisk');
+			}
+			$name = 'wcmsrd' . bin2hex(random_bytes(3));
+			$this->detach[] = $dev;
+			exec('/usr/sbin/diskutil erasevolume HFS+ ' . $name . ' ' . $dev . ' >/dev/null 2>&1');
+			$dir = '/Volumes/' . $name . '/site';
+			mkdir($dir); // created while ownership is ignored, so it belongs to this user once owners are honoured
+			exec('/usr/sbin/diskutil unmount ' . $dev . ' >/dev/null 2>&1 && /usr/sbin/diskutil mount -mountOptions owners ' . $dev . ' >/dev/null 2>&1'); // group changes stick (the other-group case)
+			exec('/sbin/mount', $mounts);
+			$this->assertContains($dev . ' on /Volumes/' . $name . ' (hfs, local, nodev, nosuid, mounted by ' . get_current_user() . ')', $mounts, 'the ramdisk is mounted where the test writes, with owners');
+		} else {
+			$this->markTestSkipped('needs a ramdisk (macOS hdiutil) or a small tmpfs named in WCMS_FULL_DISK_DIR (the CI step)');
+		}
+		$this->assertLessThanOrEqual(8 << 20, disk_total_space($dir), 'a small disk, never a real one');
+		return $dir;
+	}
+
+	/** @var string[] ramdisk devices to detach */
+	private $detach = [];
+
+	/** Fill the disk that holds $dir until nothing is left, keeping $keep bytes free (a reserve file removed last) */
+	private function fill(string $dir, int $keep = 0): void
+	{
+		if ($keep) {
+			file_put_contents($dir . '/reserve', str_repeat('r', $keep));
+		}
+		$f = fopen($dir . '/filler', 'wb'); // one file: on a full disk not even a new name can be created
+		for ($chunk = 1 << 16; $chunk >= 1; $chunk >>= 1) {
+			while (@fwrite($f, str_repeat('f', $chunk)) === $chunk) {
+			}
+		}
+		fclose($f);
+		clearstatcache();
+		$this->assertLessThan(512, disk_free_space($dir), 'the disk is full');
+		if ($keep) {
+			unlink($dir . '/reserve');
+			clearstatcache();
+			$this->assertSame((float)$keep, disk_free_space($dir), 'exactly the reserve is free');
+		}
+	}
+
+	private function unfill(string $dir): void
+	{
+		unlink($dir . '/filler');
+	}
+
+	public function testOnAFullDiskALinkedOrOtherGroupDatabaseIsRefusedNotTruncated(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('links and groups are POSIX-only here');
+		}
+		$site = $this->smallDisk();
+		try {
+			$db = $site . '/data/database.js';
+			$wcms = new Wcms('data', 'files', 'database.js', $site);
+			$wcms->loggedIn = true;
+			$cases = [
+				'symlink' => static function () use ($db) { rename($db, dirname($db) . '/target.js'); symlink(dirname($db) . '/target.js', $db); },
+				'hard link' => static function () use ($db) { link($db, dirname($db) . '/second.js'); },
+			];
+			$groups = function_exists('posix_getgroups') ? array_values(array_diff(posix_getgroups(), [filegroup(dirname($db))])) : [];
+			if ($groups) {
+				$cases['other group'] = static function () use ($db, $groups) { chgrp($db, $groups[0]); };
+			}
+			foreach ($cases as $case => $arrange) {
+				@unlink(dirname($db) . '/second.js');
+				if (is_link($db)) {
+					unlink($db);
+					rename(dirname($db) . '/target.js', $db);
+				}
+				$arrange();
+				clearstatcache();
+				$group = filegroup($db);
+				$wcms->set('config', 'siteTitle', 'with room ' . $case);
+				clearstatcache();
+				$this->assertSame('with room ' . $case, json_decode(file_get_contents($db))->config->siteTitle, $case . ': saved in place while there is room');
+				$this->assertSame($group, filegroup($db), $case . ': in place, so the group is kept');
+				$this->assertSame([], glob($db . '.*.tmp'), $case . ': no temp left');
+
+				$before = file_get_contents($db);
+				$this->fill($site);
+				try {
+					unset($_SESSION['alert']);
+					$wcms->set('config', 'siteTitle', 'on a full disk ' . $case);
+					$this->assertSame($before, file_get_contents($db), $case . ': byte-identical, not truncated (3.6.0 wrote in place here and emptied it)');
+					$this->assertStringContainsString('Could not write database.js', json_encode($_SESSION['alert'] ?? []), $case);
+					$this->assertSame([], glob($db . '.*.tmp'), $case . ': no temp left');
+				} finally {
+					$this->unfill($site);
+				}
+			}
+		} finally {
+			unset($_SESSION['alert']);
+			exec('rm -rf ' . escapeshellarg($site) . ' 2>/dev/null'); // the ramdisk's root is not ours: the folder stays there until the detach
+		}
+	}
+
+	public function testOnANearlyFullDiskAHardLinkedDatabaseGrowsInPlaceWithTheRoomItProved(): void
+	{
+		// Room for exactly one copy of the new file: the temp proves it, and is removed before the in-place write, which
+		// needs that room again once the truncate has freed only the old, smaller file. Writing in place while the temp
+		// still held the room emptied the database.
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('hard links are POSIX-only here');
+		}
+		$site = $this->smallDisk();
+		try {
+			$db = $site . '/data/database.js';
+			$wcms = new Wcms('data', 'files', 'database.js', $site);
+			$wcms->loggedIn = true;
+			$block = 4096;
+			for ($i = 0, $pad = 0; $i < 3; $i++) { // the file ends 200 bytes short of three blocks
+				$wcms->set('config', 'pad', str_repeat('p', $pad));
+				clearstatcache();
+				$pad += 3 * $block - 200 - filesize($db);
+			}
+			$this->assertSame(3 * $block - 200, filesize($db));
+			link($db, dirname($db) . '/second.js');
+			$this->fill($site, 4 * $block);
+			try {
+				$wcms->set('config', 'pad', str_repeat('p', $pad + 400)); // four blocks now
+				clearstatcache();
+				$saved = json_decode(file_get_contents($db));
+				$this->assertSame(str_repeat('p', $pad + 400), $saved->config->pad ?? null, 'the whole new file');
+				$this->assertSame(fileinode($db), fileinode(dirname($db) . '/second.js'), 'in place: one inode');
+				$this->assertSame([], glob($db . '.*.tmp'));
+			} finally {
+				$this->unfill($site);
+			}
+		} finally {
+			exec('rm -rf ' . escapeshellarg($site) . ' 2>/dev/null');
 		}
 	}
 

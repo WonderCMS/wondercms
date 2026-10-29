@@ -15,7 +15,7 @@ final class PagesAndUrlTest extends TestCase
 	protected function tearDown(): void
 	{
 		$_GET = $_POST = $_REQUEST = [];
-		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir'], $_SERVER['REQUEST_URI']);
 	}
 
 	protected function setUp(): void
@@ -121,42 +121,55 @@ final class PagesAndUrlTest extends TestCase
 
 	public function testASubfolderInstallWhoseRewritePassesTheFolderInThePageParameterStillResolves(): void
 	{
-		// nginx `try_files $uri $uri/ /sub/index.php?page=$uri` (and some Apache setups without RewriteBase) send sub/about;
-		// 3.6.0 served about there through its first-segment lookup.
+		// nginx `try_files $uri $uri/ /sub/index.php?page=$uri` sends the whole path, sub/about; 3.6.0 served about there
+		// through its first-segment lookup. A folder .htaccess sends the part after the folder, which is never stripped.
 		$this->wcms->createPage(['games'], true);
 		$this->wcms->createPage(['games', 'board'], true);
 		$this->wcms->createPage(['sub'], true);
 		$this->wcms->createPage(['sub', 'x'], true);
 		$_SERVER['SCRIPT_NAME'] = '/sub/index.php';
-		$cases = [
-			'sub/home' => ['home', ['home'], true],
-			'home' => ['home', ['home'], true],
-			'/sub/games/board/' => ['board', ['games', 'board'], true],
-			'sub' => ['sub', ['sub'], true], // a page named like the folder
-			'sub/x' => ['x', ['sub', 'x'], true], // its subpage exists, so nothing is stripped
-			'sub/sub/x' => ['x', ['sub', 'x'], true], // the folder prefix in front of it: stripped once
-			'sub/sub/sub/x' => ['x', ['sub', 'sub', 'x'], false], // once, not twice
-			'sub/loginURL' => ['loginURL', ['loginURL'], false],
+		$cases = [ // [page=, REQUEST_URI, currentPage, currentPageTree, exists]
+			['sub/home', '/sub/home', 'home', ['home'], true],
+			['home', '/sub/home', 'home', ['home'], true], // folder .htaccess
+			['/sub/games/board/', '/sub/games/board/?x=1', 'board', ['games', 'board'], true],
+			['sub/sub', '/sub/sub', 'sub', ['sub'], true], // a page named like the folder
+			['sub', '/sub/sub', 'sub', ['sub'], true],
+			['sub/x', '/sub/x', 'x', ['x'], false], // the whole path: x of the install, not the folder-named page's subpage
+			['sub/x', '/sub/sub/x', 'x', ['sub', 'x'], true], // folder .htaccess: the folder-named page's subpage
+			['sub/sub/x', '/sub/sub/x', 'x', ['sub', 'x'], true],
+			['sub/sub/sub/x', '/sub/sub/sub/x', 'x', ['sub', 'sub', 'x'], false], // once, not twice
+			['sub/loginURL', '/sub/loginURL', 'loginURL', ['loginURL'], false],
+			['sub/home', '/sub/index.php?page=sub/home', 'home', ['sub', 'home'], false], // no rewrite: page= is taken as given
+			['sub/home', null, 'home', ['sub', 'home'], false], // no REQUEST_URI (CLI): nothing stripped
 		];
 		try {
-			foreach ($cases as $param => [$page, $tree, $exists]) {
+			foreach ($cases as [$param, $uri, $page, $tree, $exists]) {
+				if ($uri === null) {
+					unset($_SERVER['REQUEST_URI']);
+				} else {
+					$_SERVER['REQUEST_URI'] = $uri;
+				}
 				$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
 				$_GET = ['page' => $param];
 				$visitor->pageStatus();
-				$this->assertSame($page, $visitor->currentPage, $param);
-				$this->assertSame($tree, $visitor->currentPageTree, $param);
-				$this->assertSame($exists, $visitor->currentPageExists, $param);
+				$this->assertSame($page, $visitor->currentPage, $param . ' at ' . $uri);
+				$this->assertSame($tree, $visitor->currentPageTree, $param . ' at ' . $uri);
+				$this->assertSame($exists, $visitor->currentPageExists, $param . ' at ' . $uri);
 			}
 			$this->wcms->createPage(['x'], true);
 			$this->wcms->set('pages', 'sub', 'private', true); // the folder-named page private; a public top-level x exists too
-			$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
-			$_GET = ['page' => 'sub/x'];
-			$visitor->pageStatus();
-			$this->assertSame(['sub', 'x'], $visitor->currentPageTree, 'a private sub/x is not stripped to the public x');
-			$this->assertNull($visitor->getCurrentPageData(), 'the visitor gets the 404 page');
-			$this->assertFalse($visitor->currentPageExists);
+			foreach (['sub/x' => '/sub/sub/x', 'sub/sub/x' => '/sub/sub/x'] as $param => $uri) {
+				$_SERVER['REQUEST_URI'] = $uri;
+				$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+				$_GET = ['page' => $param];
+				$visitor->pageStatus();
+				$this->assertSame(['sub', 'x'], $visitor->currentPageTree, $param . ': a private sub/x is never the public x');
+				$this->assertNull($visitor->getCurrentPageData(), $param . ': the visitor gets the 404 page');
+				$this->assertFalse($visitor->currentPageExists);
+			}
 
 			$_SERVER['SCRIPT_NAME'] = '/index.php';
+			$_SERVER['REQUEST_URI'] = '/sub/home';
 			$_GET = ['page' => 'sub/home'];
 			$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
 			$visitor->pageStatus();
@@ -164,7 +177,39 @@ final class PagesAndUrlTest extends TestCase
 			$this->assertFalse($visitor->currentPageExists);
 		} finally {
 			$_SERVER['SCRIPT_NAME'] = '/index.php';
+			unset($_SERVER['REQUEST_URI']);
 			$_GET = [];
+		}
+	}
+
+	public function testAFolderHtaccessInstallNamedLikeAPluginRouteOrAPageStripsNothing(): void
+	{
+		// A site in /blog/ with Simple Blog: /blog/blog/hello-world is the plugin's virtual URL, page=blog/hello-world.
+		$_SERVER['SCRIPT_NAME'] = '/blog/index.php';
+		try {
+			$_SERVER['REQUEST_URI'] = '/blog/blog/hello-world';
+			$_GET = ['page' => 'blog/hello-world'];
+			$visitor = new Wcms('data_test', 'files_test', 'database_test.js');
+			$visitor->pageStatus();
+			$this->assertSame(['blog', 'hello-world'], $visitor->currentPageTree, 'the plugin sees its own URL');
+			$this->assertSame('hello-world', $visitor->currentPage);
+
+			$this->wcms->createPage(['blog'], true);
+			$_SESSION['loggedIn'] = true;
+			$_SESSION['rootDir'] = $this->wcms->rootDir;
+			$this->wcms->loginStatus();
+			$_SERVER['REQUEST_URI'] = '/blog/blog/sub';
+			$_GET = ['page' => 'blog/sub'];
+			$this->wcms->pageStatus();
+			$_POST = ['fieldname' => 'content', 'content' => 'new subpage', 'target' => 'pages', 'token' => $this->wcms->getToken()];
+			$this->wcms->saveAction();
+			$db = $this->reload();
+			$this->assertSame('new subpage', $db->pages->blog->subpages->sub->content ?? null, 'created as blog/sub');
+			$this->assertFalse(isset($db->pages->sub), 'no top-level sub');
+		} finally {
+			$_SERVER['SCRIPT_NAME'] = '/index.php';
+			unset($_SERVER['REQUEST_URI']);
+			$_GET = $_POST = [];
 		}
 	}
 
