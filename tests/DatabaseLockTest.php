@@ -450,7 +450,19 @@ final class DatabaseLockTest extends TestCase
 		if (PHP_VERSION_ID < 80100) {
 			$read->setAccessible(true);
 		}
-		$this->assertSame('', @$read->invoke($wcms, self::DB . '.gone'));
+		$reporting = error_reporting(E_ALL); // PHPUnit runs a test with warnings left out of error_reporting()
+		set_error_handler(function (int $level, string $message): bool {
+			if (error_reporting() & $level) { // what PHP would log; an @ lowers error_reporting() for its call
+				$this->fail('no warning reaches the log: ' . $message);
+			}
+			return true;
+		});
+		try {
+			$this->assertSame('', $read->invoke($wcms, self::DB . '.gone'));
+		} finally {
+			restore_error_handler();
+			error_reporting($reporting);
+		}
 		$this->assertStringContainsString('"siteTitle": "before"', $read->invoke($wcms, self::DB), 'and the real file reads whole');
 	}
 
