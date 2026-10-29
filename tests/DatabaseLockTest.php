@@ -277,6 +277,8 @@ final class DatabaseLockTest extends TestCase
 		}
 		$root = sys_get_temp_dir() . '/wcms-zip-' . bin2hex(random_bytes(4));
 		mkdir($root . '/data/files', 0777, true);
+		mkdir($root . '/themes/mine', 0777, true);
+		file_put_contents($root . '/themes/mine/theme.php', '<?php // nested');
 		$held = $root . '/held.js';
 		file_put_contents($held, '{"siteTitle": "before"}');
 		$new = '{"siteTitle": "after", "padding": "' . str_repeat('x', 200) . '"}';
@@ -286,6 +288,12 @@ final class DatabaseLockTest extends TestCase
 			$zip = new ZipArchive();
 			$this->assertTrue($zip->open($result['zips'][0]));
 			$this->assertSame($new, $zip->getFromName('held.js'), 'the backup holds the whole new file');
+			$this->assertSame('<?php // nested', $zip->getFromName('themes/mine/theme.php'), 'a nested file is named relative to the site, with forward slashes (3.6.0 on Windows stored the full backslash path)');
+			$this->assertNotFalse($zip->locateName('themes/mine/'));
+			for ($i = 0; $i < $zip->numFiles; $i++) {
+				$this->assertStringNotContainsString('\\', $zip->getNameIndex($i));
+				$this->assertStringNotContainsString(basename($root), $zip->getNameIndex($i));
+			}
 			$zip->close();
 		} finally {
 			exec('rm -rf ' . escapeshellarg($root));

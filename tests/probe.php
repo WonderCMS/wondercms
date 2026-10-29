@@ -14,7 +14,7 @@
  * php tests/probe.php locked-zip <root>             zipBackup() of <root> into <root>/data/files; prints the archive paths
  * php tests/probe.php module-delete <root> <type> <name>          deleteFileModuleAction() as the admin; prints the alerts
  * php tests/probe.php module-install <root> <type> <name> <zip>  installUpdateModuleAction() as the admin, the module's ZIP at the URL <zip>; prints the alerts
- * php tests/probe.php render <root> <theme>          loadThemeAndFunctions() as an admin with <theme> active and "Wrong password." queued; prints the page
+ * php tests/probe.php render <root> <theme> [plugin-ob]  loadThemeAndFunctions() as an admin with <theme> active and "Wrong password." queued; prints the page (plugin-ob: inside a plugin's own buffer, then its level)
  */
 PHP_SAPI === 'cli' || exit; // never over HTTP (a git-clone install has tests/ public)
 define('PHPUNIT_TESTING', true);
@@ -97,7 +97,15 @@ switch ($mode) {
 		$wcms->loggedIn = true;
 		$wcms->set('config', 'theme', $argv[3]);
 		$wcms->alert('danger', 'Wrong password.');
+		$pluginBuffer = ($argv[4] ?? '') === 'plugin-ob';
+		if ($pluginBuffer) { // a plugin that opened its own output buffer when plugins loaded, before the theme
+			ob_start(static function ($out) { return '[plugin]' . $out . '[/plugin]'; });
+		}
 		$wcms->loadThemeAndFunctions();
+		if ($pluginBuffer) {
+			echo ' level ' . ob_get_level();
+			ob_end_flush();
+		}
 		break;
 	case 'locked-read':
 		$db = $wcms->getDb(); // the shared lock was already waited for in the constructor's getDb(); this read takes it again

@@ -204,6 +204,17 @@ final class PagesAndUrlTest extends TestCase
 		}
 	}
 
+	public function testAddingASubpageUnderACraftedParentKeyChangesNothing(): void
+	{
+		$before = file_get_contents($this->dbPath);
+		foreach (['99-7', 'a-b', '99', '0-99'] as $menu) {
+			unset($_SESSION['alert']);
+			$this->wcms->createMenuItem('New page', $menu, 'show', true);
+			$this->assertSame('Page not found.', $_SESSION['alert']['danger'][0]['message'] ?? '', $menu);
+			$this->assertSame($before, file_get_contents($this->dbPath), $menu . ': database.js byte-identical');
+		}
+	}
+
 	public function testShowingOrHidingThroughACraftedMenuKeyChangesNothing(): void
 	{
 		$before = file_get_contents($this->dbPath);
@@ -418,11 +429,11 @@ final class PagesAndUrlTest extends TestCase
 		file_put_contents(__DIR__ . '/../data_test/files_test/a&b.pdf', 'x'); // an FTP-placed name; the delete link must not split on the &
 		$html = $wcms->settings();
 		$url = Wcms::url('data/files/') . 'brochure.pdf';
-		$this->assertStringContainsString('href="' . $url . '" class="normalFont" target="_blank" title="' . $url . '"><b class="fontSize21">brochure.pdf</b></a>', $html);
+		$this->assertStringContainsString('href="' . $url . '" class="normalFont" target="_blank" rel="noopener" title="' . $url . '"><b class="fontSize21">brochure.pdf</b></a>', $html);
 		$this->assertStringNotContainsString('>' . Wcms::url('data/files/') . '<b', $html, 'the URL prefix is no longer printed as text');
 		$this->assertStringContainsString('deleteModule=a%26b.pdf&type=files', $html, 'the delete link carries the name URL-encoded');
 		$this->assertStringContainsString('data-confirm="Delete a&amp;b.pdf?" onclick="return confirm(this.dataset.confirm)"', $html, 'the confirm text is an attribute value');
-		$this->assertStringContainsString('href="' . Wcms::url('data/files/') . 'a%26b.pdf" class="normalFont" target="_blank" title="' . Wcms::url('data/files/') . 'a&amp;b.pdf"><b class="fontSize21">a&amp;b.pdf</b></a>', $html, 'the view link encodes the href and escapes title and text');
+		$this->assertStringContainsString('href="' . Wcms::url('data/files/') . 'a%26b.pdf" class="normalFont" target="_blank" rel="noopener" title="' . Wcms::url('data/files/') . 'a&amp;b.pdf"><b class="fontSize21">a&amp;b.pdf</b></a>', $html, 'the view link encodes the href and escapes title and text');
 		$wcms->currentPageTree = ['about'];
 		$this->assertStringContainsString('about/?deleteModule=brochure.pdf&type=files', $wcms->settings(), 'the delete link returns to the current page (#347)');
 		unlink(__DIR__ . '/../data_test/files_test/brochure.pdf');

@@ -321,6 +321,55 @@ final class ThemeFolderTest extends TestCase
 		@unlink(__DIR__ . '/../data_test/database_probe.js');
 	}
 
+	private function probeRender(string $theme, string $ini = '', string $extra = ''): array
+	{
+		$cmd = escapeshellarg(PHP_BINARY) . $ini . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' render ' . escapeshellarg(realpath($this->root)) . ' ' . $theme . $extra;
+		$process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__));
+		$out = stream_get_contents($pipes[1]);
+		$err = stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($process);
+		@unlink(__DIR__ . '/../data_test/database_probe.js');
+		return [$out, $err];
+	}
+
+	public function testAThemeThatCallsExitEndsThePageAs360Did(): void
+	{
+		// exit inside the buffered require ends the request there: no catch runs, so no Sky and no log line, and PHP's
+		// shutdown flushes the core buffer. The visitor gets exactly what the theme printed, as 3.6.0 sent it unbuffered.
+		file_put_contents($this->root . '/themes/sky/theme.php', '<?php echo "SKY";');
+		mkdir($this->root . '/themes/exiter');
+		file_put_contents($this->root . '/themes/exiter/theme.php', '<?php global $Wcms; echo "BEFORE "; echo $Wcms->alerts(); exit; echo "AFTER";');
+		[$out, $err] = $this->probeRender('exiter');
+		$this->assertStringStartsWith('BEFORE ', $out);
+		$this->assertSame(1, substr_count($out, 'Wrong password.'), 'the alert once');
+		$this->assertStringNotContainsString('AFTER', $out);
+		$this->assertStringNotContainsString('SKY', $out, 'exit is not a failure: no fallback');
+		$this->assertStringNotContainsString('Fatal error', $out . $err);
+		$this->assertSame('', $err, 'nothing logged');
+		[$unbuffered] = $this->probeRender('exiter', ' -d disable_functions=ob_start');
+		$token = static function (string $html): string { return preg_replace('/[0-9a-f]{64}/', 'TOKEN', $html); }; // each run mints its own session token
+		$this->assertSame($token($unbuffered), $token($out), 'identical to the unbuffered (3.6.0) render');
+	}
+
+	public function testAPluginsOwnOutputBufferSurvivesAThemeFailure(): void
+	{
+		// The drain after a failure stops at the level the core found: a buffer a plugin opened before the theme loaded
+		// is not the core's to close, so it still wraps the page (Sky, once) and is still open afterwards.
+		file_put_contents($this->root . '/themes/sky/theme.php', '<?php global $Wcms; echo "SKY"; echo $Wcms->alerts();');
+		mkdir($this->root . '/themes/halfboom');
+		file_put_contents($this->root . '/themes/halfboom/theme.php', '<?php echo "HALF A THEME"; throw new RuntimeException("halfway");');
+		[$out] = $this->probeRender('halfboom', '', ' plugin-ob');
+		$this->assertStringStartsWith('[plugin]SKY', $out, 'the plugin buffer still wraps the page');
+		$this->assertStringEndsWith(' level 1[/plugin]', $out, 'and is open after the fallback, at its own level');
+		$this->assertSame(1, substr_count($out, 'SKY'), 'the page renders once');
+		$this->assertSame(1, substr_count($out, 'Wrong password.'));
+		$this->assertStringNotContainsString('HALF A THEME', $out, 'the broken theme output is discarded');
+		$this->assertStringNotContainsString('Notice', $out);
+		$this->assertStringNotContainsString('Fatal error', $out);
+	}
+
 	public function testAWorkingThemeRendersWithOnlyObEndFlushDisabled(): void
 	{
 		// The success path ends with ob_end_flush(); with that one function disabled the theme must render unbuffered, not fatal.

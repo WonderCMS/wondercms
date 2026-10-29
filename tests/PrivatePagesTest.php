@@ -182,6 +182,22 @@ final class PrivatePagesTest extends TestCase
 		$visitor = $this->visitor();
 		$visitor->pageStatus();
 		$this->assertTrue($visitor->currentPageExists, 'the visitor gets the home page at the site address, not the 404 page');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testDeletingTheHomePageWhenEveryOtherPageIsPrivateTellsTheAdmin(): void
+	{
+		$this->wcms->set('config', 'defaultPage', 'diary');
+		foreach (['home', 'how-to', 'games'] as $slug) {
+			$this->toggle($this->menuKey($this->wcms, $slug));
+		}
+		unset($_SESSION['alert']);
+		$_REQUEST = $_GET = ['delete' => 'diary', 'token' => $this->wcms->getToken()];
+		$this->wcms->deletePageAction();
+		$_REQUEST = $_GET = [];
+
+		$this->assertSame('home', $this->wcms->get('config', 'defaultPage'), 'no public page is left: the first one, as before');
+		$this->assertStringContainsString('the new home page (home) is private too: visitors get the 404 page', $_SESSION['alert']['danger'][0]['message'] ?? '');
 	}
 
 	public function testAnArrayInsteadOfAMenuKeyChangesNothing(): void
@@ -194,13 +210,24 @@ final class PrivatePagesTest extends TestCase
 
 	public function testThePrivateNoticeShowsOnAPrivateSubpageToo(): void
 	{
-		$this->toggle($this->menuKey($this->wcms, 'games'));
-		unset($_SESSION['alert']);
-		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['loadThemeAndFunctions'])->getMock();
-		$wcms->loggedIn = true;
-		$wcms->currentPage = 'games/board';
-		@$wcms->render(); // header() after PHPUnit's own output only warns
-		$this->assertStringContainsString('This page (games/board) is private', $_SESSION['alert']['info'][0]['message'] ?? '');
+		$gamesKey = $this->menuKey($this->wcms, 'games');
+		$boardKey = $gamesKey . '-' . (string)array_key_first((array)$this->wcms->get('config', 'menuItems')->{$gamesKey}->subpages);
+		$notice = function (): string {
+			unset($_SESSION['alert']);
+			$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['loadThemeAndFunctions'])->getMock();
+			$wcms->loggedIn = true;
+			$_GET = ['page' => 'games/board'];
+			$wcms->pageStatus(); // currentPage is 'board', currentPageTree ['games', 'board'], as in a real request
+			$_GET = [];
+			@$wcms->render(); // header() after PHPUnit's own output only warns
+			return json_encode($_SESSION['alert']['info'] ?? []);
+		};
+		$this->assertStringNotContainsString('is private', $notice());
+		$this->toggle($gamesKey);
+		$this->assertStringContainsString('This page (board) is private', $notice(), 'a public subpage under a private parent');
+		$this->toggle($gamesKey);
+		$this->toggle($boardKey);
+		$this->assertStringContainsString('This page (board) is private', $notice(), 'a private subpage under a public parent');
 	}
 
 	public function testASubpageCanBePrivateOnItsOwn(): void

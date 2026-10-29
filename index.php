@@ -218,7 +218,7 @@ class Wcms
 				$this->alert('info',
 					'This page (' . $this->currentPage . ') is currently hidden from the menu. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#menu"><b>Open menu visibility settings</b></a>');
 			}
-			if ($this->isPrivatePage($this->currentPage)) {
+			if ($this->isPrivatePage(implode('/', $this->currentPageTree))) { // currentPage is the last slug only
 				$this->alert('info',
 					'This page (' . $this->currentPage . ') is private: only you see it while logged in, visitors get the 404 page and search skips it. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#menu"><b>Open menu settings</b></a>');
 			}
@@ -659,7 +659,10 @@ class Wcms
 		$slugTree = [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
-				$childMenu = $menuSelectionObject->{$childMenuKey};
+				if (!is_object($childMenu = $menuSelectionObject->{$childMenuKey} ?? null)) {
+					$this->alert('danger', 'Page not found.');
+					return;
+				}
 
 				if (!property_exists($childMenu, self::DB_MENU_ITEMS_SUBPAGE)) {
 					$childMenu->{self::DB_MENU_ITEMS_SUBPAGE} = new StdClass;
@@ -1213,7 +1216,7 @@ EOT;
 			return;
 		}
 		$type = $_REQUEST['type'];
-		$customModules = in_array($type, ['plugins', 'themes'], true) ? array_values((array)$this->get('config', 'customModules', $type)) : [];
+		$customModules = in_array($type, ['plugins', 'themes'], true) ? array_values(array_filter((array)$this->get('config', 'customModules', $type), 'is_string')) : []; // a hand-edited entry that is not a URL is dropped
 		$index = is_string($_REQUEST['removeCustomModule']) ? array_search($_REQUEST['removeCustomModule'], $customModules, true) : false;
 		if ($index === false) {
 			$this->alert('danger', 'Custom module not found.');
@@ -1273,6 +1276,9 @@ EOT;
 		if ($treeIntersect === $slugTree) {
 			$publicItems = array_filter((array)$allMenuItems, function ($menuItem) { return empty($menuItem->private); });
 			$this->set(self::DB_CONFIG, 'defaultPage', (reset($publicItems) ?: $allMenuItems->{0})->slug); // a private home page would answer 404 at the site address
+			if (!$publicItems) {
+				$this->alert('danger', 'Every remaining page is private, so the new home page (' . $allMenuItems->{0}->slug . ') is private too: visitors get the 404 page at the site address. Make it public in Settings -> Menu.');
+			}
 		}
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $allMenuItems);
 
@@ -1745,7 +1751,7 @@ EOT;
 
 		$arrayCustom = (array)$db->config->customModules;
 		foreach ($arrayCustom as $type => $modules) {
-			foreach ($modules as $url) {
+			foreach (array_filter((array)$modules, 'is_string') as $url) {
 				$wcmsModuleData = $this->fetchModuleConfig($url, $type);
 				if (null === $wcmsModuleData) {
 					continue;
@@ -3058,7 +3064,7 @@ EOT;
 			$output .= '
 									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
-										<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>
+										<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>
 									</span>
 									<p></p>';
 		}
@@ -3464,7 +3470,7 @@ EOT;
 		$output .= $installs;
 		$output .= '</div>
 					<p class="subTitle">Custom module</p>';
-		foreach ((array)$this->get('config', 'customModules', $type) as $customUrl) {
+		foreach (array_filter((array)$this->get('config', 'customModules', $type), 'is_string') as $customUrl) {
 			$output .= '<p class="normalFont"><a class="wbtn wbtn-sm wbtn-danger" href="' . self::url($this->getCurrentPagePath() . '?removeCustomModule=' . rawurlencode($customUrl) . '&type=' . $type . '&token=' . $this->getToken()) . '" title="Remove this repository from the list" data-confirm="' . htmlspecialchars('Remove ' . $customUrl . '? Anything installed from it stays.', ENT_QUOTES) . '" onclick="return confirm(this.dataset.confirm)"><i class="deleteIcon"></i></a> ' . htmlspecialchars($customUrl) . '</p>';
 		}
 		$output .= '<form action="' . $this->getCurrentPageUrl() . '" method="post" onsubmit="recheckPasswordPrompt(event)">
@@ -3835,9 +3841,9 @@ EOT;
 			$file = realpath($file);
 			$source = realpath($this->rootDir);
 			if (is_dir($file)) {
-				$zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
+				$zip->addEmptyDir(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file . DIRECTORY_SEPARATOR)); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			} elseif (is_file($file)) {
-				$zip->addFromString(str_replace($source . '/', '', $file), $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				$zip->addFromString(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file), $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
 			}
 		}
 		$zip->close();
