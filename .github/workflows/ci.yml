@@ -115,7 +115,8 @@ jobs:
           sudo -u nobody "$(command -v php)" tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
           test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$(sha256sum /tmp/newcore.php | cut -d' ' -f1)"
           test "$(stat -c %U "$SITE/index.php")" = "$(id -un)"
-          test ! -e "$SITE/index.php.tmp"
+          test -z "$(ls "$SITE"/index.php.*.tmp 2>/dev/null)"   # the random-named temp that proved the room is gone
+          grep -q 'WonderCMS successfully updated' /tmp/probe.json
 
       - name: Updater on a disk with no free inode or block refuses and leaves index.php whole
         run: |
@@ -136,7 +137,8 @@ jobs:
           cp index.php "$SITE/" && php tests/probe.php update-run "$SITE" /tmp/truncated.php > /dev/null
           php tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
           test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$BEFORE"   # untouched, not truncated (with no block free 3.6.0 left 0 bytes; with fewer than one core free it overwrote in place, so here 3.7.0 refuses where 3.6.0 succeeded)
-          test ! -e "$SITE/index.php.tmp"
+          test -z "$(ls "$SITE"/index.php.*.tmp 2>/dev/null)"
+          grep -q 'Could not write the new index.php' /tmp/probe.json
           grep -q '"success"' /tmp/probe.json && exit 1 || true
           sudo umount "$SITE"
 

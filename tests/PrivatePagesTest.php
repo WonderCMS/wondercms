@@ -314,4 +314,26 @@ final class PrivatePagesTest extends TestCase
 		$this->assertStringContainsString('Page not found', json_encode($_SESSION['alert']));
 		$this->assertSame($before, file_get_contents(self::DB));
 	}
+
+	public function testAnAdminPageViewThatChangesNothingDoesNotRewriteTheDatabase(): void
+	{
+		$cache = __DIR__ . '/../data_test/cache.json';
+		$cacheBefore = @file_get_contents($cache);
+		file_put_contents($cache, '{"themes":{},"plugins":{}}'); // with today's stamp: no module or core check (no network, no stamp write)
+		$this->wcms->set('config', 'lastModulesSync', date('Y/m/d'));
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		try {
+			$this->admin()->init(); // setUp showed the menu items without syncing the pages: this view syncs and saves
+			$this->assertSame('show', json_decode(file_get_contents(self::DB))->pages->games->visibility, 'a view that syncs a change still saves');
+			touch(self::DB, time() - 100);
+			clearstatcache();
+			$before = [file_get_contents(self::DB), filemtime(self::DB), fileinode(self::DB)];
+			$this->admin()->init();
+			clearstatcache();
+			$this->assertSame($before, [file_get_contents(self::DB), filemtime(self::DB), fileinode(self::DB)], 'bytes, mtime and inode unchanged: no save (a save renames a new file into place)');
+		} finally {
+			$cacheBefore === false ? @unlink($cache) : file_put_contents($cache, $cacheBefore);
+		}
+	}
 }

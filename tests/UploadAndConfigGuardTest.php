@@ -295,6 +295,20 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->assertFileExists(__DIR__ . '/../themes/sky/theme.php');
 	}
 
+	public function testTheDeletedAlertPrintsTheFileNameAsText(): void
+	{
+		if (DIRECTORY_SEPARATOR === '\\') {
+			$this->markTestSkipped('Windows refuses < > and " in file names');
+		}
+		$name = '<img src=x onerror="alert(1)">.png'; // no slash, no dots or tilde to clean: it passes the name check and is deleted
+		$path = $this->wcms->filesPath . '/' . $name;
+		file_put_contents($path, 'x');
+		$_REQUEST = ['deleteModule' => $name, 'type' => 'files', 'token' => $this->wcms->getToken()];
+		$this->wcms->deleteFileModuleAction();
+		$this->assertFileDoesNotExist($path);
+		$this->assertSame('Deleted &lt;img src=x onerror=&quot;alert(1)&quot;&gt;.png.', $_SESSION['alert']['success'][0]['message'] ?? '');
+	}
+
 	public function testTheHtaccessDeniesIgnoreCase(): void
 	{
 		// On a case-insensitive disk (Windows, macOS) Apache served /DATABASE.JS while /database.js was refused.

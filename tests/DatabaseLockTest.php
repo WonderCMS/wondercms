@@ -291,8 +291,8 @@ final class DatabaseLockTest extends TestCase
 				$group = filegroup($db);
 				$wcms->set('config', 'siteTitle', 'with room ' . $case);
 				clearstatcache();
-				$this->assertSame('with room ' . $case, json_decode(file_get_contents($db))->config->siteTitle, $case . ': saved in place while there is room');
-				$this->assertSame($group, filegroup($db), $case . ': in place, so the group is kept');
+				$this->assertSame('with room ' . $case, json_decode(file_get_contents($db))->config->siteTitle, $case . ': saved while there is room');
+				$this->assertSame($group, filegroup($db), $case . ': the group is kept');
 				$this->assertSame([], glob($db . '.*.tmp'), $case . ': no temp left');
 
 				$before = file_get_contents($db);
@@ -310,6 +310,42 @@ final class DatabaseLockTest extends TestCase
 		} finally {
 			unset($_SESSION['alert']);
 			exec('rm -rf ' . escapeshellarg($site) . ' 2>/dev/null'); // the ramdisk's root is not ours: the folder stays there until the detach
+		}
+	}
+
+	public function testOnAFullDiskASymlinkedDatabaseWhoseTargetIsOnAnotherDiskIsRefusedNotTruncated(): void
+	{
+		// The link sits in data_test with room to spare, the target on the full disk: a temp written next to the link proved
+		// room on the wrong disk and the in-place write through the link emptied the target.
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		$site = $this->smallDisk();
+		$target = $site . '/database.js';
+		try {
+			copy(self::DB, $target); // a rename across disks also copies the owner and group, which the ramdisk refuses
+			unlink(self::DB);
+			symlink($target, self::DB);
+			$wcms = new Wcms('data_test', 'files_test', 'database_probe.js');
+			$wcms->loggedIn = true;
+			$before = file_get_contents($target);
+			$this->fill($site);
+			try {
+				$wcms->set('config', 'siteTitle', 'on a full disk');
+				clearstatcache();
+				$this->assertSame($before, file_get_contents($target), 'byte-identical, not truncated');
+				$this->assertStringContainsString('Could not write database_probe.js', json_encode($_SESSION['alert'] ?? []));
+			} finally {
+				$this->unfill($site);
+			}
+			$wcms->set('config', 'siteTitle', 'with room');
+			clearstatcache();
+			$this->assertTrue(is_link(self::DB), 'still a link');
+			$this->assertSame('with room', json_decode(file_get_contents($target))->config->siteTitle, 'the target is saved');
+			$this->assertSame([], array_merge(glob(self::DB . '.*.tmp'), glob($target . '.*.tmp')), 'no temp left on either disk');
+		} finally {
+			unset($_SESSION['alert']);
+			exec('rm -rf ' . escapeshellarg($site) . ' 2>/dev/null');
 		}
 	}
 
@@ -342,6 +378,33 @@ final class DatabaseLockTest extends TestCase
 				$this->assertSame(str_repeat('p', $pad + 400), $saved->config->pad ?? null, 'the whole new file');
 				$this->assertSame(fileinode($db), fileinode(dirname($db) . '/second.js'), 'in place: one inode');
 				$this->assertSame([], glob($db . '.*.tmp'));
+			} finally {
+				$this->unfill($site);
+			}
+		} finally {
+			unset($_SESSION['alert']);
+			exec('rm -rf ' . escapeshellarg($site) . ' 2>/dev/null');
+		}
+	}
+
+	public function testOnANearlyFullDiskAShortTempWriteIsRefusedAndRemoved(): void
+	{
+		// One block free: the temp file is created but cannot take the content (the CI tmpfs writes 4096 of the 12288 bytes;
+		// macOS HFS+ writes nothing of a write that does not fit, so there it stays empty), so nothing is renamed or written in place.
+		$site = $this->smallDisk();
+		try {
+			$wcms = new Wcms('data', 'files', 'database.js', $site);
+			$db = $site . '/data/database.js';
+			$before = file_get_contents($db);
+			$write = Closure::bind(function (string $path, string $contents): bool {
+				return $this->writeFile($path, $contents);
+			}, $wcms, Wcms::class);
+			$this->fill($site, 4096);
+			try {
+				$this->assertFalse($write($db, str_repeat('x', 3 * 4096)), 'a short temp write fails the save');
+				clearstatcache();
+				$this->assertSame($before, file_get_contents($db), 'byte-identical');
+				$this->assertSame([], glob($db . '.*.tmp'), 'the short temp is removed');
 			} finally {
 				$this->unfill($site);
 			}

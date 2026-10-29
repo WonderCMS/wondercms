@@ -130,6 +130,8 @@ final class PagesAndUrlTest extends TestCase
 		$_SERVER['SCRIPT_NAME'] = '/sub/index.php';
 		$cases = [ // [page=, REQUEST_URI, currentPage, currentPageTree, exists]
 			['sub/home', '/sub/home', 'home', ['home'], true],
+			['sub/home', '/sub/h%6Fme', 'home', ['home'], true], // nginx decodes $uri; REQUEST_URI stays encoded
+			['sub/страница', '/sub/%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0', 'страница', ['страница'], false],
 			['home', '/sub/home', 'home', ['home'], true], // folder .htaccess
 			['/sub/games/board/', '/sub/games/board/?x=1', 'board', ['games', 'board'], true],
 			['sub/sub', '/sub/sub', 'sub', ['sub'], true], // a page named like the folder

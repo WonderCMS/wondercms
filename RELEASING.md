@@ -1,5 +1,7 @@
 # Releasing WonderCMS
 
+Before a release: grep this file for `<robert-si-[a-z-]*>` and fill in every placeholder (checklist step 6).
+
 The `main` branch is the update channel: when an admin clicks **Update**, their site downloads
 `main/index.php` and writes it over itself. Merging into `main` is the release. Everything
 below exists to make sure only a complete, versioned `index.php` ever gets there.
@@ -47,7 +49,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
 
 1. Release branch from `main`; every change as its own commit with a test. Run
    `php phpunit.phar` locally (phpunit.phar is ignored by git; download it from
-   https://phar.phpunit.de/).
+   https://phar.phpunit.de/). On PHP 7.4 the suite needs a UTF-8 locale (one search test uses Cyrillic text):
+   `LC_ALL=en_US.UTF-8 php phpunit.phar`.
 2. Version bump commit (the old updater only offers an Update when the remote version is higher,
    so the rehearsal needs the bumped file). CI green.
 3. Rehearse: install the branch's `index.php` in a non-public folder on the server, run an
@@ -86,8 +89,10 @@ tag, rule 3 above; every push is read back through the API and recorded).
    (a custom theme, `skyPersonal`, so a theme that is not shipped with the release meets the new core too). Start
    robert.si only once wondercms.com has passed. On each site: confirm the live `index.php` is the stock previous
    release (compare its SHA-256; if it is not, stop and do not click: find out why the file differs first, since a
-   hand-edited or unexpected core is not the canary this step relies on), back up `index.php` and `data/` before its click, click **Update**, check the
-   site, the login, a save, and the `VERSION` in the file on disk (opcache may serve the old code for a moment). "Check the site" means reading the page body, not
+   hand-edited or unexpected core is not the canary this step relies on), back up `index.php` and `data/` before its click
+   (commands below), click **Update**, check the site, the login, a save, and the `VERSION` in the file on disk. After each
+   Update click wait at least 2 seconds (opcache's `revalidate_freq` default) before the first check: within that window a
+   request can still run the old code and report the old version. "Check the site" means reading the page body, not
    the status code: a boot fatal comes back as HTTP 200 with the error in the body on some servers, so `curl -s -w '%{http_code}'` the
    home page (expect 200) and the login page (expect 404: the login URL is not a stored page, by design, in every
    version) and grep both bodies for `Fatal error`, `Parse error`, `Warning:`, `Deprecated:` and `Notice:` before the
@@ -104,6 +109,34 @@ tag, rule 3 above; every push is read back through the API and recorded).
    reverted (CI requires a higher version for any change to `index.php`, and protection applies to admins):
    the remedy is the next patch release (`X.Y.Z+1`) carrying the fix, or, in the worst case, the previous
    release's code with `VERSION` set to `X.Y.Z+1` (sites already on `X.Y.Z` only accept a higher version). Nothing is announced until that patch is live and verified.
+
+   **Backup, error log and restore per site.** The backup goes to a dated folder outside the web root; write its name
+   into the release record at once. The restore keeps the failed state, puts `index.php` back atomically and copies
+   `data/` back over the live folder, so `data/` is never missing and no request can start a fresh install.
+   www.wondercms.com (ssh host `wondercms`, web root `~/public_html`; the host writes PHP errors to `error_log` in the
+   script's folder):
+
+   ```sh
+   # before the click: back up, and note the error log length
+   ssh wondercms 'B=~/backups/canary-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && cp -p ~/public_html/index.php "$B/index.php" && cp -Rp ~/public_html/data "$B/data" && echo "backup: $B" && shasum -a 256 ~/public_html/index.php "$B/index.php" && du -sh "$B/data"; wc -l ~/public_html/error_log 2>/dev/null'
+   # after the click and the checks: what the update added to the error log (expect nothing new)
+   ssh wondercms 'tail -n 20 ~/public_html/error_log 2>/dev/null'
+   # restore, only if the canary failed
+   ssh wondercms 'B=<backup-folder> && cp -p ~/public_html/index.php "$B/index.php.failed" && cp -Rp ~/public_html/data "$B/data.failed" && cp -p "$B/index.php" ~/public_html/index.php.restore && mv ~/public_html/index.php.restore ~/public_html/index.php && cp -Rp "$B/data/." ~/public_html/data/ && rm -f ~/public_html/data/*.tmp && shasum -a 256 ~/public_html/index.php "$B/index.php"'
+   ```
+
+   robert.si: the same three commands with its own values. Before the release, grep this file for `<robert-si-[a-z-]*>`
+   and fill in every placeholder (they are not recorded here):
+
+   ```sh
+   ssh <robert-si-ssh-host> 'B=~/backups/canary-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && cp -p <robert-si-web-root>/index.php "$B/index.php" && cp -Rp <robert-si-web-root>/data "$B/data" && echo "backup: $B" && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php" && du -sh "$B/data"; wc -l <robert-si-error-log> 2>/dev/null'
+   ssh <robert-si-ssh-host> 'tail -n 20 <robert-si-error-log> 2>/dev/null'
+   ssh <robert-si-ssh-host> 'B=<backup-folder> && cp -p <robert-si-web-root>/index.php "$B/index.php.failed" && cp -Rp <robert-si-web-root>/data "$B/data.failed" && cp -p "$B/index.php" <robert-si-web-root>/index.php.restore && mv <robert-si-web-root>/index.php.restore <robert-si-web-root>/index.php && cp -Rp "$B/data/." <robert-si-web-root>/data/ && rm -f <robert-si-web-root>/data/*.tmp && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php"'
+   ```
+
+   On a cPanel or LiteSpeed host the error log is `error_log` in the web root, as on wondercms.com; otherwise read
+   `error_log` from `php -i` on that host or its control panel, and make sure the `failed to load, showing Sky` check
+   above reads that file.
 7. Tag the merge commit on `main`, not the branch head. First `git fetch --prune origin`, then `git tag -l X.Y.Z`
    must print nothing (the tree is clean, see step 4; `git archive` builds from the tag, never from the tree) and `git tag -l | wc -l` must equal `git ls-remote --tags origin | grep -vc '\^{}'` (a local tag left by a test build or
    a reviewer would be tagged or pushed by mistake; delete it). Then `git tag X.Y.Z <merge-sha>
