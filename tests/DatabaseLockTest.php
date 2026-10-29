@@ -210,6 +210,33 @@ final class DatabaseLockTest extends TestCase
 		}
 	}
 
+	public function testASymlinkedDatabaseWhoseTargetFolderIsNotWritableStaysALink(): void
+	{
+		// The link's path is kept: the temp proves room next to the link and the target is written in place through it,
+		// since a rename would replace the link with a regular file.
+		if (DIRECTORY_SEPARATOR !== '/' || (function_exists('posix_getuid') && posix_getuid() === 0)) {
+			$this->markTestSkipped('needs symlinks and a POSIX permission check (not Windows, not root)');
+		}
+		$readOnly = dirname(self::DB) . '/ro-' . bin2hex(random_bytes(4));
+		mkdir($readOnly);
+		rename(self::DB, $readOnly . '/target.js');
+		symlink($readOnly . '/target.js', self::DB);
+		chmod($readOnly, 0555);
+		try {
+			$wcms = new Wcms('data_test', 'files_test', 'database_probe.js');
+			$wcms->set('config', 'siteTitle', 'through the link');
+			clearstatcache();
+			$this->assertTrue(is_link(self::DB), 'a rename would have replaced the link with a regular file');
+			$this->assertSame('through the link', json_decode(file_get_contents($readOnly . '/target.js'))->config->siteTitle);
+			$this->assertSame([], glob(self::DB . '.*.tmp'), 'no temp left');
+		} finally {
+			chmod($readOnly, 0755);
+			@unlink(self::DB);
+			@unlink($readOnly . '/target.js');
+			rmdir($readOnly);
+		}
+	}
+
 	public function testAHardLinkedDatabaseKeepsBothNamesOnOneInode(): void
 	{
 		if (DIRECTORY_SEPARATOR !== '/') {
