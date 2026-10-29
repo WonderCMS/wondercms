@@ -174,19 +174,25 @@ final class DatabaseLockTest extends TestCase
 	{
 		// An interrupted save leaves a full copy of database.js (the password hash too) next to it; a fresh one may be
 		// another request's save in progress.
-		$old = self::DB . '.0ld0ld00.tmp';
+		// Only the names tempPath() makes are swept: an old hand-made backup that also ends in .tmp stays.
+		$old = self::DB . '.0123abcd.tmp';
 		$fresh = self::DB . '.f4e5f4e5.tmp';
+		$backup = self::DB . '.bak.tmp';
 		file_put_contents($old, 'old copy');
 		touch($old, time() - 7200);
 		file_put_contents($fresh, 'in progress');
+		file_put_contents($backup, 'hand-made');
+		touch($backup, time() - 7200);
 		try {
 			(new Wcms('data_test', 'files_test', 'database_probe.js'))->set('config', 'siteTitle', 'swept');
 			clearstatcache();
 			$this->assertFileDoesNotExist($old);
 			$this->assertFileExists($fresh);
+			$this->assertFileExists($backup);
 		} finally {
 			@unlink($old);
 			@unlink($fresh);
+			@unlink($backup);
 		}
 	}
 
