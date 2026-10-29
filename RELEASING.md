@@ -1,7 +1,7 @@
 # Releasing WonderCMS
 
-Before a release: grep this file for `<[a-z-]*>`; fill in every `<robert-si-...>` placeholder before the release
-(checklist step 6), and `<backup-folder>`, `<merge-sha>` and `<branch>` at the step that uses them.
+Before a release: grep this file for `<[a-z-]*>` and fill in `<backup-folder>`, `<merge-sha>` and `<branch>` at the
+step that uses them.
 
 The `main` branch is the update channel: when an admin clicks **Update**, their site downloads
 `main/index.php` and writes it over itself. Merging into `main` is the release. Everything
@@ -51,7 +51,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
 1. Release branch from `main`; every change as its own commit with a test. Run
    `php phpunit.phar` locally (phpunit.phar is ignored by git; download it from
    https://phar.phpunit.de/). On PHP 7.4 the suite needs a UTF-8 locale (one search test uses Cyrillic text):
-   `LC_ALL=en_US.UTF-8 php phpunit.phar`.
+   `LC_ALL=en_US.UTF-8 php phpunit.phar`. Read the `Tests:` line, not the exit code: in a Docker `php:7.4-cli` image
+   without the zip extension the suite exits 0 having run no tests.
 2. Version bump commit (the old updater only offers an Update when the remote version is higher,
    so the rehearsal needs the bumped file). CI green.
 3. Rehearse: install the branch's `index.php` in a non-public folder on the server, run an
@@ -80,9 +81,9 @@ tag, rule 3 above; every push is read back through the API and recorded).
    `https://raw.githubusercontent.com/robiso/wondercms/master/` (the repository was renamed and moved; GitHub
    serves the old owner's raw URL transparently with a 200, not a redirect; sites on 3.0 to 3.3 still update
    from there). The release record's `rawcheck.sh <merge-sha>` (kept with the record, not in this repository)
-   loops both URLs until both match. Then run its `livecopy.sh <merge-sha> main` (a copy of the live site's data,
-   themes and plugins in a fenced folder, running the live site's own core, which clicks Update against the raw URL of
-   `main` and is then checked on the public and the admin side), write the compare results into the release record at once, and run the canary (step 6) as soon
+   loops both URLs until both match. Then run its `livecopy.sh <merge-sha> main` and `livecopy-robertsi.sh <merge-sha>
+   main` (one per canary site: a copy of that site's data, themes and plugins in a fenced folder, running its own core,
+   which clicks Update against the raw URL of `main` and is then checked on the public and the admin side), write the compare results into the release record at once, and run the canary (step 6) as soon
    as the first comparison matches on both URLs; compare once more five minutes after that. The second
    comparison confirms the cache stayed right, it does not delay the canary. Check https://www.githubstatus.com
    before the news post: a GitHub incident during the first hours means sites download nothing, not a bad file.
@@ -128,13 +129,14 @@ tag, rule 3 above; every push is read back through the API and recorded).
    ssh wondercms 'B=<backup-folder> && cp -p ~/public_html/index.php "$B/index.php.failed" && cp -Rp ~/public_html/data "$B/data.failed" && cp -p "$B/index.php" ~/public_html/index.php.restore && mv ~/public_html/index.php.restore ~/public_html/index.php && find "$B/data" -mindepth 1 -maxdepth 1 ! -name database.js -exec cp -Rp {} ~/public_html/data/ \; && cp -p "$B/data/database.js" ~/public_html/data/database.js.restore && mv ~/public_html/data/database.js.restore ~/public_html/data/database.js && rm -f ~/public_html/data/*.tmp && shasum -a 256 ~/public_html/index.php "$B/index.php" ~/public_html/data/database.js "$B/data/database.js"'
    ```
 
-   robert.si: the same three commands with its own values. Before the release, grep this file for `<robert-si-[a-z-]*>`
-   and fill in every placeholder (they are not recorded here):
+   robert.si (ssh host `robert.si`, port 37111, user `robisorobert` with the release key, web root
+   `/home/robisorobert/public_html`; PHP's `error_log` setting there is the relative `error_log`, so errors land in the
+   script's folder, the web root):
 
    ```sh
-   ssh <robert-si-ssh-host> 'B=~/backups/canary-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && cp -p <robert-si-web-root>/index.php "$B/index.php" && cp -Rp <robert-si-web-root>/data "$B/data" && echo "backup: $B" && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php" && du -sh "$B/data"; wc -l <robert-si-error-log> 2>/dev/null'
-   ssh <robert-si-ssh-host> 'tail -n 20 <robert-si-error-log> 2>/dev/null'
-   ssh <robert-si-ssh-host> 'B=<backup-folder> && cp -p <robert-si-web-root>/index.php "$B/index.php.failed" && cp -Rp <robert-si-web-root>/data "$B/data.failed" && cp -p "$B/index.php" <robert-si-web-root>/index.php.restore && mv <robert-si-web-root>/index.php.restore <robert-si-web-root>/index.php && find "$B/data" -mindepth 1 -maxdepth 1 ! -name database.js -exec cp -Rp {} <robert-si-web-root>/data/ \; && cp -p "$B/data/database.js" <robert-si-web-root>/data/database.js.restore && mv <robert-si-web-root>/data/database.js.restore <robert-si-web-root>/data/database.js && rm -f <robert-si-web-root>/data/*.tmp && shasum -a 256 <robert-si-web-root>/index.php "$B/index.php" <robert-si-web-root>/data/database.js "$B/data/database.js"'
+   ssh -i ~/.ssh/wondercms_release -p 37111 robisorobert@robert.si 'B=~/backups/canary-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && cp -p /home/robisorobert/public_html/index.php "$B/index.php" && cp -Rp /home/robisorobert/public_html/data "$B/data" && echo "backup: $B" && shasum -a 256 /home/robisorobert/public_html/index.php "$B/index.php" && du -sh "$B/data"; wc -l /home/robisorobert/public_html/error_log 2>/dev/null'
+   ssh -i ~/.ssh/wondercms_release -p 37111 robisorobert@robert.si 'tail -n 20 /home/robisorobert/public_html/error_log 2>/dev/null'
+   ssh -i ~/.ssh/wondercms_release -p 37111 robisorobert@robert.si 'B=<backup-folder> && cp -p /home/robisorobert/public_html/index.php "$B/index.php.failed" && cp -Rp /home/robisorobert/public_html/data "$B/data.failed" && cp -p "$B/index.php" /home/robisorobert/public_html/index.php.restore && mv /home/robisorobert/public_html/index.php.restore /home/robisorobert/public_html/index.php && find "$B/data" -mindepth 1 -maxdepth 1 ! -name database.js -exec cp -Rp {} /home/robisorobert/public_html/data/ \; && cp -p "$B/data/database.js" /home/robisorobert/public_html/data/database.js.restore && mv /home/robisorobert/public_html/data/database.js.restore /home/robisorobert/public_html/data/database.js && rm -f /home/robisorobert/public_html/data/*.tmp && shasum -a 256 /home/robisorobert/public_html/index.php "$B/index.php" /home/robisorobert/public_html/data/database.js "$B/data/database.js"'
    ```
 
    On a cPanel or LiteSpeed host the error log is `error_log` in the web root, as on wondercms.com; otherwise read

@@ -86,7 +86,7 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 - WonderCMS includes CSRF verification tokens for each user action and additionally uses the hash_equals function to prevent CSRF token timing attacks.
 - No known vulnerabilities.
    - Special thanks to yassineaddi, hypnito, Ramon Dunker and other security researchers.
-- 3.7.0 contributors: thanks to Slaven Stančič (security review), Almorca (hand-uploaded themes and plugins listed in Settings), NorfolkGreg (search and menu reports; his GregCustom theme's menu showed the touch recipe), andre5x (reports and requests #346 to #357), hightowe (legacy subpage report and a proposed fix, #336 and #337), Joe90 (search report on the forum), James1949 (#343 report) and Edward205 (Romanian translation plugin). Full list: [wondercms.com/contributors](https://www.wondercms.com/contributors).
+- 3.7.0 contributors: thanks to Slaven Stančič (security review), Almorca (hand-uploaded themes and plugins listed in Settings), NorfolkGreg (search and menu reports; his GregCustom theme's menu showed the touch recipe), andre5x (reports and requests #346 to #357), hightowe (legacy subpage report and a proposed fix, #336 and #337), Joe90 (search report on the forum), James1949 (#343 report), Edward205 (Romanian translation plugin), Joaquim Homrighausen (joho1968, the wcms-bs5 theme) and Marco Antonio Blanco (mablanco, the Docker image). Full list: [wondercms.com/contributors](https://www.wondercms.com/contributors).
 
 <br>
 
