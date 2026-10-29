@@ -3608,7 +3608,7 @@ EOT;
 		if (!is_file($path) || !is_writable(dirname($path))) {
 			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, or a folder not writable (no temp possible): write directly as 3.6.0 did
 		}
-		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.*.tmp') ?: []) : [] as $old) {
+		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $old) { // only the names tempPath() makes
 			if (@filemtime($old) < time() - 3600) {
 				@unlink($old); // a temp an interrupted save left behind is a full copy of the file (database.js holds the password hash)
 			}
