@@ -237,6 +237,9 @@ final class LocalModulesTest extends TestCase
 				$this->markTestSkipped('this file system refuses a name that is not UTF-8');
 			}
 		}
+		if (!in_array("\xE9dith.png", scandir($this->root . '/data_test/files_test'), true)) {
+			$this->markTestSkipped('this filesystem rewrites non-UTF-8 names');
+		}
 		natcasesort($names);
 		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
 		$this->assertSame(array_values($names), array_map('rawurldecode', $m[1]));
