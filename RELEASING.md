@@ -74,9 +74,9 @@ tag, rule 3 above; every push is read back through the API and recorded).
    the issues are closed by hand in step 11 with their close-out texts once both canaries pass. The PR check sees only
    the body: also run `git log origin/main..<branch> --format=%B | grep -iE '(close|fix|resolve)[sd]? #[0-9]+'`, since
    GitHub closes an issue named that way in ANY commit that reaches `main`. A branch that already carries such commits
-   is not rewritten (it is shared and reviewed): accept the auto-close, post each close-out text as a comment in step 11
-   anyway, and if a canary fails, reopen the issues with one comment naming the failure. (3.7.1 ships with eight such
-   commit messages, written before this rule.) Then mark the draft
+   is not rewritten (it is shared and reviewed): right after the merge, reopen the issues it closed (`gh issue reopen N`
+   for each, one comment: "reopened until the canaries pass, see RELEASING step 4"), so step 11 closes them by hand with
+   their texts as for any release. (3.7.1 ships with eight such commit messages, written before this rule.) Then mark the draft
    ready (`gh pr ready N`), then merge the release branch into `main` (merge commit). Write the merge sha into the
    release record at once; every later compare and the tag use that value, and a final PR comment names it (the
    earlier review comments name heads that the rebases left behind). A CI run that went red on a network error
