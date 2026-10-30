@@ -24,8 +24,12 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: curl, mbstring, zip, fileinfo
-          tools: phpunit:${{ matrix.php < '8.2' && '9.6' || '11' }}
           coverage: none
+      - name: Install PHPUnit through Composer
+        # phar.phpunit.de serves a stub instead of the phar; installed globally, the repository stays Composer-free.
+        run: |
+          composer global require --no-interaction --no-progress "phpunit/phpunit:^${{ matrix.php < '8.2' && '9.6' || '11.5' }}"
+          echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
 
       - name: Lint
@@ -103,8 +107,11 @@ jobs:
         with:
           php-version: '8.3'
           extensions: curl, mbstring, zip, :fileinfo
-          tools: phpunit:11
           coverage: none
+      - name: Install PHPUnit through Composer
+        run: |
+          composer global require --no-interaction --no-progress "phpunit/phpunit:^11.5"
+          echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
       - name: fileinfo really is absent
         run: "php -r 'exit((int) extension_loaded(\"fileinfo\"));'"
@@ -162,8 +169,11 @@ jobs:
           php-version: '8.3'
           extensions: curl, mbstring, zip, fileinfo
           ini-values: disable_functions=token_get_all  # php.ini, so the probe subprocesses run without it too
-          tools: phpunit:11
           coverage: none
+      - name: Install PHPUnit through Composer
+        run: |
+          composer global require --no-interaction --no-progress "phpunit/phpunit:^11.5"
+          echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
       - name: token_get_all really is disabled
         run: "php -r 'exit((int) function_exists(\"token_get_all\"));'"
@@ -179,8 +189,11 @@ jobs:
         with:
           php-version: '8.3'
           extensions: curl, mbstring, zip
-          tools: phpunit:11
           coverage: none
+      - name: Install PHPUnit through Composer
+        run: |
+          composer global require --no-interaction --no-progress "phpunit/phpunit:^11.5"
+          composer global config bin-dir --absolute | Out-File -Append $env:GITHUB_PATH
       - run: if (-not (phpunit --version | Select-String -Quiet 'PHPUnit [0-9]')) { exit 1 }
       # url() shapes, and the updater's temp-file + rename write (rename over an existing file differs on Windows).
       # Two lines: the phpunit .bat shim re-parses a "|" in the filter as a pipe.
