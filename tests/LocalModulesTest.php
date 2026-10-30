@@ -214,6 +214,13 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['apple.png', 'Édith.png', 'photo2.png', 'photo10.png', 'zebra.png'], array_map('rawurldecode', $m[1]), 'natcasesort() alone puts Édith after zebra');
 	}
 
+	/**
+	 * The stub Collator cannot be undeclared, so it lives and dies in its own process (the annotations for PHPUnit 9.6, the attributes for 11.5)
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	#[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+	#[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
 	public function testAPolyfillCollatorWithoutIntlIsNotUsed(): void
 	{
 		if (extension_loaded('intl')) {
