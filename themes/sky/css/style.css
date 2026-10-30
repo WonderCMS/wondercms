@@ -550,6 +550,13 @@ input::-moz-focus-inner {
 		white-space: nowrap
 	}
 
+	/* Third level and deeper: beside their parent, not on top of the next item */
+	#topMenu ul li ul ul {
+		left: 100%;
+		top: 0;
+		margin-top: 0
+	}
+
 	/* Submenus dropdown arrow */
 	.menu li > a:after {
 		content: ' ▼';

@@ -80,32 +80,34 @@
 		<!-- Admin JavaScript. More JS libraries can be added below -->
 		<?= $Wcms->js() ?>
 		<script>
-			// Touch screens: the first tap on a menu item with subpages opens them (and closes its siblings), the second tap follows the link
-			if (!window.matchMedia('(hover: hover)').matches) {
-				var closeOpen = function (scope) {
-					scope.querySelectorAll('.subpage-nav.open').forEach(function (item) {
-						item.classList.remove('open');
-						item.querySelector('a').setAttribute('aria-expanded', 'false');
-					});
-				};
-				document.querySelectorAll('#topMenu .subpage-nav > a').forEach(function (link) {
-					link.setAttribute('aria-expanded', 'false');
-					link.addEventListener('click', function (event) {
-						var item = link.parentNode;
-						if (!item.classList.contains('open')) {
-							event.preventDefault();
-							closeOpen(item.parentNode);
-							item.classList.add('open');
-							link.setAttribute('aria-expanded', 'true');
-						}
-					});
+			// Touch: the first tap on a menu item with subpages opens them (and closes its siblings), the second tap follows the link.
+			// Decided per tap, so touch laptops, Chromebooks and tablets with a trackpad get it too, while a mouse keeps hover
+			var touch = !window.matchMedia('(hover: hover)').matches;
+			var closeOpen = function (scope) {
+				scope.querySelectorAll('.subpage-nav.open').forEach(function (item) {
+					item.classList.remove('open');
+					item.querySelector('a').setAttribute('aria-expanded', 'false');
 				});
-				document.addEventListener('click', function (event) {
-					if (!event.target.closest('#topMenu')) {
-						closeOpen(document);
+			};
+			var onPress = function (event) {
+				touch = event.pointerType !== 'mouse';
+				if (!event.target.closest('#topMenu')) {
+					closeOpen(document);
+				}
+			};
+			document.addEventListener('pointerdown', onPress);
+			document.addEventListener('touchstart', onPress);
+			document.querySelectorAll('#topMenu .subpage-nav > a').forEach(function (link) {
+				link.addEventListener('click', function (event) {
+					var item = link.parentNode;
+					if (touch && !item.classList.contains('open')) {
+						event.preventDefault();
+						closeOpen(item.parentNode);
+						item.classList.add('open');
+						link.setAttribute('aria-expanded', 'true');
 					}
 				});
-			}
+			});
 		</script>
 
 	</body>
