@@ -176,10 +176,13 @@ final class DatabaseLockTest extends TestCase
 		// another request's save in progress.
 		// Only the names tempPath() makes are swept: an old hand-made backup that also ends in .tmp stays.
 		$old = self::DB . '.0123abcd.tmp';
+		$oldHigh = self::DB . '.89abcdef.tmp'; // the other half of the hex range
 		$fresh = self::DB . '.f4e5f4e5.tmp';
 		$backup = self::DB . '.bak.tmp';
 		file_put_contents($old, 'old copy');
 		touch($old, time() - 7200);
+		file_put_contents($oldHigh, 'old copy');
+		touch($oldHigh, time() - 7200);
 		file_put_contents($fresh, 'in progress');
 		file_put_contents($backup, 'hand-made');
 		touch($backup, time() - 7200);
@@ -187,10 +190,12 @@ final class DatabaseLockTest extends TestCase
 			(new Wcms('data_test', 'files_test', 'database_probe.js'))->set('config', 'siteTitle', 'swept');
 			clearstatcache();
 			$this->assertFileDoesNotExist($old);
+			$this->assertFileDoesNotExist($oldHigh);
 			$this->assertFileExists($fresh);
 			$this->assertFileExists($backup);
 		} finally {
 			@unlink($old);
+			@unlink($oldHigh);
 			@unlink($fresh);
 			@unlink($backup);
 		}
