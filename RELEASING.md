@@ -87,12 +87,18 @@ tag, rule 3 above; every push is read back through the API and recorded).
    and 2 hours after the merge (GitHub's raw cache is per edge; a stale edge serves the old file long after the
    first one matched). The later comparisons confirm the cache stayed right, they do not delay the canary. Check https://www.githubstatus.com
    before the news post: a GitHub incident during the first hours means sites download nothing, not a bad file.
-6. Canary: two sites with the maintainer's login, one after the other: www.wondercms.com first, then robert.si
+6. Canary: two sites, each clicked by the maintainer himself while logged in as that site's admin (the agent
+   prepares, watches and verifies; it never holds the admin passwords), one after the other: www.wondercms.com first, then robert.si
    (a custom theme, `skyPersonal`, so a theme that is not shipped with the release meets the new core too). Start
    robert.si only once wondercms.com has passed. On each site: confirm the live `index.php` is the stock previous
    release (compare its SHA-256; if it is not, stop and do not click: find out why the file differs first, since a
    hand-edited or unexpected core is not the canary this step relies on), back up `index.php` and `data/` before its click
-   (commands below), click **Update**, check the site, the login, a save, and the `VERSION` in the file on disk. After each
+   (commands below), click **Download backup** (in the update notice, above Update), then **Update**, check the site, the login, a save,
+   and the `VERSION` in the file on disk. A save means two real saves: open the home page editor, add one character, click
+   outside (the page saves and reloads), then remove that character and click outside again; the content ends as it
+   was and `data/database.js`'s mtime moved (add-then-remove in one go sends nothing: the stock editor saves only
+   when the content differs). The backup click leaves a zip in `data/files/` and a "Backup files detected" alert:
+   delete that zip from the Files tab once the site has passed. After each
    Update click wait at least 2 seconds (opcache's `revalidate_freq` default) before the first check: within that window a
    request can still run the old code and report the old version. "Check the site" means reading the page body, not
    the status code: a boot fatal comes back as HTTP 200 with the error in the body on some servers, so `curl -s -w '%{http_code}'` the
