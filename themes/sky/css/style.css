@@ -12,14 +12,6 @@
 	font-display: swap;
 	src: url('fonts/catamaran-v7-latin-ext_latin-700.woff2') format('woff2')
 }
-@font-face {
-	font-family: 'Catamaran';
-	font-style: normal;
-	font-weight: 900;
-	font-display: swap;
-	src: url('fonts/catamaran-v7-latin-ext_latin-900.woff2') format('woff2')
-}
-
 html, body, div, span, applet, object,
 iframe, h1, h2, h3, h4, h5, h6, p, blockquote,
 pre, a, abbr, acronym, address, big, cite,
@@ -456,6 +448,17 @@ input::-moz-focus-inner {
 				float: left;
 				margin: 0 1em 0 2em
 			}
+			/* A closed submenu takes no space; a tapped-open third level stacks under its parent */
+			#topMenu nav ul.subPageDropdown {
+				display: none
+			}
+			#topMenu nav > ul > li > ul {
+				margin-top: 0;
+				padding-top: 10px
+			}
+			#topMenu nav ul ul li.open > ul {
+				position: static
+			}
 			#topMenu nav .active a {
 				border-bottom: 1px solid #fff
 			}
@@ -548,6 +551,23 @@ input::-moz-focus-inner {
 		text-align: left;
 		background-color: rgba(0, 0, 0, 0.30);
 		white-space: nowrap
+	}
+
+	/* Third level and deeper: beside their parent, above a wider next item; closed, it takes no space at any width */
+	#topMenu ul li ul ul {
+		display: none;
+		left: 100%;
+		top: 0;
+		margin-top: 0;
+		z-index: 1
+	}
+
+	/* Between phone and desktop there is no room to the right of a long second level: open the third level to its left (stacking it would move the next item away from the pointer) */
+	@media screen and (min-width: 737px) and (max-width: 900px) {
+		#topMenu ul li ul ul {
+			left: auto;
+			right: 100%
+		}
 	}
 
 	/* Submenus dropdown arrow */
