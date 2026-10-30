@@ -202,6 +202,74 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['apple.png', 'photo1.png', 'Photo2.png', 'photo10.png'], $m[1], 'scandir() alone gives Photo2, apple, photo1, photo10');
 	}
 
+	public function testTheFilesTabSortsAnAccentedNameAmongItsLetter(): void
+	{
+		if (!extension_loaded('intl')) {
+			$this->markTestSkipped('without intl the Files tab sorts byte-wise past ASCII, as 3.7.0 did');
+		}
+		foreach (['zebra.png', 'Édith.png', 'apple.png', 'photo10.png', 'photo2.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'Édith.png', 'photo2.png', 'photo10.png', 'zebra.png'], array_map('rawurldecode', $m[1]), 'natcasesort() alone puts Édith after zebra');
+	}
+
+	public function testAPolyfillCollatorWithoutIntlIsNotUsed(): void
+	{
+		if (extension_loaded('intl')) {
+			$this->markTestSkipped('intl is loaded, so no stub Collator can be declared');
+		}
+		if (!class_exists('Collator')) {
+			eval('class Collator { public function __construct($locale) { throw new RuntimeException("polyfill Collator"); } }');
+		}
+		foreach (['zebra.png', 'Édith.png', 'apple.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'zebra.png', 'Édith.png'], array_map('rawurldecode', $m[1]), 'natcasesort(), as 3.7.0');
+	}
+
+	public function testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort(): void
+	{
+		$names = ['zebra.png', "\xE9dith.png", 'apple.png', 'photo10.png', 'Photo2.png'];
+		foreach ($names as $name) {
+			if (@file_put_contents($this->root . '/data_test/files_test/' . $name, 'x') === false) {
+				$this->markTestSkipped('this file system refuses a name that is not UTF-8');
+			}
+		}
+		if (!in_array("\xE9dith.png", scandir($this->root . '/data_test/files_test'), true)) {
+			$this->markTestSkipped('this filesystem rewrites non-UTF-8 names');
+		}
+		natcasesort($names);
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(array_values($names), array_map('rawurldecode', $m[1]));
+	}
+
+	public function testAThemeFolderNameThatFoldsToSkyIsRefusedLikeSky(): void
+	{
+		// macOS resolves 'ſky' and 'SKY' with a Kelvin sign (U+212A) to sky/; strcasecmp() compares bytes and let both through.
+		$name = "S\u{212A}Y";
+		mkdir($this->root . '/themes/' . $name, 0777, true);
+		file_put_contents($this->root . '/themes/' . $name . '/theme.php', '<?php');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('<h4>' . $name . '</h4>', $html, 'listed');
+		$this->assertStringNotContainsString('deleteModule=' . rawurlencode($name) . '&', $html);
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		foreach ([$name, 'ſky'] as $request) {
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => $request, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+			try {
+				$this->wcms->deleteFileModuleAction();
+				$this->fail('no redirect');
+			} catch (RuntimeException $e) {
+				$this->assertStringStartsWith('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '', $request);
+			}
+		}
+		$this->assertFileExists($this->root . '/themes/' . $name . '/theme.php');
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+	}
+
 	public function testADanglingSymlinkIsRemovedLikeAnyEntry(): void
 	{
 		if (DIRECTORY_SEPARATOR !== '/') {
