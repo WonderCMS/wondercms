@@ -3662,7 +3662,7 @@ EOT;
 			return substr(rtrim($contents), -2) === "\n}"; // no tokenizer extension: the class's closing brace is the only column-0 brace after the class opens
 		}
 		try {
-			token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
+			@token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
 		} catch (ParseError $e) {
 			return false;
 		}
