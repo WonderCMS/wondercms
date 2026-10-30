@@ -240,6 +240,8 @@ class Wcms
 
 	/**
 	 * Add alert message for admin
+	 * A plugin replaces the text (a translation) by returning it from an 'alert' listener: the returned text is what is
+	 * queued, shown and compared by the duplicate check, so no listener needs $_SESSION['alert'] (not part of the API)
 	 *
 	 * @param string $class see bootstrap alerts classes
 	 * @param string $message the message to display
@@ -1048,7 +1050,7 @@ EOT;
 		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('stream_get_contents') || !function_exists('fclose')) {
 			return (string)@file_get_contents($path); // a host that disables one of these reads exactly as 3.6.0 did (file_put_contents() locks inside PHP, so saving still works there)
 		}
-		$handle = fopen($path, 'rb');
+		$handle = @fopen($path, 'rb') ?: (file_exists($path) ? fopen($path, 'rb') : false); // a file that vanished after the caller's existence check stays quiet; one that exists but cannot be opened still logs why; false is handled below
 		if ($handle === false) {
 			return '';
 		}
@@ -1083,7 +1085,7 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && is_string($_REQUEST['deleteModule']) && is_string($_REQUEST['type']) && $this->verifyFormActions(true)) {
 			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
 			$filename = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
@@ -1112,8 +1114,9 @@ EOT;
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
 			$path = realpath("{$folder}/{$filename}");
-			if (file_exists($path)) {
-				function_exists('is_link') && is_link("{$folder}/{$filename}") ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
+			$isLink = function_exists('is_link') && is_link("{$folder}/{$filename}"); // a link whose target is gone has no realpath() and is removed too
+			if ($isLink || file_exists($path)) {
+				$isLink ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
 				// If a plugin was deleted, also remove it from the disabled list (if present).
 				if ($type === self::PLUGINS_DIR) {
 					$disabled = $this->getDisabledPlugins();
@@ -3609,7 +3612,7 @@ EOT;
 		if (!is_file($path) || !is_writable(dirname($path))) {
 			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, or a folder not writable (no temp possible): write directly as 3.6.0 did
 		}
-		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.*.tmp') ?: []) : [] as $old) {
+		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $old) { // only the names tempPath() makes
 			if (@filemtime($old) < time() - 3600) {
 				@unlink($old); // a temp an interrupted save left behind is a full copy of the file (database.js holds the password hash)
 			}

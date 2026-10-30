@@ -80,6 +80,8 @@ jobs:
 
       - name: PHPUnit
         run: phpunit --no-coverage
+        env:
+          LC_ALL: ${{ matrix.php == '7.4' && 'C.UTF-8' || '' }}  # on 7.4 the Cyrillic search test needs a UTF-8 locale; an empty LC_ALL is unset to setlocale()
 
       - name: A change to index.php on a PR into main must bump VERSION
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
