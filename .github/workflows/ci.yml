@@ -119,7 +119,7 @@ jobs:
       - name: fileinfo and intl really are absent
         run: "php -r 'exit((int) (extension_loaded(\"fileinfo\") || extension_loaded(\"intl\")));'"
       - name: PHPUnit (the no-fileinfo and the no-intl tests run for real here, skip elsewhere)
-        run: set -o pipefail; phpunit --no-coverage --filter 'testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable|testAPolyfillCollatorWithoutIntlIsNotUsed|testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort|testTheFilesTabSortsAnAccentedNameAmongItsLetter' | tee "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"; grep -q 'Tests: [1-9]' "$RUNNER_TEMP/phpunit.log"
+        run: set -o pipefail; phpunit --no-coverage --fail-on-skipped --filter 'testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable|testAPolyfillCollatorWithoutIntlIsNotUsed|testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort' | tee "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"
 
       - name: Updater as another user than the file owner writes in place and keeps the owner
         run: |
