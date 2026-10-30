@@ -360,6 +360,21 @@ final class UpdateGuardTest extends TestCase
 		unlink($newCore);
 	}
 
+	public function testACoreWhosePhpFloorEqualsThisHostIsAccepted(): void
+	{
+		$real = str_replace("'" . VERSION . "'", "'" . $this->newer() . "'", file_get_contents(__DIR__ . '/../index.php'));
+		$this->assertStringContainsString('if (PHP_VERSION_ID < 70400) {', $real, 'the gate the updater reads');
+		$body = str_replace('PHP_VERSION_ID < 70400', 'PHP_VERSION_ID < ' . PHP_VERSION_ID, $real);
+		$newCore = tempnam(sys_get_temp_dir(), 'wcms');
+		file_put_contents($newCore, $body);
+		$site = $this->siteCopy();
+		$result = $this->probe('', 'update-run', $site, $newCore);
+		$this->assertSame(hash('sha256', $body), $result['sha'], 'a floor equal to this host\'s PHP is met: index.php is the downloaded core');
+		$this->assertSame(['success'], $result['alerts']);
+		$this->removeDir($site);
+		unlink($newCore);
+	}
+
 	public function testDailyCoreUpdateNoticeIsShownOnceADayToTheAdminOnly(): void
 	{
 		@unlink(__DIR__ . '/../data_test/database_test.js');
