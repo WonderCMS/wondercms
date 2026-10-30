@@ -84,7 +84,8 @@ jobs:
           grep -iE "Warning|Deprecated|Fatal" /tmp/server3.log && exit 1 || echo "login saved through the rename path with getmypid disabled"
 
       - name: PHPUnit
-        run: set -o pipefail; phpunit --no-coverage | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
+        # To a file, not through tee: DownloadTest's php -S servers outlive the run and keep PHPUnit's stdout open, so a pipe never closes.
+        run: phpunit --no-coverage > phpunit.log || { cat phpunit.log; exit 1; }; cat phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
         env:
           LC_ALL: ${{ matrix.php == '7.4' && 'C.UTF-8' || '' }}  # on 7.4 the Cyrillic search test needs a UTF-8 locale; an empty LC_ALL is unset to setlocale()
 
@@ -178,7 +179,7 @@ jobs:
       - name: token_get_all really is disabled
         run: "php -r 'exit((int) function_exists(\"token_get_all\"));'"
       - name: PHPUnit (the updater validates a new core structurally here)
-        run: set -o pipefail; phpunit --no-coverage | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
+        run: phpunit --no-coverage > phpunit.log || { cat phpunit.log; exit 1; }; cat phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log  # a file, not tee: see the PHPUnit step above
 
   windows-url:
     name: url() on Windows
