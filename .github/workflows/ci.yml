@@ -26,6 +26,7 @@ jobs:
           extensions: curl, mbstring, zip, fileinfo
           tools: phpunit:${{ matrix.php < '8.2' && '9.6' || '11' }}
           coverage: none
+      - run: phpunit --version | grep -q 'PHPUnit [0-9]'
 
       - name: Lint
         run: php -l index.php && php -l themes/sky/theme.php
@@ -79,7 +80,7 @@ jobs:
           grep -iE "Warning|Deprecated|Fatal" /tmp/server3.log && exit 1 || echo "login saved through the rename path with getmypid disabled"
 
       - name: PHPUnit
-        run: phpunit --no-coverage
+        run: set -o pipefail; phpunit --no-coverage | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
         env:
           LC_ALL: ${{ matrix.php == '7.4' && 'C.UTF-8' || '' }}  # on 7.4 the Cyrillic search test needs a UTF-8 locale; an empty LC_ALL is unset to setlocale()
 
@@ -104,10 +105,11 @@ jobs:
           extensions: curl, mbstring, zip, :fileinfo
           tools: phpunit:11
           coverage: none
+      - run: phpunit --version | grep -q 'PHPUnit [0-9]'
       - name: fileinfo really is absent
         run: "php -r 'exit((int) extension_loaded(\"fileinfo\"));'"
       - name: PHPUnit (the no-fileinfo test runs for real here, skips elsewhere)
-        run: phpunit --no-coverage --filter testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable
+        run: set -o pipefail; phpunit --no-coverage --filter testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
 
       - name: Updater as another user than the file owner writes in place and keeps the owner
         run: |
@@ -147,7 +149,7 @@ jobs:
       - name: Saves on a full tmpfs refuse a linked or other-group database instead of truncating it
         run: |
           DISK=$(mktemp -d) && sudo mount -t tmpfs -o size=2m,mode=0777 tmpfs "$DISK"
-          WCMS_FULL_DISK_DIR="$DISK" phpunit --no-coverage --filter 'testOnAFullDisk|testOnANearlyFullDisk' --fail-on-skipped
+          set -o pipefail; WCMS_FULL_DISK_DIR="$DISK" phpunit --no-coverage --filter 'testOnAFullDisk|testOnANearlyFullDisk' --fail-on-skipped | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
           sudo umount "$DISK"
 
   no-tokenizer:
@@ -162,10 +164,11 @@ jobs:
           ini-values: disable_functions=token_get_all  # php.ini, so the probe subprocesses run without it too
           tools: phpunit:11
           coverage: none
+      - run: phpunit --version | grep -q 'PHPUnit [0-9]'
       - name: token_get_all really is disabled
         run: "php -r 'exit((int) function_exists(\"token_get_all\"));'"
       - name: PHPUnit (the updater validates a new core structurally here)
-        run: phpunit --no-coverage
+        run: set -o pipefail; phpunit --no-coverage | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
 
   windows-url:
     name: url() on Windows
@@ -178,13 +181,14 @@ jobs:
           extensions: curl, mbstring, zip
           tools: phpunit:11
           coverage: none
+      - run: if (-not (phpunit --version | Select-String -Quiet 'PHPUnit [0-9]')) { exit 1 }
       # url() shapes, and the updater's temp-file + rename write (rename over an existing file differs on Windows).
       # Two lines: the phpunit .bat shim re-parses a "|" in the filter as a pipe.
-      - run: phpunit --no-coverage --filter PagesAndUrlTest
-      - run: phpunit --no-coverage --filter UpdateGuardTest
+      - run: phpunit --no-coverage --filter PagesAndUrlTest | Tee-Object -Variable o; if (-not ($o -match '^(OK|Tests:)')) { exit 1 }
+      - run: phpunit --no-coverage --filter UpdateGuardTest | Tee-Object -Variable o; if (-not ($o -match '^(OK|Tests:)')) { exit 1 }
       # save() renames database.js into place; with another process holding the file open Windows may refuse the rename and take the locked in-place write.
-      - run: phpunit --no-coverage --filter DatabaseLockTest
+      - run: phpunit --no-coverage --filter DatabaseLockTest | Tee-Object -Variable o; if (-not ($o -match '^(OK|Tests:)')) { exit 1 }
       # 'sky.' is the sky folder only on Windows: the delete guard's trailing-dot branch and its Sky sentence run here only.
-      - run: phpunit --no-coverage --filter testTrailingDotsAndSpacesOnTheSkyName
+      - run: phpunit --no-coverage --filter testTrailingDotsAndSpacesOnTheSkyName | Tee-Object -Variable o; if (-not ($o -match '^(OK|Tests:)')) { exit 1 }
       # themes/Sky is the sky folder here (no Remove button either way), and the Files tab listing and sort on NTFS.
-      - run: phpunit --no-coverage --filter LocalModulesTest
+      - run: phpunit --no-coverage --filter LocalModulesTest | Tee-Object -Variable o; if (-not ($o -match '^(OK|Tests:)')) { exit 1 }
