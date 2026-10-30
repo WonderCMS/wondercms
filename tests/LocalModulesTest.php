@@ -373,9 +373,13 @@ final class LocalModulesTest extends TestCase
 	{
 		mkdir($this->root . '/themes/Sky', 0777, true); // a distinct folder on a case-sensitive disk, the sky folder on Windows and macOS
 		file_put_contents($this->root . '/themes/Sky/theme.php', '<?php');
+		if (@mkdir($this->root . '/themes/ſky', 0777, true)) { // folds to sky under Unicode case folding; a byte-wise compare lets it through. macOS and Windows resolve the name to sky/ (mkdir fails), so this part bites on a case-sensitive disk, which is what CI runs
+			file_put_contents($this->root . '/themes/ſky/theme.php', '<?php');
+		}
 		$html = $this->wcms->settings();
 		$this->assertStringContainsString('<h4>Sky</h4>', $html, 'listed');
 		$this->assertStringNotContainsString('deleteModule=Sky&', $html);
+		$this->assertStringNotContainsString('deleteModule=' . rawurlencode('ſky') . '&', $html, 'a folder that folds to sky has no Remove button either');
 		$this->assertStringContainsString('deleteModule=my.theme&', $html, 'another hand-uploaded theme keeps its Remove button');
 	}
 
