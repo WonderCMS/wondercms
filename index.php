@@ -509,7 +509,7 @@ class Wcms
 			throw new Exception('Could not create data folder.');
 		}
 		if (!is_writable($folder)) {
-			throw new Exception('Could write to data folder.');
+			throw new Exception('Could not write to the ' . $folder . ' folder.');
 		}
 	}
 
