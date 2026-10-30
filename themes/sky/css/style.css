@@ -556,17 +556,27 @@ input::-moz-focus-inner {
 	/* Third level and deeper: beside their parent, above a wider next item; closed, it takes no space at any width */
 	#topMenu ul li ul ul {
 		display: none;
-		left: 100%;
+		inset-inline-start: 100%;
 		top: 0;
 		margin-top: 0;
 		z-index: 1
 	}
 
-	/* Between phone and desktop there is no room to the right of a long second level: open the third level to its left (stacking it would move the next item away from the pointer) */
-	@media screen and (min-width: 737px) and (max-width: 900px) {
-		#topMenu ul li ul ul {
-			left: auto;
-			right: 100%
+	/* Above phone width: a closed second level is one column wide, long names wrap at a quarter of the viewport, and the last two items open their third level inward, so two levels always fit beside a centered menu */
+	@media screen and (min-width: 737px) {
+		#topMenu nav > ul > li > ul {
+			display: block
+		}
+		#topMenu ul li ul {
+			width: max-content;
+			max-width: 25vw
+		}
+		#topMenu ul li ul li {
+			white-space: normal
+		}
+		#topMenu nav > ul > li:nth-last-child(-n+2) ul ul {
+			inset-inline-start: auto;
+			inset-inline-end: 100%
 		}
 	}
 
