@@ -1050,7 +1050,10 @@ EOT;
 		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('stream_get_contents') || !function_exists('fclose')) {
 			return (string)@file_get_contents($path); // a host that disables one of these reads exactly as 3.6.0 did (file_put_contents() locks inside PHP, so saving still works there)
 		}
-		$handle = @fopen($path, 'rb') ?: (file_exists($path) ? fopen($path, 'rb') : false); // a file that vanished after the caller's existence check stays quiet; one that exists but cannot be opened still logs why; false is handled below
+		$handle = @fopen($path, 'rb'); // a file that vanished after the caller's existence check stays quiet
+		if ($handle === false && file_exists($path)) {
+			$handle = fopen($path, 'rb'); // opened again without @ on purpose: a file that exists but cannot be opened still logs why
+		}
 		if ($handle === false) {
 			return '';
 		}
