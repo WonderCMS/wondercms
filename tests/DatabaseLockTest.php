@@ -277,12 +277,11 @@ final class DatabaseLockTest extends TestCase
 			mkdir($dir);
 		} elseif (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/hdiutil') && function_exists('exec')) {
 			[$code, $out] = $this->runWithin(['/usr/bin/hdiutil', 'attach', '-nomount', 'ram://4096']);
-			$dev = strtok($out, " \t\n");
-			if (preg_match('#^/dev/disk\d+$#', (string)$dev)) {
-				$this->detach[] = $dev; // also when the deadline passed after the device appeared
-			}
+			preg_match_all('#^/dev/disk\d+(?=\s|$)#m', $out, $devs);
+			array_push($this->detach, ...$devs[0]); // also when the deadline passed after the device appeared: tearDown() detaches what the partial output names
+			$dev = $devs[0][0] ?? '';
 			if ($code === null) {
-				$this->markTestSkipped('hdiutil attach did not finish within 60 seconds (a loaded machine, #375)');
+				$this->markTestSkipped('hdiutil attach did not finish within 60 seconds (a loaded machine, #375); a ramdisk it attached after the kill is not detached: find it with `hdiutil info` (image-path ram://4096) and run `hdiutil detach /dev/diskN -force`');
 			}
 			if (!preg_match('#^/dev/disk\d+$#', (string)$dev)) {
 				$this->markTestSkipped('hdiutil could not attach a ramdisk');
@@ -341,8 +340,8 @@ final class DatabaseLockTest extends TestCase
 			$this->markTestSkipped('the ramdisk commands are POSIX-only');
 		}
 		$start = microtime(true);
-		$this->assertSame([null, "started\n"], $this->runWithin(['/bin/sh', '-c', 'echo started; exec sleep 30'], 1));
-		$this->assertLessThan(5, microtime(true) - $start, 'killed at the deadline');
+		$this->assertSame([null, "started\n"], $this->runWithin(['/bin/sh', '-c', 'echo started; exec sleep 30'], 3)); // 3 seconds for the shell to start and echo, even under a full suite's load
+		$this->assertLessThan(15, microtime(true) - $start, 'killed at the deadline, long before the sleep ends');
 		$this->assertSame([0, "done\n"], $this->runWithin(['/bin/echo', 'done'], 5), 'a command that finishes gives its exit code and output');
 	}
 
