@@ -457,19 +457,39 @@ input::-moz-focus-inner {
 				margin-top: 0;
 				padding-top: 10px
 			}
-			/* A tapped-open item takes its own row and its list sits under it, never floated beside it: the parent stays where the finger is, so the second tap follows the link */
-			#topMenu nav > ul > li.open {
-				float: none;
-				clear: both;
-				display: block
+			/* A tapped-open top item keeps its place (nothing in the bar moves, so the second tap in place follows the link); its list opens as a full-width panel under the whole bar, and deeper tapped-open lists stack inside that panel, so long names wrap inside the screen */
+			#topMenu nav {
+				position: relative;
+				display: flow-root
 			}
-			#topMenu nav li.open > ul {
-				position: static;
+			#topMenu nav > ul > li.open {
+				position: static
+			}
+			#topMenu nav > ul > li.open > ul {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: 100%;
+				margin: 0;
 				float: none;
-				clear: both
+				z-index: 5;
+				background-color: rgba(0, 0, 0, 0.85)
+			}
+			#topMenu nav li.open li.open > ul {
+				position: static;
+				float: none
+			}
+			#topMenu nav li.open > ul,
+			#topMenu nav li.open > ul > li {
+				display: block;
+				float: none;
+				width: auto
 			}
 			#topMenu nav li.open > ul > li {
-				white-space: normal
+				white-space: normal;
+				line-height: 1.4em;
+				padding-top: 1.05em;
+				padding-bottom: 1.05em
 			}
 			#topMenu nav .active a {
 				border-bottom: 1px solid #fff
