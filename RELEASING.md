@@ -94,8 +94,11 @@ tag, rule 3 above; every push is read back through the API and recorded).
    release (compare its SHA-256; if it is not, stop and do not click: find out why the file differs first, since a
    hand-edited or unexpected core is not the canary this step relies on), back up `index.php` and `data/` before its click
    (commands below), click **Download backup** (in the update notice, above Update), then **Update**, check the site, the login, a save,
-   and the `VERSION` in the file on disk. A save means: open the home page editor, add one character and remove it, click
-   outside, reload; the content is unchanged and `data/database.js`'s mtime moved. After each
+   and the `VERSION` in the file on disk. A save means two real saves: open the home page editor, add one character, click
+   outside (the page saves and reloads), then remove that character and click outside again; the content ends as it
+   was and `data/database.js`'s mtime moved (add-then-remove in one go sends nothing: the stock editor saves only
+   when the content differs). The backup click leaves a zip in `data/files/` and a "Backup files detected" alert:
+   delete that zip from the Files tab once the site has passed. After each
    Update click wait at least 2 seconds (opcache's `revalidate_freq` default) before the first check: within that window a
    request can still run the old code and report the old version. "Check the site" means reading the page body, not
    the status code: a boot fatal comes back as HTTP 200 with the error in the body on some servers, so `curl -s -w '%{http_code}'` the
