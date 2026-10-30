@@ -72,7 +72,7 @@ tag, rule 3 above; every push is read back through the API and recorded).
    body names the issues it fixes as plain references, never with a closing keyword (`Fixes`, `Closes`, `Resolves`,
    nor in a commit message on the branch): a merge must not close an issue before the canary proves the release, so
    the issues are closed by hand in step 11 with their close-out texts once both canaries pass. The PR check sees only
-   the body: also run `git log origin/main..<branch> --format=%B | grep -iE '(close|fix|resolve)[sd]? #[0-9]+'`, since
+   the body: also run `git log origin/main..<branch> --format=%B | grep -iE '(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+'`, since
    GitHub closes an issue named that way in ANY commit that reaches `main`. A branch that already carries such commits
    is not rewritten (it is shared and reviewed): right after the merge, reopen the issues it closed (`gh issue reopen N`
    for each, one comment: "reopened until the canaries pass, see RELEASING step 4"), so step 11 closes them by hand with
