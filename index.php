@@ -1499,21 +1499,32 @@ EOT;
 			}
 
 			// Themes and plugins uploaded by hand: present on disk, not in the official list (#345, Almorca)
-			foreach (glob($this->rootDir . '/' . $type . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+			foreach (glob($this->rootDir . '/' . $type . '/*') ?: [] as $dir) {
 				$dirName = basename($dir);
 				$entryFile = $type === self::THEMES_DIR ? 'theme.php' : $dirName . '.php';
-				if (isset($data[$dirName]) || !is_file($dir . '/' . $entryFile)) {
+				$gone = $this->isDanglingLink($dir); // listed so its Remove button is shown (#373)
+				if (isset($data[$dirName]) || (!$gone && !is_file($dir . '/' . $entryFile))) {
 					continue;
 				}
 				$newData[self::THEME_PLUGINS_TYPES['exists']][$dirName] = [
-					'name' => $dirName, 'summary' => 'Found in the ' . $type . ' folder (' . ($data ? 'not in the official list' : 'the official list could not be loaded') . ').', // escaped where it is printed, like the official entries
+					'name' => $dirName, 'summary' => $gone ? 'A link whose target is gone (found in the ' . $type . ' folder).' : 'Found in the ' . $type . ' folder (' . ($data ? 'not in the official list' : 'the official list could not be loaded') . ').', // escaped where it is printed, like the official entries
 					'repo' => '', 'zip' => '', 'group' => null, 'version' => null, 'image' => null,
-					'update' => false, 'install' => false, 'currentVersion' => $this->getModuleVersion($type, $dirName),
+					'update' => false, 'install' => false, 'currentVersion' => $gone ? null : $this->getModuleVersion($type, $dirName),
 				];
 			}
 		}
 
 		return $newData;
+	}
+
+	/**
+	 * A symlink whose target is gone (false on a host that disables is_link(), which lists modules as before)
+	 * @param string $path
+	 * @return bool
+	 */
+	private function isDanglingLink(string $path): bool
+	{
+		return function_exists('is_link') && is_link($path) && !file_exists($path);
 	}
 
 	/**
@@ -3403,8 +3414,9 @@ EOT;
 				$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s',
 					htmlspecialchars((string)$addon['currentVersion'], ENT_QUOTES)) : ''; // from the installed module's own version file or wcms-modules.json
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
+				$gone = $this->isDanglingLink($this->rootDir . '/' . $type . '/' . $directoryName); // offers Remove only, or Install and Remove for an official name
 				$isPlugin = $type === self::PLUGINS_DIR;
-				$isInstalledPlugin = $isPlugin && !$addon['install'];
+				$isInstalledPlugin = $isPlugin && !$addon['install'] && !$gone;
 				$isDisabledPlugin = $isInstalledPlugin && in_array($directoryName, $disabledPlugins, true);
 				$pluginGroup = $isPlugin ? $this->getPluginGroup($directoryName, $addon) : null;
 				$conflictingEnabled = ($isPlugin && $this->isExclusivePluginGroup($pluginGroup))
@@ -3439,8 +3451,8 @@ EOT;
 					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . htmlspecialchars((string)$addon['version'], ENT_QUOTES) . '</a>'
 					: '';
 
-				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName)) && !($type === 'themes' && mb_convert_case($directoryName, MB_CASE_FOLD) === 'sky') ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName) || $gone) && !($type === 'themes' && mb_convert_case($directoryName, MB_CASE_FOLD) === 'sky') ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected && !$gone ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
 				$pluginToggleButton = '';
