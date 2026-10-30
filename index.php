@@ -506,10 +506,10 @@ class Wcms
 	public function checkFolder(string $folder): void
 	{
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
-			throw new Exception('Could not create data folder.');
+			throw new Exception('Could not create the ' . $folder . ' folder.');
 		}
 		if (!is_writable($folder)) {
-			throw new Exception('Could write to data folder.');
+			throw new Exception('Could not write to the ' . $folder . ' folder.');
 		}
 	}
 
