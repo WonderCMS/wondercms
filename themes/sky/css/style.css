@@ -457,8 +457,16 @@ input::-moz-focus-inner {
 				margin-top: 0;
 				padding-top: 10px
 			}
+			/* A tapped-open item takes its own row and its list sits under it, never floated beside it: the parent stays where the finger is, so the second tap follows the link */
+			#topMenu nav > ul > li.open {
+				float: none;
+				clear: both;
+				display: block
+			}
 			#topMenu nav li.open > ul {
-				position: static
+				position: static;
+				float: none;
+				clear: both
 			}
 			#topMenu nav li.open > ul > li {
 				white-space: normal
