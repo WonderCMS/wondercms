@@ -36,7 +36,7 @@ final class DownloadTest extends TestCase
 		$port = (int)substr(stream_socket_get_name($socket, false), strrpos(stream_socket_get_name($socket, false), ':') + 1);
 		fclose($socket);
 		$this->base = 'http://127.0.0.1:' . $port;
-		$this->server = proc_open(escapeshellarg(PHP_BINARY) . ' -S 127.0.0.1:' . $port . ' ' . escapeshellarg($this->root . '/router.php'), [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $this->root);
+		$this->server = proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, $this->root . '/router.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $this->root);
 		for ($i = 0; $i < 50 && @file_get_contents($this->base . '/ok') !== '3.9.9'; $i++) {
 			usleep(100000);
 		}
