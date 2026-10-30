@@ -3589,7 +3589,7 @@ EOT;
 			return;
 		}
 		$contents = $this->getFileFromRepo('index.php');
-		if (preg_match('/PHP_VERSION_ID < (\d+)\) \{\s*die\(/', $contents, $floor) && PHP_VERSION_ID < (int)$floor[1]) { // the new core's own checkMinimumRequirements() gate: written, it would only print its "PHP required" page; checked before the parse, which fails on a newer PHP's syntax
+		if (preg_match('/PHP_VERSION_ID < (\d+)\) \{\s*die\(/', $contents, $floor) && PHP_VERSION_ID < (int)$floor[1]) { // the new core's own PHP floor: written, it would run on a PHP it was not written for (checkMinimumRequirements() runs only at the first install) and die at the first missing function; checked before the parse, which fails on a newer PHP's syntax
 			$this->alert('danger', 'The new WonderCMS needs a newer PHP version than this server runs (PHP ' . PHP_VERSION . '); nothing was changed. Ask your host to upgrade PHP, then update again.');
 		} elseif (!$this->isValidCoreUpdate($contents)) {
 			$this->alert('danger', 'The downloaded file was not a complete, newer WonderCMS core; nothing was changed. Try again in a few minutes.');
