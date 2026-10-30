@@ -97,7 +97,13 @@
 			};
 			document.addEventListener('pointerdown', onPress);
 			document.addEventListener('touchstart', onPress);
+			document.addEventListener('keydown', function () {
+				touch = !window.matchMedia('(hover: hover)').matches;
+			});
 			document.querySelectorAll('#topMenu .subpage-nav > a').forEach(function (link) {
+				if (touch) {
+					link.setAttribute('aria-expanded', 'false');
+				}
 				link.addEventListener('click', function (event) {
 					var item = link.parentNode;
 					if (touch && !item.classList.contains('open')) {

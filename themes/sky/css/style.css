@@ -561,8 +561,9 @@ input::-moz-focus-inner {
 		white-space: nowrap
 	}
 
-	/* Third level and deeper: beside their parent, above a wider next item */
+	/* Third level and deeper: beside their parent, above a wider next item; closed, it takes no space at any width */
 	#topMenu ul li ul ul {
+		display: none;
 		left: 100%;
 		top: 0;
 		margin-top: 0;
