@@ -448,7 +448,7 @@ input::-moz-focus-inner {
 				float: left;
 				margin: 0 1em 0 2em
 			}
-			/* A closed submenu takes no space; a tapped-open third level stacks under its parent */
+			/* A closed submenu takes no space; a tapped-open one stacks under its parent, so it never lies under a top item on the next row, and long names wrap inside the screen (a hover-opened one stays beside: in the flow it would move under the mouse) */
 			#topMenu nav ul.subPageDropdown {
 				display: none
 			}
@@ -456,8 +456,11 @@ input::-moz-focus-inner {
 				margin-top: 0;
 				padding-top: 10px
 			}
-			#topMenu nav ul ul li.open > ul {
+			#topMenu nav li.open > ul {
 				position: static
+			}
+			#topMenu nav li.open > ul > li {
+				white-space: normal
 			}
 			#topMenu nav .active a {
 				border-bottom: 1px solid #fff
