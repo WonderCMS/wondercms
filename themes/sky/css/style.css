@@ -448,8 +448,9 @@ input::-moz-focus-inner {
 				float: left;
 				margin: 0 1em 0 2em
 			}
-			/* A closed submenu takes no space; a tapped-open one stacks under its parent, so it never lies under a top item on the next row, and long names wrap inside the screen (a hover-opened one stays beside: in the flow it would move under the mouse) */
-			#topMenu nav ul.subPageDropdown {
+			/* A closed submenu takes no space; a tapped-open one stacks under its parent, so it never lies under a top item on the next row, and long names wrap inside the screen (a hover-opened one stays beside: in the flow it would move under the mouse). Inside a tapped-open list the next level opens by tap or focus only: opening reflows the bar, and the item that slides under a still mouse must not open beside it */
+			#topMenu nav ul.subPageDropdown,
+			#topMenu nav li.open li:not(.open):not(:focus-within) > ul {
 				display: none
 			}
 			#topMenu nav > ul > li > ul {
@@ -559,13 +560,19 @@ input::-moz-focus-inner {
 	/* Third level and deeper: beside their parent, above a wider next item; closed, it takes no space at any width */
 	#topMenu ul li ul ul {
 		display: none;
-		inset-inline-start: 100%;
+		left: 100%;
 		top: 0;
 		margin-top: 0;
 		z-index: 1
 	}
+	@supports (inset-inline-start: 0) {
+		#topMenu ul li ul ul {
+			left: auto;
+			inset-inline-start: 100%
+		}
+	}
 
-	/* Above phone width: a closed second level is one column wide, long names wrap at a quarter of the viewport, and the last two items open their third level inward, so two levels always fit beside a centered menu */
+	/* Above phone width: a closed second level is one column wide and long names wrap at a quarter of the viewport. Every item past the middle (up to 12 items) opens both levels inward, so two levels always fit beside a centered menu, closed or open. Physical sides first: Safari before 14.1 drops the logical ones */
 	@media screen and (min-width: 737px) {
 		#topMenu nav > ul > li > ul {
 			display: block
@@ -575,11 +582,44 @@ input::-moz-focus-inner {
 			max-width: 25vw
 		}
 		#topMenu ul li ul li {
-			white-space: normal
+			white-space: normal;
+			line-height: 1.4em;
+			padding-top: 1.05em;
+			padding-bottom: 1.05em
 		}
-		#topMenu nav > ul > li:nth-last-child(-n+2) ul ul {
-			inset-inline-start: auto;
-			inset-inline-end: 100%
+		#topMenu nav > ul > li:nth-last-child(-n+2) > ul,
+		#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) > ul,
+		#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) > ul,
+		#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) > ul,
+		#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) > ul {
+			right: 0
+		}
+		#topMenu nav > ul > li:nth-last-child(-n+2) ul ul,
+		#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) ul ul,
+		#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) ul ul,
+		#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) ul ul,
+		#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) ul ul {
+			left: auto;
+			right: 100%
+		}
+		@supports (inset-inline-start: 0) {
+			#topMenu nav > ul > li:nth-last-child(-n+2) > ul,
+			#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) > ul,
+			#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) > ul,
+			#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) > ul,
+			#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) > ul {
+				right: auto;
+				inset-inline-end: 0
+			}
+			#topMenu nav > ul > li:nth-last-child(-n+2) ul ul,
+			#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) ul ul,
+			#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) ul ul,
+			#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) ul ul,
+			#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) ul ul {
+				left: auto;
+				right: auto;
+				inset-inline-end: 100%
+			}
 		}
 	}
 
