@@ -82,7 +82,8 @@
 		<script>
 			// Touch: the first tap on a menu item with subpages opens them (and closes its siblings), the second tap follows the link.
 			// Decided per tap, so touch laptops, Chromebooks and tablets with a trackpad get it too, while a mouse keeps hover.
-			// A mouse on a browser without hover (a tablet with a Bluetooth mouse) gets tap mode, since CSS hover cannot open anything there
+			// A mouse on a browser without hover (a tablet with a Bluetooth mouse) gets tap mode, since CSS hover cannot open anything there,
+			// and so does a mouse in a window of phone width (zoomed or split screen), where only the tapped layout stacks inside the screen
 			(function () {
 				var canHover = function () {
 					return !!window.matchMedia && window.matchMedia('(hover: hover)').matches;
@@ -95,7 +96,7 @@
 					});
 				};
 				var onPress = function (event) {
-					touch = event.pointerType !== 'mouse' || !canHover();
+					touch = event.pointerType !== 'mouse' || !canHover() || window.matchMedia('(max-width: 736px)').matches;
 					if (!event.target.closest('#topMenu')) {
 						closeOpen(document);
 					}
