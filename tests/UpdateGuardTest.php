@@ -94,6 +94,14 @@ final class UpdateGuardTest extends TestCase
 		$this->assertFalse($this->wcms->isValidCoreUpdate(substr($real, 0, 50000)), 'the same file cut at 50 KB is refused');
 	}
 
+	public function testABodyCutInsideACommentIsRefusedWithoutAWarning(): void
+	{
+		$cut = tempnam(sys_get_temp_dir(), 'wcms');
+		file_put_contents($cut, "<?php\ndefine('VERSION', '" . $this->newer() . "');\nclass Wcms\n{\n\t/**\n\t * cut"); // PHP 7 warns 'Unterminated comment' onto the page
+		$this->assertFalse($this->probe('', 'update', $cut)['valid']);
+		unlink($cut);
+	}
+
 	/** Runs tests/probe.php in a separate PHP process so an extension's functions can be disabled. */
 	private function probe(string $iniFlags, string $mode, string ...$args): array
 	{
