@@ -456,6 +456,17 @@ input::-moz-focus-inner {
 				float: left;
 				margin: 0 1em 0 2em
 			}
+			/* A closed submenu takes no space; a tapped-open third level stacks under its parent */
+			#topMenu nav ul.subPageDropdown {
+				display: none
+			}
+			#topMenu nav > ul > li > ul {
+				margin-top: 0;
+				padding-top: 10px
+			}
+			#topMenu nav ul ul li.open > ul {
+				position: static
+			}
 			#topMenu nav .active a {
 				border-bottom: 1px solid #fff
 			}
@@ -520,18 +531,9 @@ input::-moz-focus-inner {
 		visibility: hidden;
 		opacity: 0;
 		position: absolute;
+		margin-top: 10px;
 		display: none;
 		padding-left: 10px !important
-	}
-
-	/* A closed submenu takes no space (#topMenu nav ul would otherwise display it) */
-	#topMenu nav ul.subPageDropdown {
-		display: none
-	}
-
-	/* The gap under a top item is padding, not margin, so the pointer stays on the submenu on its way down */
-	#topMenu nav > ul > li > ul {
-		padding-top: 10px
 	}
 
 	/* Mouse and keyboard: open on hover or focus. Touch: open on tap (class "open", see theme.php) */
@@ -559,17 +561,11 @@ input::-moz-focus-inner {
 		white-space: nowrap
 	}
 
-	/* Third level and deeper: beside their parent, not on top of the next item; stacked under it on phones */
+	/* Third level and deeper: beside their parent, not on top of the next item */
 	#topMenu ul li ul ul {
 		left: 100%;
 		top: 0;
 		margin-top: 0
-	}
-
-	@media screen and (max-width: 736px) {
-		#topMenu ul li ul ul {
-			position: static
-		}
 	}
 
 	/* Submenus dropdown arrow */
