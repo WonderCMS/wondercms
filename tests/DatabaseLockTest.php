@@ -25,8 +25,33 @@ final class DatabaseLockTest extends TestCase
 	{
 		@unlink(self::DB);
 		foreach ($this->detach as $dev) {
-			exec('/usr/bin/hdiutil detach ' . $dev . ' -force >/dev/null 2>&1');
+			$this->runWithin(['/usr/bin/hdiutil', 'detach', $dev, '-force']);
 		}
+	}
+
+	/**
+	 * Run $argv, killed once $seconds have passed (hdiutil and diskutil hung under load and the suite waited forever, #375)
+	 * @return array{0: ?int, 1: string} the exit code, null when the deadline passed, and what it printed
+	 */
+	private function runWithin(array $argv, int $seconds = 60): array
+	{
+		$process = proc_open($argv, [1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+		stream_set_blocking($pipes[1], false);
+		$out = '';
+		$deadline = microtime(true) + $seconds;
+		while (($status = proc_get_status($process))['running'] && microtime(true) < $deadline) {
+			$out .= stream_get_contents($pipes[1]);
+			usleep(100000);
+		}
+		if ($status['running']) {
+			proc_terminate($process, 9); // no proc_close(): it waits for a process stuck in the kernel; the handle is reaped without waiting
+		}
+		$out .= stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+		if (!$status['running']) {
+			proc_close($process);
+		}
+		return [$status['running'] ? null : $status['exitcode'], $out];
 	}
 
 	/** A Wcms on database_probe.js whose writeFile() uses $temp as its temp file */
@@ -149,19 +174,25 @@ final class DatabaseLockTest extends TestCase
 	{
 		// An interrupted save leaves a full copy of database.js (the password hash too) next to it; a fresh one may be
 		// another request's save in progress.
-		$old = self::DB . '.0ld0ld00.tmp';
+		// Only the names tempPath() makes are swept: an old hand-made backup that also ends in .tmp stays.
+		$old = self::DB . '.0123abcd.tmp';
 		$fresh = self::DB . '.f4e5f4e5.tmp';
+		$backup = self::DB . '.bak.tmp';
 		file_put_contents($old, 'old copy');
 		touch($old, time() - 7200);
 		file_put_contents($fresh, 'in progress');
+		file_put_contents($backup, 'hand-made');
+		touch($backup, time() - 7200);
 		try {
 			(new Wcms('data_test', 'files_test', 'database_probe.js'))->set('config', 'siteTitle', 'swept');
 			clearstatcache();
 			$this->assertFileDoesNotExist($old);
 			$this->assertFileExists($fresh);
+			$this->assertFileExists($backup);
 		} finally {
 			@unlink($old);
 			@unlink($fresh);
+			@unlink($backup);
 		}
 	}
 
@@ -182,6 +213,33 @@ final class DatabaseLockTest extends TestCase
 		} finally {
 			@unlink(self::DB);
 			@unlink($target);
+		}
+	}
+
+	public function testASymlinkedDatabaseWhoseTargetFolderIsNotWritableStaysALink(): void
+	{
+		// The link's path is kept: the temp proves room next to the link and the target is written in place through it,
+		// since a rename would replace the link with a regular file.
+		if (DIRECTORY_SEPARATOR !== '/' || (function_exists('posix_getuid') && posix_getuid() === 0)) {
+			$this->markTestSkipped('needs symlinks and a POSIX permission check (not Windows, not root)');
+		}
+		$readOnly = dirname(self::DB) . '/ro-' . bin2hex(random_bytes(4));
+		mkdir($readOnly);
+		rename(self::DB, $readOnly . '/target.js');
+		symlink($readOnly . '/target.js', self::DB);
+		chmod($readOnly, 0555);
+		try {
+			$wcms = new Wcms('data_test', 'files_test', 'database_probe.js');
+			$wcms->set('config', 'siteTitle', 'through the link');
+			clearstatcache();
+			$this->assertTrue(is_link(self::DB), 'a rename would have replaced the link with a regular file');
+			$this->assertSame('through the link', json_decode(file_get_contents($readOnly . '/target.js'))->config->siteTitle);
+			$this->assertSame([], glob(self::DB . '.*.tmp'), 'no temp left');
+		} finally {
+			chmod($readOnly, 0755);
+			@unlink(self::DB);
+			@unlink($readOnly . '/target.js');
+			rmdir($readOnly);
 		}
 	}
 
@@ -213,17 +271,27 @@ final class DatabaseLockTest extends TestCase
 			$dir = rtrim(getenv('WCMS_FULL_DISK_DIR'), '/') . '/site-' . bin2hex(random_bytes(3));
 			mkdir($dir);
 		} elseif (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/hdiutil') && function_exists('exec')) {
-			exec('/usr/bin/hdiutil attach -nomount ram://4096 2>/dev/null', $out);
-			$dev = strtok($out[0] ?? '', " \t");
+			[$code, $out] = $this->runWithin(['/usr/bin/hdiutil', 'attach', '-nomount', 'ram://4096']);
+			$dev = strtok($out, " \t\n");
+			if (preg_match('#^/dev/disk\d+$#', (string)$dev)) {
+				$this->detach[] = $dev; // also when the deadline passed after the device appeared
+			}
+			if ($code === null) {
+				$this->markTestSkipped('hdiutil attach did not finish within 60 seconds (a loaded machine, #375)');
+			}
 			if (!preg_match('#^/dev/disk\d+$#', (string)$dev)) {
 				$this->markTestSkipped('hdiutil could not attach a ramdisk');
 			}
 			$name = 'wcmsrd' . bin2hex(random_bytes(3));
-			$this->detach[] = $dev;
-			exec('/usr/sbin/diskutil erasevolume HFS+ ' . $name . ' ' . $dev . ' >/dev/null 2>&1');
+			if ($this->runWithin(['/usr/sbin/diskutil', 'erasevolume', 'HFS+', $name, $dev])[0] === null) {
+				$this->markTestSkipped('diskutil erasevolume did not finish within 60 seconds (a loaded machine, #375)');
+			}
 			$dir = '/Volumes/' . $name . '/site';
 			mkdir($dir); // created while ownership is ignored, so it belongs to this user once owners are honoured
-			exec('/usr/sbin/diskutil unmount ' . $dev . ' >/dev/null 2>&1 && /usr/sbin/diskutil mount -mountOptions owners ' . $dev . ' >/dev/null 2>&1'); // group changes stick (the other-group case)
+			$unmount = $this->runWithin(['/usr/sbin/diskutil', 'unmount', $dev])[0];
+			if ($unmount === null || ($unmount === 0 && $this->runWithin(['/usr/sbin/diskutil', 'mount', '-mountOptions', 'owners', $dev])[0] === null)) { // group changes stick (the other-group case)
+				$this->markTestSkipped('diskutil unmount or mount did not finish within 60 seconds (a loaded machine, #375)');
+			}
 			exec('/sbin/mount', $mounts);
 			$this->assertContains($dev . ' on /Volumes/' . $name . ' (hfs, local, nodev, nosuid, mounted by ' . get_current_user() . ')', $mounts, 'the ramdisk is mounted where the test writes, with owners');
 		} else {
@@ -260,6 +328,17 @@ final class DatabaseLockTest extends TestCase
 	private function unfill(string $dir): void
 	{
 		unlink($dir . '/filler');
+	}
+
+	public function testARamdiskCommandPastItsDeadlineIsKilledNotWaitedFor(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('the ramdisk commands are POSIX-only');
+		}
+		$start = microtime(true);
+		$this->assertSame([null, "started\n"], $this->runWithin(['/bin/sh', '-c', 'echo started; exec sleep 30'], 1));
+		$this->assertLessThan(5, microtime(true) - $start, 'killed at the deadline');
+		$this->assertSame([0, "done\n"], $this->runWithin(['/bin/echo', 'done'], 5), 'a command that finishes gives its exit code and output');
 	}
 
 	public function testOnAFullDiskALinkedOrOtherGroupDatabaseIsRefusedNotTruncated(): void
@@ -450,7 +529,27 @@ final class DatabaseLockTest extends TestCase
 		if (PHP_VERSION_ID < 80100) {
 			$read->setAccessible(true);
 		}
-		$this->assertSame('', @$read->invoke($wcms, self::DB . '.gone'));
+		$reporting = error_reporting(E_ALL); // PHPUnit runs a test with warnings left out of error_reporting()
+		$logged = [];
+		set_error_handler(function (int $level, string $message) use (&$logged): bool {
+			if (error_reporting() & $level) { // what PHP would log; an @ lowers error_reporting() for its call
+				$logged[] = $message;
+			}
+			return true;
+		});
+		try {
+			$this->assertSame('', $read->invoke($wcms, self::DB . '.gone'));
+			$this->assertSame([], $logged, 'no warning reaches the log for a vanished file');
+			if (DIRECTORY_SEPARATOR === '/' && !(function_exists('posix_getuid') && posix_getuid() === 0)) { // root reads a 000 file
+				chmod(self::DB, 0000);
+				$read->invoke($wcms, self::DB);
+				chmod(self::DB, 0644);
+				$this->assertStringContainsString('Permission denied', implode("\n", $logged), 'a file that exists but cannot be opened still logs why (gate on #385)');
+			}
+		} finally {
+			restore_error_handler();
+			error_reporting($reporting);
+		}
 		$this->assertStringContainsString('"siteTitle": "before"', $read->invoke($wcms, self::DB), 'and the real file reads whole');
 	}
 
