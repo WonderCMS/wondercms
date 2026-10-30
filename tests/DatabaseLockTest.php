@@ -547,8 +547,11 @@ final class DatabaseLockTest extends TestCase
 			$this->assertSame([], $logged, 'no warning reaches the log for a vanished file');
 			if (DIRECTORY_SEPARATOR === '/' && !(function_exists('posix_getuid') && posix_getuid() === 0)) { // root reads a 000 file
 				chmod(self::DB, 0000);
-				$read->invoke($wcms, self::DB);
-				chmod(self::DB, 0644);
+				try {
+					$read->invoke($wcms, self::DB);
+				} finally {
+					chmod(self::DB, 0644);
+				}
 				$this->assertStringContainsString('Permission denied', implode("\n", $logged), 'a file that exists but cannot be opened still logs why (gate on #385)');
 			}
 		} finally {
