@@ -115,8 +115,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
    `/data/database.js` and `/data/cache.json` answer 403 (not 200) from the public side; a site that predates the
    shipped `.htaccess` carries its own and must add the four deny lines the release notes tell every existing site
    to add, the maintainer's own site first. Hold the news post and any announcement
-   until both canary sites have passed; sites on the previous release have no update notice, so publicity is what
-   drives the fleet's updates.
+   until both canary sites have passed; an admin who is not logged in sees no update notice (a logged-in admin sees the
+   alert within a day), so publicity is what drives the fleet's updates.
    **If the canary fails:** restore the backed-up `index.php` and `data/` on the site that failed, and fix forward.
    If wondercms.com fails, robert.si is not updated. If wondercms.com passes and robert.si fails, wondercms.com
    stays on the new core, robert.si is restored, and a patch release follows (as below). `main` cannot be
