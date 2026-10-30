@@ -214,6 +214,13 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['apple.png', 'Édith.png', 'photo2.png', 'photo10.png', 'zebra.png'], array_map('rawurldecode', $m[1]), 'natcasesort() alone puts Édith after zebra');
 	}
 
+	/**
+	 * The stub Collator cannot be undeclared, so it lives and dies in its own process (the annotations for PHPUnit 9.6, the attributes for 11.5)
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	#[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+	#[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
 	public function testAPolyfillCollatorWithoutIntlIsNotUsed(): void
 	{
 		if (extension_loaded('intl')) {
@@ -287,6 +294,79 @@ final class LocalModulesTest extends TestCase
 		$this->assertDirectoryDoesNotExist($this->root . '/no-such-target', 'nothing is created behind the link');
 		$_REQUEST = [];
 		unset($_SESSION['alert']);
+	}
+
+	public function testADanglingSymlinkIsListedWithARemoveButtonOnly(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		symlink($this->root . '/no-such-target', $this->root . '/themes/gone-theme');
+		symlink($this->root . '/no-such-target', $this->root . '/plugins/gone-plugin');
+		symlink($this->root . '/no-such-target', $this->root . '/themes/sky');
+		foreach (['themes' => 'gone-theme', 'plugins' => 'gone-plugin'] as $type => $name) {
+			$entry = $this->wcms->listAllModules($type)['exist'][$name] ?? null;
+			$this->assertIsArray($entry, $type);
+			$this->assertFalse($entry['install'], $type);
+			$this->assertNull($entry['currentVersion'], $type);
+			$this->assertSame('A link whose target is gone (found in the ' . $type . ' folder).', $entry['summary']);
+		}
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('deleteModule=gone-theme&type=themes', $html);
+		$this->assertStringContainsString('deleteModule=gone-plugin&type=plugins', $html);
+		$this->assertStringNotContainsString('selectModule=gone-theme&', $html, 'nothing to activate');
+		$this->assertStringNotContainsString('togglePlugin=gone-plugin&', $html, 'nothing to enable or disable');
+		$this->assertStringContainsString('<h4>sky</h4>', $html, 'a dangling sky link is listed');
+		$this->assertStringNotContainsString('deleteModule=sky&', $html, 'and keeps the Sky refusal');
+		$this->assertStringNotContainsString('no-entry-file', $html, 'a folder without its entry file is still not listed');
+
+		foreach (['themes' => 'gone-theme', 'plugins' => 'gone-plugin'] as $type => $name) {
+			$_REQUEST = ['deleteModule' => $name, 'type' => $type, 'token' => $this->wcms->getToken()];
+			$this->wcms->deleteFileModuleAction();
+			$this->assertFalse(is_link($this->root . '/' . $type . '/' . $name), $type);
+		}
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+		$this->assertSame(['.git', 'my.theme', 'no-entry-file', 'sky'], array_values(array_diff(scandir($this->root . '/themes'), ['.', '..'])));
+		$this->assertTrue(is_link($this->root . '/themes/sky'));
+		$this->assertFileExists($this->root . '/themes/my.theme/theme.php');
+		$this->assertFileExists($this->root . '/plugins/hello/hello.php');
+		$this->assertFileDoesNotExist($this->root . '/no-such-target');
+	}
+
+	public function testADanglingSymlinkOnTheOfficialListOffersInstallAndRemove(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		symlink($this->root . '/no-such-target', $this->root . '/themes/clean');
+		mkdir($this->root . '/themes/parallax', 0777, true); // no theme.php
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect', 'getModulesCachedData'])
+			->getMock();
+		$official = ['summary' => 's', 'repo' => 'https://github.com/robiso/x', 'zip' => 'z', 'group' => null, 'version' => '1.0.0', 'image' => null];
+		$wcms->method('getModulesCachedData')->willReturn(['clean' => $official + ['name' => 'Clean'], 'parallax' => $official + ['name' => 'Parallax'], 'other' => $official + ['name' => 'Other']]);
+		$wcms->loggedIn = true;
+		$listed = $wcms->listAllModules('themes');
+		$this->assertTrue($listed['install']['clean']['install'], 'Install replaces the link');
+		$this->assertArrayNotHasKey('clean', $listed['exist']);
+		$this->assertTrue($listed['install']['parallax']['install'], 'a folder without theme.php still gets Install');
+		$html = $wcms->settings();
+		$this->assertStringContainsString('installModule=clean&type=themes', $html);
+		$this->assertStringContainsString('deleteModule=clean&type=themes', $html);
+		$this->assertStringContainsString('installModule=parallax&type=themes', $html);
+		$this->assertStringNotContainsString('deleteModule=other&', $html, 'an official theme with nothing on disk offers Install only');
+	}
+
+	public function testAHostThatDisablesIsLinkListsModulesAsBefore(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		symlink($this->root . '/no-such-target', $this->root . '/themes/gone-theme');
+		$list = $this->probe('module-list', realpath($this->root), 'themes')['list'];
+		$this->assertSame(['my.theme'], array_keys($list['exist']), 'without is_link() a dangling link is skipped, as 3.7.0 did');
 	}
 
 	public function testAThemeFolderNamedSkyInAnyCaseHasNoRemoveButton(): void

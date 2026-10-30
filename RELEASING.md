@@ -68,7 +68,10 @@ tag, rule 3 above; every push is read back through the API and recorded).
    the last greenlight names; otherwise stop (a change made after the gate ships unreviewed). Then set the PR title to `WonderCMS X.Y.Z` first (GitHub puts the PR title in the merge commit's body under the
    subject "Merge pull request #N from WonderCMS/<branch>"; a review marker such as ✅ would live in `main`'s
    history). Check that the PR's head sha is the one the gate greenlit (`gh pr view N --json headRefOid`) and
-   that `gh pr view N --json closingIssuesReferences` is empty (nothing auto-closes at the merge), mark the draft
+   that `gh pr view N --json closingIssuesReferences` is empty (nothing auto-closes at the merge). The release PR's
+   body names the issues it fixes as plain references, never with a closing keyword (`Fixes`, `Closes`, `Resolves`,
+   nor in a commit message on the branch): a merge must not close an issue before the canary proves the release, so
+   the issues are closed by hand in step 11 with their close-out texts once both canaries pass. Then mark the draft
    ready (`gh pr ready N`), then merge the release branch into `main` (merge commit). Write the merge sha into the
    release record at once; every later compare and the tag use that value, and a final PR comment names it (the
    earlier review comments name heads that the rebases left behind). A CI run that went red on a network error
