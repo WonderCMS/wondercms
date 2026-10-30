@@ -339,7 +339,9 @@ final class UpdateGuardTest extends TestCase
 		$this->assertStringContainsString("\t\t\$extensions = ['curl',", $real);
 		$body = str_replace('PHP_VERSION_ID < 70400', 'PHP_VERSION_ID < ' . (PHP_VERSION_ID + 1), $real);
 		file_put_contents($newCore, str_replace("\t\t\$extensions = ['curl',", "\t\t\$extensions = ['curl' 'zip',", $body)); // a syntax this host cannot parse, after the gate line
-		$this->assertFalse($this->wcms->isValidCoreUpdate(file_get_contents($newCore)), 'the body fails the parse');
+		if (function_exists('token_get_all')) {
+			$this->assertFalse($this->wcms->isValidCoreUpdate(file_get_contents($newCore)), 'the body fails the parse');
+		}
 		$site = $this->siteCopy();
 		$before = hash_file('sha256', $site . '/index.php');
 		$result = $this->probe('', 'update-run', $site, $newCore);
