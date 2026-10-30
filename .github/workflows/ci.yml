@@ -191,8 +191,9 @@ jobs:
           extensions: curl, mbstring, zip
           coverage: none
       - name: Install PHPUnit through Composer
+        # ~11.5, not ^11.5: composer is a .bat shim here and cmd eats the caret.
         run: |
-          composer global require --no-interaction --no-progress "phpunit/phpunit:^11.5"
+          composer global require --no-interaction --no-progress "phpunit/phpunit:~11.5"
           composer global config bin-dir --absolute | Out-File -Append $env:GITHUB_PATH
       - run: if (-not (phpunit --version | Select-String -Quiet 'PHPUnit [0-9]')) { exit 1 }
       # url() shapes, and the updater's temp-file + rename write (rename over an existing file differs on Windows).
