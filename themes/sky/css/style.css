@@ -570,6 +570,13 @@ input::-moz-focus-inner {
 		z-index: 1
 	}
 
+	/* Between phone and desktop there is no room beside a long second level: stack the third level under its parent */
+	@media screen and (min-width: 737px) and (max-width: 900px) {
+		#topMenu ul li ul ul {
+			position: static
+		}
+	}
+
 	/* Submenus dropdown arrow */
 	.menu li > a:after {
 		content: ' ▼';
