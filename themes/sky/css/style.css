@@ -562,10 +562,11 @@ input::-moz-focus-inner {
 		z-index: 1
 	}
 
-	/* Between phone and desktop there is no room beside a long second level: stack the third level under its parent */
+	/* Between phone and desktop there is no room to the right of a long second level: open the third level to its left (stacking it would move the next item away from the pointer) */
 	@media screen and (min-width: 737px) and (max-width: 900px) {
 		#topMenu ul li ul ul {
-			position: static
+			left: auto;
+			right: 100%
 		}
 	}
 
