@@ -108,7 +108,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: curl, mbstring, zip, :fileinfo
+          extensions: curl, mbstring, zip, :fileinfo, :intl
           coverage: none
       - name: Install PHPUnit through Composer
         # Pinned; bumped by hand with the matrix job's.
@@ -116,10 +116,10 @@ jobs:
           composer global require --no-interaction --no-progress "phpunit/phpunit:11.5.57"
           echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
-      - name: fileinfo really is absent
-        run: "php -r 'exit((int) extension_loaded(\"fileinfo\"));'"
-      - name: PHPUnit (the no-fileinfo test runs for real here, skips elsewhere)
-        run: set -o pipefail; phpunit --no-coverage --filter testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable | tee "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"
+      - name: fileinfo and intl really are absent
+        run: "php -r 'exit((int) (extension_loaded(\"fileinfo\") || extension_loaded(\"intl\")));'"
+      - name: PHPUnit (the no-fileinfo and the no-intl tests run for real here, skip elsewhere)
+        run: set -o pipefail; phpunit --no-coverage --filter 'testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable|testAPolyfillCollatorWithoutIntlIsNotUsed|testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort|testTheFilesTabSortsAnAccentedNameAmongItsLetter' | tee "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"; grep -q 'Tests: [1-9]' "$RUNNER_TEMP/phpunit.log"
 
       - name: Updater as another user than the file owner writes in place and keeps the owner
         run: |
