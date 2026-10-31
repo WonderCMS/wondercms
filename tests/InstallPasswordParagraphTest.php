@@ -5,6 +5,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * createDb() writes the install password into the public home page; the admin's first successful login removes that
  * paragraph (and an existing site's next login does), a paragraph edited by hand stays, a visitor never removes it.
+ * Sites installed before 3.2.0 lose the <h4> that carried the password and the login link, and keep a login link.
  */
 final class InstallPasswordParagraphTest extends TestCase
 {
@@ -36,7 +37,7 @@ final class InstallPasswordParagraphTest extends TestCase
 	{
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$_POST['password'] = $password;
-		$wcms->currentPage = 'loginURL';
+		$wcms->currentPage = $wcms->get('config', 'login');
 		$wcms->loginAction();
 		$_POST = [];
 		$_SERVER['REQUEST_METHOD'] = 'GET';
@@ -115,6 +116,76 @@ final class InstallPasswordParagraphTest extends TestCase
 			$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT);
 			$db->pages->home->content = $content;
 			file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+			$pagesBefore = json_encode($this->onDisk()->pages);
+
+			$this->login($this->site(), 'ownerPass1');
+
+			$this->assertTrue($_SESSION['loggedIn'] ?? false);
+			$this->assertSame($pagesBefore, json_encode($this->onDisk()->pages), 'no write to any page: ' . $content);
+			$this->assertCount(0, $this->passwordAlerts(), $content);
+			unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
+		}
+	}
+
+	private function siteWithHome(string $content, string $login = 'loginURL'): void
+	{
+		@unlink(self::DB);
+		$this->site();
+		$db = $this->onDisk();
+		$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT);
+		$db->config->login = $login;
+		$db->pages->home->content = $content;
+		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+	}
+
+	private function pre320H4(string $linkText = 'Click here to login.'): string
+	{
+		return '<h4><a href="' . Wcms::url('loginURL') . '">' . $linkText . '</a> Your password is: <b>Ab3dEf7h</b></a></h4>'; // 3.1.4's createDb (3.0.x: "Click to login."), stray </a> included
+	}
+
+	public function testAPre320HomePageLosesTheH4AndKeepsALoginLink(): void
+	{
+		$loginParagraph = '<p><a href="' . Wcms::url('loginURL') . '" class="button">Click here to login</a></p>';
+		$tail = "\n\n<p class=\"mt-4\">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>";
+		foreach (['Click here to login.', 'Click to login.'] as $linkText) {
+			$this->siteWithHome("<h1>It's alive!</h1>\n\n" . $this->pre320H4($linkText) . $tail);
+
+			$this->login($this->site(), 'ownerPass1');
+
+			$after = $this->onDisk()->pages->home->content;
+			$this->assertSame("<h1>It's alive!</h1>\n\n" . $loginParagraph . $tail, $after, $linkText . ': the h4 is replaced by the login paragraph, every other byte stays');
+			$this->assertStringNotContainsString('Ab3dEf7h', $after);
+			$this->assertCount(1, $this->passwordAlerts());
+			unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
+		}
+
+		$kept = "\n\n<p><a href=\"" . Wcms::url('loginURL') . "\">Click here to login</a> any time.</p>";
+		$this->siteWithHome("<h1>Hi</h1>\n\n" . $this->pre320H4() . $kept);
+		$this->login($this->site(), 'ownerPass1');
+		$this->assertSame("<h1>Hi</h1>" . $kept, $this->onDisk()->pages->home->content, 'a login link remains: no second one is added');
+	}
+
+	public function testAPre320HomePageWithACustomLoginUrlDoesNotPublishIt(): void
+	{
+		$this->siteWithHome("<h1>It's alive!</h1>\n\n" . $this->pre320H4() . "\n\n<p>More.</p>", 'my-door');
+
+		$this->login($this->site(), 'ownerPass1');
+
+		$this->assertTrue($_SESSION['loggedIn'] ?? false);
+		$after = $this->onDisk()->pages->home->content;
+		$this->assertSame("<h1>It's alive!</h1>\n\n<p>More.</p>", $after, 'the h4 goes; its link to loginURL was already dead');
+		$this->assertStringNotContainsString('my-door', $after, 'the custom login URL is not put on a public page');
+	}
+
+	public function testAHandEditedPre320H4IsNotTouched(): void
+	{
+		$url = Wcms::url('loginURL');
+		foreach ([
+			"<h1>Hi</h1>\n\n<h4><a href=\"$url\">Click here to login.</a> Your password is: <b>Ab3dEf7h</b></h4>",
+			"<h1>Hi</h1>\n\n<h4><a href=\"$url\">Click here to login.</a> Your password is: <b><i>gone</i></b></a></h4>",
+			"<h1>Hi</h1>\n\n<h4><a href=\"$url\">Click here to login.</a> My password is: <b>Ab3dEf7h</b></a></h4>",
+		] as $content) {
+			$this->siteWithHome($content);
 			$pagesBefore = json_encode($this->onDisk()->pages);
 
 			$this->login($this->site(), 'ownerPass1');
