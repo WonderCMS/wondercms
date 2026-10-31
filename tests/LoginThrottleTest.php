@@ -5,10 +5,10 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../index.php';
 
 /**
- * Failed logins are counted per connecting address (REMOTE_ADDR only, IPv6 per /64): the 11th POST to the login slug
- * within 15 minutes gets HTTP 429 and the login page, without a password check. A success clears the address; a
- * browser that logged in before (its cookie's hash is in config) is never refused, so a visitor sharing the owner's
- * address cannot lock the owner out. The counts live in data/logs/, never in database.js.
+ * Failed logins are counted per connecting address (REMOTE_ADDR only, IPv6 per /64; loopback never): the 11th POST to
+ * the login slug within 15 minutes gets HTTP 429 and the login page, without a password check, and a success clears the
+ * address. The counts live in data/logs/, never in database.js, under a salted hash of the address, never the address;
+ * nothing identifies a browser (no cookie but the session one).
  */
 final class LoginThrottleTest extends TestCase
 {
@@ -16,7 +16,6 @@ final class LoginThrottleTest extends TestCase
 	private const ATTEMPTS_PATH = __DIR__ . '/../data_test/logs/login-attempts.json';
 	private const PASSWORD = 'correctPass1';
 	private const TOO_MANY = 'Too many attempts. Try again in a few minutes.';
-	private const COOKIE = 'wcms_known_browser';
 
 	protected function setUp(): void
 	{
@@ -30,9 +29,9 @@ final class LoginThrottleTest extends TestCase
 
 	protected function tearDown(): void
 	{
-		$_GET = $_POST = $_REQUEST = $_COOKIE = [];
+		$_GET = $_POST = $_REQUEST = [];
 		unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['HTTP_CLIENT_IP']);
-		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir'], $_SESSION['knownBrowserIssued']);
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
 		@unlink(self::ATTEMPTS_PATH);
 		@unlink(self::DB_PATH);
 	}
@@ -87,11 +86,22 @@ final class LoginThrottleTest extends TestCase
 		return is_file(self::ATTEMPTS_PATH) ? json_decode(file_get_contents(self::ATTEMPTS_PATH), true) : [];
 	}
 
-	private function knownBrowser(Wcms $wcms): string
+	/**
+	 * The key the file stores for an address, learned the way the site learns it: one failed login on an empty file
+	 */
+	private function keyOf(string $address): string
 	{
-		$value = bin2hex(random_bytes(32));
-		$wcms->set('config', 'knownBrowsers', [hash('sha256', $value) => date('Y/m/d H:i:s')]);
-		return $value;
+		$saved = is_file(self::ATTEMPTS_PATH) ? file_get_contents(self::ATTEMPTS_PATH) : null;
+		@unlink(self::ATTEMPTS_PATH);
+		$this->post('wrongPass', $address);
+		$keys = array_keys($this->attempts());
+		$this->assertCount(1, $keys, 'one failure, one key');
+		if ($saved === null) {
+			unlink(self::ATTEMPTS_PATH);
+		} else {
+			file_put_contents(self::ATTEMPTS_PATH, $saved);
+		}
+		return (string)$keys[0];
 	}
 
 	public function testTenFailuresThenTheEleventhIsA429EvenWithTheRightPassword(): void
@@ -104,8 +114,12 @@ final class LoginThrottleTest extends TestCase
 
 	public function testARefusedAttemptNeverChecksThePassword(): void
 	{
-		$this->failTimes('203.0.113.9', 10);
-		$this->wcms()->set('config', 'password', '$2y$16$' . str_repeat('a', 22) . str_repeat('b', 31)); // a cost-16 check takes seconds
+		$this->wcms()->set('config', 'password', '$2y$14$' . str_repeat('a', 22) . str_repeat('b', 31)); // a cost-14 check: a measurable time
+		$start = microtime(true);
+		$key = $this->keyOf('203.0.113.9');
+		$checked = microtime(true) - $start;
+		$this->assertGreaterThan(0.1, $checked, 'a checked password takes measurable time');
+		file_put_contents(self::ATTEMPTS_PATH, json_encode([$key => array_fill(0, 10, time())]));
 		$failed = 0;
 		$wcms = $this->wcms();
 		$wcms->addListener('login_failed', static function ($args) use (&$failed) {
@@ -122,7 +136,7 @@ final class LoginThrottleTest extends TestCase
 		$wcms->loginAction();
 
 		$this->assertRefused($wcms);
-		$this->assertLessThan(1.0, microtime(true) - $start, 'no bcrypt check on the 429 path');
+		$this->assertLessThan($checked / 4, microtime(true) - $start, 'no bcrypt check on the 429 path');
 		$this->assertSame(0, $failed, 'login_failed is for a checked password only');
 	}
 
@@ -149,7 +163,7 @@ final class LoginThrottleTest extends TestCase
 		$counted = null;
 		$wcms = $this->wcms();
 		$wcms->addListener('login_failed', function ($args) use (&$counted) {
-			$counted = count($this->attempts()['203.0.113.9'] ?? []);
+			$counted = array_sum(array_map('count', $this->attempts()));
 			return $args;
 		});
 		$_SERVER['REQUEST_METHOD'] = 'POST';
@@ -178,12 +192,9 @@ final class LoginThrottleTest extends TestCase
 	public function testTheWindowSlides(): void
 	{
 		$now = time();
-		$times = [];
-		for ($i = 0; $i < 9; $i++) {
-			$times[] = $now - 600;
-		}
+		$times = array_fill(0, 9, $now - 600);
 		$times[] = $now - 901; // one failure outside the window: 9 count
-		file_put_contents(self::ATTEMPTS_PATH, json_encode(['203.0.113.9' => $times]));
+		file_put_contents(self::ATTEMPTS_PATH, json_encode([$this->keyOf('203.0.113.9') => $times]));
 
 		$this->failTimes('203.0.113.9', 1);
 		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
@@ -237,158 +248,68 @@ final class LoginThrottleTest extends TestCase
 		$this->assertSame([], $this->attempts());
 	}
 
+	public function testLoopbackIsNeverThrottled(): void
+	{
+		foreach (['127.0.0.1', '::1', '::ffff:127.0.0.1', '127.0.0.2'] as $address) {
+			for ($i = 0; $i < 12; $i++) {
+				$this->post('wrongPass', $address);
+			}
+			$this->assertLoggedIn($this->post(self::PASSWORD, $address));
+		}
+		$this->assertFileDoesNotExist(self::ATTEMPTS_PATH, 'loopback is not counted either');
+	}
+
+	public function testAPrivateAddressIsThrottled(): void
+	{
+		foreach (['10.0.0.5', '192.168.1.10', 'fd00::1'] as $address) {
+			$this->failTimes($address, 10);
+			$this->assertRefused($this->post(self::PASSWORD, $address));
+		}
+	}
+
 	public function testASuccessClearsTheAddress(): void
 	{
 		$this->failTimes('203.0.113.9', 9);
 		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
-		$this->assertArrayNotHasKey('203.0.113.9', $this->attempts());
-
-		$this->failTimes('203.0.113.9', 10);
-		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
-	}
-
-	public function testAKnownBrowserLogsInWhileItsAddressIsThrottled(): void
-	{
-		$cookie = $this->knownBrowser($this->wcms());
-		$this->failTimes('203.0.113.9', 10);
-		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
-
-		$_COOKIE[self::COOKIE] = $cookie;
-		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
-	}
-
-	public function testAKnownBrowsersMistakesAreNotCounted(): void
-	{
-		$_COOKIE[self::COOKIE] = $this->knownBrowser($this->wcms());
-		for ($i = 0; $i < 12; $i++) {
-			$this->post('wrongPass', '203.0.113.9');
-		}
 		$this->assertSame([], $this->attempts());
-		$this->assertSame('Wrong password.', $_SESSION['alert']['danger'][0]['message']);
 
-		unset($_COOKIE[self::COOKIE]);
-		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
-	}
-
-	public function testAForgedCookieDoesNotExempt(): void
-	{
-		$this->knownBrowser($this->wcms());
 		$this->failTimes('203.0.113.9', 10);
+		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
+	}
 
-		foreach ([bin2hex(random_bytes(32)), '', 'x', ['a']] as $forged) {
-			$_COOKIE[self::COOKIE] = $forged;
-			$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
+	public function testTheFileHoldsNoAddress(): void
+	{
+		$this->failTimes('203.0.113.9', 3);
+		$this->failTimes('2001:db8:1:2::1', 3);
+
+		$file = file_get_contents(self::ATTEMPTS_PATH);
+		foreach (['203.0.113.9', '2001:db8:1:2::1', '2001:db8:1:2::/64', '203.0.113', '2001:db8'] as $address) {
+			$this->assertStringNotContainsString($address, $file);
+			$this->assertStringNotContainsString(hash('sha256', $address), $file, 'not an unsalted hash either');
+			$this->assertStringNotContainsString(md5($address), $file);
+		}
+		$this->assertCount(2, $this->attempts());
+		foreach (array_keys($this->attempts()) as $key) {
+			$this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string)$key);
 		}
 	}
 
-	public function testTheCookieAloneDoesNotLogIn(): void
+	public function testTheKeyIsSaltedByTheInstall(): void
 	{
-		$_COOKIE[self::COOKIE] = $this->knownBrowser($this->wcms());
+		$before = $this->keyOf('203.0.113.9');
+		$this->assertSame($before, $this->keyOf('203.0.113.9'), 'the same address keeps its key');
 
-		$wcms = $this->post('wrongPass', '203.0.113.9');
+		$this->wcms()->set('config', 'password', password_hash('anotherPass1', PASSWORD_BCRYPT, ['cost' => 4]));
 
-		$this->assertFalse(isset($_SESSION['loggedIn']));
-		$wcms->loginStatus();
-		$this->assertFalse($wcms->loggedIn);
+		$this->assertNotSame($before, $this->keyOf('203.0.113.9'), 'the salt comes from the install');
 	}
 
-	public function testALoginRemembersTheBrowserOnlyAsAHash(): void
+	public function testALoginSetsNoBrowserIdentity(): void
 	{
 		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
 
-		$known = (array)$this->wcms()->get('config', 'knownBrowsers');
-		$this->assertCount(1, $known);
-		$this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string)array_key_first($known));
-	}
-
-	public function testAKnownBrowserKeepsItsEntryAndTheListIsCapped(): void
-	{
-		$wcms = $this->wcms();
-		$cookie = $this->knownBrowser($wcms);
-		$_COOKIE[self::COOKIE] = $cookie;
-		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
-		$this->assertSame([hash('sha256', $cookie)], array_keys((array)$this->wcms()->get('config', 'knownBrowsers')), 'the same browser logging in again adds nothing');
-
-		unset($_COOKIE[self::COOKIE]);
-		for ($i = 0; $i < 12; $i++) {
-			$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
-		}
-		$this->assertCount(10, (array)$this->wcms()->get('config', 'knownBrowsers'));
-	}
-
-	private function adminSession(): Wcms
-	{
-		$_SESSION['loggedIn'] = true;
-		$_SESSION['rootDir'] = $this->wcms()->rootDir;
-		$wcms = $this->wcms();
-		$wcms->loginStatus();
-		$this->assertTrue($wcms->loggedIn);
-		return $wcms;
-	}
-
-	public function testASessionLoggedInBeforeTheUpdateGetsTheCookieOnce(): void
-	{
-		$this->assertSame([], (array)$this->wcms()->get('config', 'knownBrowsers'), 'upgrade day: no browser is known');
-
-		$this->adminSession()->knownBrowserAction();
-
-		$known = (array)$this->wcms()->get('config', 'knownBrowsers');
-		$this->assertCount(1, $known);
-		$this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string)array_key_first($known), 'only a hash is stored');
-		$database = file_get_contents(self::DB_PATH);
-		$this->adminSession()->knownBrowserAction();
-		$this->assertSame($database, file_get_contents(self::DB_PATH), 'once per session, not a database write per admin request');
-	}
-
-	public function testAKnownBrowsersSessionIsLeftAlone(): void
-	{
-		$_COOKIE[self::COOKIE] = $this->knownBrowser($this->wcms());
-		$database = file_get_contents(self::DB_PATH);
-
-		$this->adminSession()->knownBrowserAction();
-
-		$this->assertSame($database, file_get_contents(self::DB_PATH));
-	}
-
-	public function testAVisitorIsNeverGivenTheCookie(): void
-	{
-		$wcms = $this->wcms();
-		$wcms->loginStatus();
-		$database = file_get_contents(self::DB_PATH);
-
-		$wcms->knownBrowserAction();
-
-		$this->assertSame($database, file_get_contents(self::DB_PATH));
-		$this->assertArrayNotHasKey('knownBrowsers', (array)json_decode($database, true)['config']);
-	}
-
-	public function testASessionsCookieKeepsTheTenBrowserCap(): void
-	{
-		$known = [];
-		for ($i = 0; $i < 10; $i++) {
-			$known[hash('sha256', (string)$i)] = '2026/01/01 00:00:0' . (9 - $i); // stored newest first
-		}
-		$this->wcms()->set('config', 'knownBrowsers', $known);
-
-		$this->adminSession()->knownBrowserAction();
-
-		$after = (array)$this->wcms()->get('config', 'knownBrowsers');
-		$this->assertCount(10, $after);
-		$this->assertArrayNotHasKey(hash('sha256', '9'), $after, 'the oldest kept entry made room');
-		$this->assertNotContains(array_key_first($after), array_keys($known), 'the new browser is first');
-	}
-
-	public function testTheEditorCannotWriteKnownBrowsers(): void
-	{
-		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
-		$wcms = $this->wcms();
-		$wcms->loginStatus();
-		$before = $wcms->get('config', 'knownBrowsers');
-		$_POST = ['fieldname' => 'knownBrowsers', 'content' => 'x', 'target' => 'config', 'token' => $wcms->getToken()];
-
-		$wcms->saveAction();
-
-		$this->assertEquals($before, $this->wcms()->get('config', 'knownBrowsers'));
+		$config = json_decode(file_get_contents(self::DB_PATH), true)['config'];
+		$this->assertArrayNotHasKey('knownBrowsers', $config);
 	}
 
 	public function testAFailedLoginNeverWritesTheDatabase(): void
@@ -406,29 +327,32 @@ final class LoginThrottleTest extends TestCase
 	{
 		$stale = [];
 		for ($i = 0; $i < 200; $i++) {
-			$stale['198.51.100.' . $i] = [time() - 901, time() - 3600];
+			$stale[hash('sha256', (string)$i)] = [time() - 901, time() - 3600];
 		}
 		file_put_contents(self::ATTEMPTS_PATH, json_encode($stale));
 
 		$this->failTimes('203.0.113.9', 10);
 		$this->post('wrongPass', '203.0.113.9');
 
-		$this->assertSame(['203.0.113.9'], array_keys($this->attempts()));
-		$this->assertCount(10, $this->attempts()['203.0.113.9'], 'a refused attempt is not stored');
+		$this->assertCount(1, $this->attempts());
+		$this->assertCount(10, current($this->attempts()), 'a refused attempt is not stored');
 	}
 
 	public function testTheAttemptsFileIsCappedInAddresses(): void
 	{
 		$many = [];
 		for ($i = 0; $i < 1005; $i++) {
-			$many['10.0.' . intdiv($i, 256) . '.' . ($i % 256)] = [time() - 60];
+			$many[hash('sha256', (string)$i)] = [time() - 60];
 		}
 		file_put_contents(self::ATTEMPTS_PATH, json_encode($many));
 
 		$this->post('wrongPass', '203.0.113.9');
 
 		$this->assertCount(1000, $this->attempts());
-		$this->assertArrayHasKey('203.0.113.9', $this->attempts());
+		$fresh = array_filter($this->attempts(), static function (array $times): bool {
+			return max($times) > time() - 30;
+		});
+		$this->assertCount(1, $fresh, 'the newest address is kept');
 	}
 
 	public function testAVisitorGetNeverWritesTheAttemptsFile(): void
@@ -465,7 +389,8 @@ final class LoginThrottleTest extends TestCase
 	}
 
 	/**
-	 * The same flow over HTTP against php -S: the status line, Retry-After, the login page body, the cookie's flags.
+	 * The same flow over HTTP against php -S: the status line, Retry-After, the login page body, no cookie but the
+	 * session one, no address in the file. A router gives PHP a non-loopback REMOTE_ADDR (loopback is never throttled).
 	 */
 	public function testTheEleventhPostIsA429OverHttp(): void
 	{
@@ -475,6 +400,7 @@ final class LoginThrottleTest extends TestCase
 		$root = sys_get_temp_dir() . '/wcms-throttle-' . bin2hex(random_bytes(4));
 		mkdir($root);
 		copy(__DIR__ . '/../index.php', $root . '/index.php');
+		file_put_contents($root . '/router.php', '<?php $_SERVER["REMOTE_ADDR"] = "203.0.113.9"; require __DIR__ . "/index.php";');
 		mkdir($root . '/themes');
 		mkdir($root . '/themes/sky');
 		foreach (glob(__DIR__ . '/../themes/sky/*') as $file) {
@@ -486,7 +412,7 @@ final class LoginThrottleTest extends TestCase
 		$port = (int)substr(stream_socket_get_name($socket, false), strrpos(stream_socket_get_name($socket, false), ':') + 1);
 		fclose($socket);
 		$base = 'http://127.0.0.1:' . $port;
-		$server = proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $root);
+		$server = proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, 'router.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $root);
 		try {
 			for ($i = 0; $i < 50 && @file_get_contents($base . '/') === false; $i++) {
 				usleep(100000);
@@ -496,45 +422,29 @@ final class LoginThrottleTest extends TestCase
 			$site = new Wcms('data', 'files', 'database.js', $root);
 			$site->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]));
 
-			$first = $this->request($base, self::PASSWORD, null);
+			$first = $this->request($base, self::PASSWORD);
 			$this->assertStringContainsString(' 302 ', $first['status']);
-			$this->assertMatchesRegularExpression('/^Set-Cookie: ' . self::COOKIE . '=([0-9a-f]{64});.*expires=.*;.*HttpOnly/mi', $first['headers']);
-			$this->assertMatchesRegularExpression('/^Set-Cookie: ' . self::COOKIE . '=.*SameSite=Lax/mi', $first['headers']);
-			preg_match('/^Set-Cookie: ' . self::COOKIE . '=([0-9a-f]{64})/mi', $first['headers'], $match);
-			$cookie = $match[1];
-			$database = file_get_contents($root . '/data/database.js');
-			$this->assertStringNotContainsString($cookie, $database, 'only the hash is stored');
-			$this->assertStringContainsString(hash('sha256', $cookie), $database);
+			$this->assertNoCookieButTheSession($first['headers']);
+			$this->assertStringNotContainsString('knownBrowsers', file_get_contents($root . '/data/database.js'));
 
 			$before = file_get_contents($root . '/data/database.js');
 			for ($i = 0; $i < 10; $i++) {
-				$this->assertStringContainsString(' 302 ', $this->request($base, 'wrongPass', null)['status']);
+				$failed = $this->request($base, 'wrongPass');
+				$this->assertStringContainsString(' 302 ', $failed['status']);
+				$this->assertNoCookieButTheSession($failed['headers']);
 			}
 			$this->assertSame($before, file_get_contents($root . '/data/database.js'), 'failed logins never write database.js');
 
-			$refused = $this->request($base, self::PASSWORD, null);
+			$refused = $this->request($base, self::PASSWORD);
 			$this->assertStringContainsString(' 429 ', $refused['status']);
 			$this->assertMatchesRegularExpression('/^Retry-After: \d+\r?$/mi', $refused['headers']);
 			$this->assertStringContainsString(self::TOO_MANY, $refused['body']);
 			$this->assertStringContainsString('name="password"', $refused['body'], 'the normal login page');
-			$this->assertStringNotContainsString(self::COOKIE, $refused['headers']);
+			$this->assertNoCookieButTheSession($refused['headers']);
 
-			$known = $this->request($base, self::PASSWORD, $cookie);
-			$this->assertStringContainsString(' 302 ', $known['status'], 'the browser that logged in before gets through');
-
-			// upgrade day: a session logged in before the update has no cookie; its next page view is given one
-			preg_match_all('/^Set-Cookie: (PHPSESSID=[^;]+)/mi', $first['headers'], $sessions);
-			$session = (string)end($sessions[1]); // the id regenerated at login
-			$site = new Wcms('data', 'files', 'database.js', $root);
-			$site->set('config', 'knownBrowsers', []);
-			$page = $this->request($base, null, null, $session);
-			$this->assertStringContainsString('id="settingsModal"', $page['body'], 'the session is the admin\'s');
-			$this->assertMatchesRegularExpression('/^Set-Cookie: ' . self::COOKIE . '=([0-9a-f]{64});.*HttpOnly/mi', $page['headers']);
-			preg_match('/^Set-Cookie: ' . self::COOKIE . '=([0-9a-f]{64})/mi', $page['headers'], $match);
-			$this->assertStringContainsString(hash('sha256', $match[1]), file_get_contents($root . '/data/database.js'));
-			$this->assertStringNotContainsString(self::COOKIE, $this->request($base, null, null, $session)['headers'], 'once per session');
-			$this->assertStringContainsString(' 429 ', $this->request($base, self::PASSWORD, null)['status'], 'the address is still throttled');
-			$this->assertStringContainsString(' 302 ', $this->request($base, self::PASSWORD, $match[1])['status'], 'the cookie the session got gets through');
+			$file = file_get_contents($root . '/data/logs/login-attempts.json');
+			$this->assertStringNotContainsString('203.0.113.9', $file);
+			$this->assertMatchesRegularExpression('/^\{"[0-9a-f]{64}":\[(\d+,){9}\d+\]\}$/', $file, 'one salted key and ten timestamps');
 		} finally {
 			proc_terminate($server);
 			proc_close($server);
@@ -542,20 +452,22 @@ final class LoginThrottleTest extends TestCase
 		}
 	}
 
-	/**
-	 * A POST of the password to the login page, or with no password a GET of the home page
-	 */
-	private function request(string $base, ?string $password, ?string $cookie, string $session = ''): array
+	private function assertNoCookieButTheSession(string $headers): void
 	{
-		$cookies = array_filter([$session, $cookie !== null ? self::COOKIE . '=' . $cookie : '']);
+		preg_match_all('/^Set-Cookie: ([^=]+)=/mi', $headers, $names);
+		$this->assertSame([], array_values(array_diff($names[1], ['PHPSESSID'])), 'no cookie but the session one');
+	}
+
+	private function request(string $base, string $password): array
+	{
 		$context = stream_context_create(['http' => [
-			'method' => $password !== null ? 'POST' : 'GET',
-			'header' => "Content-Type: application/x-www-form-urlencoded\r\n" . ($cookies ? 'Cookie: ' . implode('; ', $cookies) . "\r\n" : ''),
-			'content' => $password !== null ? http_build_query(['password' => $password]) : '',
+			'method' => 'POST',
+			'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+			'content' => http_build_query(['password' => $password]),
 			'follow_location' => 0,
 			'ignore_errors' => true,
 		]]);
-		$body = (string)file_get_contents($base . ($password !== null ? '/?page=loginURL' : '/'), false, $context);
+		$body = (string)file_get_contents($base . '/?page=loginURL', false, $context);
 		$headers = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : ($http_response_header ?? []); // the variable is deprecated in PHP 8.5
 		return ['status' => (string)($headers[0] ?? ''), 'headers' => implode("\r\n", $headers), 'body' => $body];
 	}
