@@ -2517,6 +2517,7 @@ EOT;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$_SESSION['authStamp'] = $this->authStamp($hash); // the hash that was verified, never a re-read one: a password change during the login leaves this session out
 			$this->saveAdminLoginIP($ip);
+			$this->removeInstallPasswordParagraph();
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2650,6 +2651,55 @@ EOT;
 			fclose($lock);
 		}
 		return $result;
+	}
+
+	/**
+	 * Remove the password paragraph createDb() writes into the public home page, at the admin's first login (and at the
+	 * next login of a site installed before this check existed). The page is the one defaultPage names (renaming Home in
+	 * the menu moves the page and repoints defaultPage) and 'home' while it exists. Only the untouched paragraph matches:
+	 * a page whose paragraph was edited by hand is not written.
+	 * @return void
+	 * @throws Exception
+	 */
+	private function removeInstallPasswordParagraph(): void
+	{
+		$removed = false;
+		foreach (array_unique([(string)$this->get('config', 'defaultPage'), 'home']) as $slugTree) {
+			$page = $this->get(self::DB_PAGES_KEY); // walked with ??, not get(): get() would create a missing page
+			foreach (explode('/', $slugTree) as $depth => $slug) {
+				$page = $depth === 0 ? $page->{$slug} ?? null : $page->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
+			}
+			if (!isset($page->content) || !is_string($page->content)) {
+				continue;
+			}
+			$content = $this->withoutInstallPassword($page->content);
+			if ($content !== null) {
+				$page->content = $content;
+				$removed = true;
+			}
+		}
+		if (!$removed) {
+			return;
+		}
+		$this->save();
+		$this->alert('info',
+			'Your password was shown on the public home page until now; that line is removed. Please change it in <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
+	}
+
+	/**
+	 * The content without any copy of the install password paragraph, or null when it carries none
+	 * Before 3.2.0 the password sat in an <h4> that was also the login link (with a stray </a>); it goes too, and no link
+	 * is written in its place: the admin is logged in at that moment, and the login URL is in Settings, Security.
+	 * @param string $content
+	 * @return string|null
+	 */
+	private function withoutInstallPassword(string $content): ?string
+	{
+		$content = preg_replace([
+			'~<p>Your password for editing everything is: <b>[^<]*</b></p>(?:\r?\n){0,2}~',
+			'~<h4><a href="[^"]*">[^<]*</a> Your password is: <b>[^<]*</b></a></h4>(?:\r?\n){0,2}~',
+		], '', $content, -1, $count);
+		return $content !== null && $count > 0 ? $content : null;
 	}
 
 	/**
