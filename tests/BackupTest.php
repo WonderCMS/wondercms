@@ -93,7 +93,12 @@ final class BackupTest extends TestCase
 	/** Start php -S with $ini settings and request a backup; return [status line and headers, body] */
 	private function download(array $ini = []): array
 	{
-		$port = $this->startServer($ini);
+		return $this->request($this->startServer($ini));
+	}
+
+	/** Request a backup from the server already listening on $port; return [status line and headers, body] */
+	private function request(int $port): array
+	{
 		$context = stream_context_create(['http' => ['timeout' => 60, 'ignore_errors' => true, 'follow_location' => 0]]);
 		$body = @file_get_contents('http://127.0.0.1:' . $port . '/', false, $context);
 		$this->assertNotFalse($body, 'the local server answers');
@@ -267,5 +272,39 @@ final class BackupTest extends TestCase
 		unlink($fresh);
 		unlink($upload);
 		$this->assertNothingLeftOnDisk();
+	}
+
+	/** Two backups on one server with $ini, the first one's leftover aged past the sweep's threshold in between */
+	private function assertTwoBackupsDownloadWithUnlinkDisabled(array $ini): void
+	{
+		$port = $this->startServer($ini);
+		[$headers, $body] = $this->request($port);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertSame((string)strlen($body), $this->header($headers, 'Content-Length'));
+		$this->assertContains('data/database.js', $this->entries($body));
+		$this->assertStringNotContainsString('Fatal error', $body);
+		$left = glob($this->site . '/data/*.zip');
+		$this->assertCount(1, $left, 'without unlink the archive stays under data/');
+		touch($left[0], time() - 3600);
+		[$headers, $body] = $this->request($port);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), 'the second backup still works: ' . substr($body, 0, 300));
+		$entries = $this->entries($body);
+		$this->assertContains('data/database.js', $entries);
+		$this->assertNotContains('data/' . basename($left[0]), $entries, 'the first archive is not nested in the second');
+		$this->assertCount(2, glob($this->site . '/data/*.zip'), 'both stay: nothing can remove them on this host');
+		$this->assertSame([self::LEGACY, self::UPLOAD, 'photo.jpg'], array_values(array_diff(scandir($this->site . '/data/files'), ['.', '..'])), 'nothing new in data/files');
+	}
+
+	public function testWithUnlinkDisabledEveryBackupDownloadsAndNoneNestsTheLast(): void
+	{
+		// On PHP 8 a disabled function is undefined, so @unlink() threw: the first backup died after its body, and from the
+		// second on the stale-archive sweep made every backup a fatal page until the leftover was deleted over FTP.
+		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'unlink', 'display_errors' => '1']);
+	}
+
+	public function testTheBackupDownloadsTwiceOnTheCiHardenedHostList(): void
+	{
+		// The disable_functions list of the CI boot check ("Fresh install boots with the disable-able functions disabled")
+		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'flock,fopen,stream_get_contents,fclose,ob_start,ob_get_level,ob_end_clean,ob_end_flush,chmod,rename,unlink,fileowner,filegroup,fileperms,getmypid,exec,shell_exec,system,passthru,proc_open,popen', 'display_errors' => '1']);
 	}
 }

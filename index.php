@@ -376,6 +376,9 @@ class Wcms
 	 */
 	public function removeStaleBackupArchives(): void
 	{
+		if (!function_exists('unlink')) {
+			return; // a host that disables unlink keeps the leftovers; the walk skips them, so the next backup still works
+		}
 		$maxAge = max(300, (int)ini_get('max_execution_time'));
 		foreach (glob($this->dataPath . '/*-backup-*.zip') ?: [] as $archive) {
 			if ($this->isBackupArchiveName($archive) && is_file($archive) && filemtime($archive) < time() - $maxAge) {
@@ -3935,7 +3938,9 @@ EOT;
 			}
 		}
 		if (!$zip->close()) {
-			@unlink($zipPath);
+			if (function_exists('unlink')) {
+				@unlink($zipPath);
+			}
 			throw new Exception('Cannot create ZIP archive.');
 		}
 		return $zipPath;
@@ -3976,7 +3981,9 @@ EOT;
 				}
 			}
 		} finally {
-			@unlink($zipPath);
+			if (function_exists('unlink')) { // disabled on some hardened hosts: the archive stays under data/, refused by .htaccess and skipped by the next backup's walk
+				@unlink($zipPath);
+			}
 		}
 		die();
 	}
