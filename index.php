@@ -2525,14 +2525,14 @@ EOT;
 		}
 		$this->save();
 		$this->alert('info',
-			'Your password is no longer shown on the home page; to change it, open <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
+			'Your password was shown on the public home page until now; that line is removed. Please change it in <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
 	}
 
 	/**
 	 * The content without any copy of the install password paragraph, or null when it carries none
 	 * Before 3.2.0 the password sat in an <h4> that was also the login link (with a stray </a>): it is replaced by the
-	 * current login paragraph when no other login link remains, unless the login URL was changed (a public link would
-	 * give the new one away; the old link was already dead).
+	 * current login paragraph only when no login link would remain at all, and never when the login URL was changed (a
+	 * public link would give the new one away; the old link was already dead).
 	 * @param string $content
 	 * @return string|null
 	 */
@@ -2546,12 +2546,28 @@ EOT;
 			foreach (array_reverse($matches) as $m) { // from the end, so the first one's offset still holds for the login paragraph
 				$content = substr_replace($content, '', $m[0][1], strlen($m[0][0]));
 			}
-			if (strpos($content, 'Click here to login') === false && $this->get('config', 'login') === 'loginURL') {
+			if ($this->get('config', 'login') === 'loginURL' && !$this->loginLinkRemains($content)) {
 				$content = substr_replace($content, '<p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>' . $matches[0][1][0], $matches[0][0][1], 0);
 			}
 			$count += count($matches);
 		}
 		return $count > 0 ? $content : null;
+	}
+
+	/**
+	 * Whether a visitor still finds a login link once the pre-3.2.0 line is gone: one left in the content, or the Login
+	 * link header() and footer() print while the login URL is loginURL, in a theme that prints either of them
+	 * @param string $content
+	 * @return bool
+	 */
+	private function loginLinkRemains(string $content): bool
+	{
+		if (strpos($content, 'Click here to login') !== false || preg_match('~<a\s[^>]*href="[^"]*/loginURL/?"~i', $content)) {
+			return true;
+		}
+		$themeFile = sprintf('%s/%s/%s/theme.php', $this->rootDir, self::THEMES_DIR, basename((string)$this->get('config', 'theme')));
+		$theme = is_file($themeFile) ? file_get_contents($themeFile) : false; // unreadable: no known link, so the paragraph goes in
+		return is_string($theme) && preg_match('~->\s*(?:header|footer)\s*\(~', $theme) === 1;
 	}
 
 	/**
