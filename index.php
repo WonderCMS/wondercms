@@ -757,12 +757,15 @@ class Wcms
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 
 		$this->updatePageSlug($slugTree, $slug);
-		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
+		$oldPath = implode('/', $slugTree);
+		array_pop($slugTree);
+		$slugTree[] = $slug;
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === $oldPath) {
 			// Change old slug with new one
-			array_pop($slugTree);
-			$slugTree[] = $slug;
 			$this->set(self::DB_CONFIG, 'defaultPage', implode('/', $slugTree));
 		}
+		$_SESSION['redirect_to_name'] = $name;
+		$_SESSION['redirect_to'] = implode('/', $slugTree);
 	}
 
 	/**
@@ -2957,8 +2960,6 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'] ?? null, ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItemUpdate' && $menu !== null) {
 				$this->updateMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
 			if ($target === 'menuItemCreate' && $menu !== null) {
 				$this->createMenuItem($content, $menu, $visibility, true);

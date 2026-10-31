@@ -620,6 +620,28 @@ final class PagesAndUrlTest extends TestCase
 		$this->assertFalse(isset($db->pages->{'fresh-2'}));
 	}
 
+	public function testTheRedirectAfterARenameIsThePagesRealAddress(): void
+	{
+		// save() sent the editor to slugify(name): no parent path and no generated suffix, so the redirect missed the renamed page.
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		$this->wcms->loginStatus();
+		$this->wcms->createMenuItem('Alpha', '0', 'show', true);
+		$this->wcms->createMenuItem('Beta', '0', 'show', true);
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+		$_POST = ['fieldname' => 'menuItem', 'content' => 'Alpha', 'target' => 'menuItemUpdate', 'menu' => '0-1', 'visibility' => 'show', 'token' => $this->wcms->getToken()];
+
+		$this->wcms->saveAction();
+
+		$this->assertSame('home/alpha-2', $_SESSION['redirect_to'] ?? null);
+		$this->assertTrue(isset($this->reload()->pages->home->subpages->{'alpha-2'}), 'the redirect target exists');
+
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+		$_POST = ['fieldname' => 'menuItem', 'content' => 'Renamed', 'target' => 'menuItemUpdate', 'menu' => '9-9', 'visibility' => 'show', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertArrayNotHasKey('redirect_to', $_SESSION, 'a rename that did not happen queues no redirect');
+	}
+
 	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void
 	{
 		// A hand-uploaded folder named mytheme~ is listed with a Remove button; the cleaned name would have deleted mytheme.
