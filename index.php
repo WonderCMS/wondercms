@@ -713,7 +713,10 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// The renamed item is checked against its siblings, not its children, and is not its own sibling
+		$parentTree = explode('-', $menu);
+		$ownKey = array_pop($parentTree);
+		$slug = $this->createUniqueSlug($name, implode('-', $parentTree), $ownKey);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -759,16 +762,17 @@ class Wcms
 	 * Check if slug already exists and creates unique one
 	 *
 	 * @param string $slug
-	 * @param string|null $menu
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
 	 * @return string
 	 */
-	public function createUniqueSlug(string $slug, ?string $menu = null): string
+	public function createUniqueSlug(string $slug, ?string $menu = null, ?string $excludeKey = null): string
 	{
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 
-		// Check if it is subpage
-		$menuTree = $menu ? explode('-', $menu) : [];
+		// Check if it is subpage ('0', the first top-level item, is a parent too)
+		$menuTree = $menu !== null && $menu !== '' ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
 				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages ?? [];
@@ -776,7 +780,11 @@ class Wcms
 		}
 
 		// Recheck every candidate: a generated '-N' can itself be a sibling's slug
-		$siblingSlugs = array_column((array)$allMenuItems, 'slug');
+		$siblings = (array)$allMenuItems;
+		if ($excludeKey !== null) {
+			unset($siblings[$excludeKey]);
+		}
+		$siblingSlugs = array_column($siblings, 'slug');
 		$base = $slug;
 		$n = 2;
 		while (in_array($slug, $siblingSlugs, true)) {
@@ -975,6 +983,13 @@ class Wcms
 			foreach ($slugTree as $childSlug) {
 				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
+		}
+
+		if ($newSlugName === $slug) {
+			// A rename that keeps the slug: the unset below would delete the page
+			$selectedPage->{$slug}->modified = date('c');
+			$this->save();
+			return;
 		}
 
 		$selectedPage->{$newSlugName} = $selectedPage->{$slug};

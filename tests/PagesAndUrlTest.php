@@ -462,6 +462,69 @@ final class PagesAndUrlTest extends TestCase
 		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
 	}
 
+	public function testTheSameSubpageNameUnderTheFirstMenuItemGivesDistinctSlugs(): void
+	{
+		// The first top-level item has the key '0', which PHP reads as false: createUniqueSlug() checked the top level instead of its subpages.
+		$this->wcms->loggedIn = true;
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Same', '0', 'show', true);
+		}
+
+		$this->assertSame(['same', 'same-2', 'same-3'], array_column((array)$this->wcms->get('config', 'menuItems')->{'0'}->subpages, 'slug'));
+		$this->assertSame(['same', 'same-2', 'same-3'], array_keys((array)$this->reload()->pages->home->subpages), 'one page per menu entry');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testRenamingAPageToASiblingsNameKeepsBothPages(): void
+	{
+		// updateMenuItem() checked the renamed item's children instead of its siblings, so the rename took the sibling's slug and replaced its page.
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Alpha', '', 'show', true);
+		$this->wcms->createMenuItem('Beta', '', 'show', true);
+		$this->wcms->set('pages', 'alpha', 'content', 'alpha content');
+		$this->wcms->set('pages', 'beta', 'content', 'beta content');
+		$betaKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+
+		$this->wcms->updateMenuItem('Alpha', $betaKey, 'show');
+
+		$slugs = array_column((array)$this->wcms->get('config', 'menuItems'), 'slug');
+		$this->assertSame(['alpha', 'alpha-2'], array_values(preg_grep('/^alpha/', $slugs)));
+		$pages = $this->reload()->pages;
+		$this->assertSame('alpha content', $pages->alpha->content ?? null, 'the sibling keeps its page');
+		$this->assertSame('beta content', $pages->{'alpha-2'}->content ?? null, 'the renamed page moved to the free slug');
+		$this->assertFalse(isset($pages->beta), 'the old slug is gone');
+	}
+
+	public function testRenamingASubpageOfTheFirstPageToASiblingsNameKeepsBothPages(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Alpha', '0', 'show', true);
+		$this->wcms->createMenuItem('Beta', '0', 'show', true);
+		$this->wcms->set('pages', 'home', 'subpages', 'alpha', 'content', 'alpha content');
+		$this->wcms->set('pages', 'home', 'subpages', 'beta', 'content', 'beta content');
+
+		$this->wcms->updateMenuItem('Alpha', '0-1', 'show');
+
+		$this->assertSame(['alpha', 'alpha-2'], array_column((array)$this->wcms->get('config', 'menuItems')->{'0'}->subpages, 'slug'));
+		$subpages = $this->reload()->pages->home->subpages;
+		$this->assertSame('alpha content', $subpages->alpha->content ?? null, 'the sibling keeps its page');
+		$this->assertSame('beta content', $subpages->{'alpha-2'}->content ?? null, 'the renamed page moved to the free slug');
+	}
+
+	public function testRenamingAPageToANameWithItsOwnSlugKeepsTheSlugAndThePage(): void
+	{
+		// The item must not count as its own sibling: "How to!" slugifies to how-to and must not become how-to-2.
+		$this->wcms->loggedIn = true;
+		$this->wcms->set('pages', 'how-to', 'content', 'kept');
+
+		$this->wcms->updateMenuItem('How to!', '1', 'show');
+
+		$item = $this->wcms->get('config', 'menuItems')->{'1'};
+		$this->assertSame('How to!', $item->name);
+		$this->assertSame('how-to', $item->slug);
+		$this->assertSame('kept', $this->reload()->pages->{'how-to'}->content ?? null, 'the page survives a rename that keeps its slug');
+	}
+
 	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void
 	{
 		// A hand-uploaded folder named mytheme~ is listed with a Remove button; the cleaned name would have deleted mytheme.
