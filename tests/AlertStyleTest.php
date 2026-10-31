@@ -28,6 +28,7 @@ final class AlertStyleTest extends TestCase
 	public function testAVisitorGetsTheAlertRulesAndNotTheAdminStylesheet(): void
 	{
 		$this->wcms->loggedIn = false;
+		$this->wcms->alert('danger', 'Wrong password.');
 		$css = $this->wcms->css();
 		$this->assertStringNotContainsString('wcms-admin.min.css', $css);
 		$this->assertStringStartsWith('<style>', $css);
@@ -38,10 +39,47 @@ final class AlertStyleTest extends TestCase
 		$this->assertDoesNotMatchRegularExpression('/:hover|:focus|:checked|@media|url\(/', $css, 'touch and mouse render the same; nothing is fetched');
 	}
 
+	public function testEveryVisitorAlertRuleIsScopedUnderTheAlertWrapper(): void
+	{
+		// a theme or page content with its own Bootstrap-style .alert boxes (wcms-bs5) is not restyled by a core update
+		$this->wcms->loggedIn = false;
+		$this->wcms->alert('danger', 'Wrong password.');
+		$this->assertSame(1, preg_match('#^<style>(.*)</style>$#s', $this->wcms->css(), $m));
+		preg_match_all('/([^{}]+)\{[^{}]*\}/', $m[1], $rules);
+		$this->assertCount(7, $rules[1]);
+		foreach ($rules[1] as $selectors) {
+			foreach (explode(',', $selectors) as $selector) {
+				$this->assertMatchesRegularExpression('/^\.alertWrapper(?![\w-])/', trim($selector));
+			}
+		}
+	}
+
+	public function testAVisitorPageWithNoAlertGetsNoCoreStyle(): void
+	{
+		// css() runs on every visitor page: without an alert it returns what 3.7.1 did
+		$this->wcms->loggedIn = false;
+		$this->assertSame('', $this->wcms->css());
+		$this->wcms->addListener('css', static function ($args) { $args[0] .= '/* plugin */'; return $args; });
+		$this->assertSame('/* plugin */', $this->wcms->css());
+		$_SESSION['alert'] = [];
+		$this->assertSame('/* plugin */', $this->wcms->css(), 'an emptied queue shows nothing');
+	}
+
+	public function testTheRulesFollowAnAlertTheThemePrintedBeforeCss(): void
+	{
+		// alerts() empties the queue; a theme that prints them before calling css() still gets the rules (CSS anywhere in the page applies)
+		$this->wcms->loggedIn = false;
+		$this->wcms->alert('danger', 'Wrong password.');
+		$this->assertStringContainsString('Wrong password.', $this->wcms->alerts());
+		$this->assertArrayNotHasKey('alert', $_SESSION);
+		$this->assertStringContainsString('.alertWrapper .alert-danger{', $this->wcms->css());
+	}
+
 	public function testACssListenerThatReplacesItsArgumentKeepsTheVisitorAlertRules(): void
 	{
 		// the hook keeps its 3.7.1 argument ('' for a visitor); the alert rules are not something a plugin can drop by returning its own string
 		$this->wcms->loggedIn = false;
+		$this->wcms->alert('danger', 'Wrong password.');
 		$received = null;
 		$this->wcms->addListener('css', static function ($args) use (&$received) { $received = $args[0]; return ['/* plugin */']; });
 		$css = $this->wcms->css();

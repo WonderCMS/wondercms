@@ -995,8 +995,11 @@ class Wcms
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
-		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, the admin stylesheet stays admin-only; !important beats a theme's own button rules.
-		// The hook keeps its argument ('' for a visitor, as before), so a listener that replaces it cannot drop these rules; its output follows them
+		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, only on a page that shows one (alerts() prints what is queued, or already printed it), all under .alertWrapper so a theme's own .alert boxes are untouched.
+		// The admin stylesheet stays admin-only; !important beats a theme's own button rules. The hook keeps its argument ('' for a visitor, as before), so a listener that replaces it cannot drop these rules; its output follows them
+		if (!$this->printedAlerts && (empty($_SESSION['alert']) || isset($_POST['fieldname'], $_POST['content'], $_POST['target']))) {
+			return $this->hook('css', '')[0];
+		}
 		$styles = <<<'EOT'
 <style>
 .alertWrapper{position:fixed;top:0;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;font-size:14px;line-height:1.5}
