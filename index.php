@@ -356,10 +356,10 @@ class Wcms
 		if (!$this->loggedIn) {
 			return;
 		}
-		$backupList = glob($this->filesPath . '/*-backup-*.zip');
+		$backupList = array_filter(glob($this->filesPath . '/*-backup-*.zip') ?: [], [$this, 'isBackupArchiveName']);
 		if (!empty($backupList)) {
 			$this->alert('danger',
-				'Backup files detected. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete unnecessary backup files</b></a>');
+				'Old backup files detected. Backups now download to your computer and are not kept on the server. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete the old backup files</b></a>');
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
 			$this->zipBackup();
@@ -3096,10 +3096,13 @@ EOT;
 							 <p class="subTitle marginTop20">Delete files</p>
 							 <div class="change">';
 		foreach ($fileList as $file) {
+			$fileLink = $this->isBackupArchiveName($file)
+				? '<b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b> (old backup, delete it)' // refused over HTTP on new installs: no link that ends in a 403
+				: '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>';
 			$output .= '
 									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
-										<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>
+										' . $fileLink . '
 									</span>
 									<p></p>';
 		}
@@ -3856,37 +3859,97 @@ EOT;
 	}
 
 	/**
-	 * Create a ZIP backup of whole WonderCMS installation (all files)
+	 * Create a ZIP backup of whole WonderCMS installation (all files) and send it to the admin as a download.
+	 * Nothing is kept on the server: before 3.7.2 the archive stayed in data/files under a public URL.
 	 *
 	 * @return void
 	 */
 	public function zipBackup(): void
 	{
 		try {
-			$randomNumber = random_bytes(8);
+			$zipPath = $this->createBackupArchive();
 		} catch (Exception $e) {
-			$randomNumber = microtime(false);
-		}
-		$zipName = date('Y-m-d') . '-backup-' . bin2hex($randomNumber) . '.zip';
-		$zipPath = $this->rootDir . '/data/files/' . $zipName;
-		$zip = new ZipArchive();
-		if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
 			$this->alert('danger', 'Cannot create ZIP archive.');
+			return;
 		}
+		$this->sendBackup($zipPath);
+	}
+
+	/**
+	 * Is $name a backup archive (data/files/<date>-backup-<hex>.zip before 3.7.2, data/<date>-backup-<hex>.zip while one is sent)
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isBackupArchiveName(string $name): bool
+	{
+		return (bool)preg_match('~-backup-[0-9a-f]+\.zip$~i', $name); // the same pattern the shipped .htaccess refuses
+	}
+
+	/**
+	 * Build the backup archive under data/ and return its path; the caller sends and removes it
+	 * @return string
+	 * @throws Exception
+	 */
+	public function createBackupArchive(): string
+	{
+		$zipPath = $this->dataPath . '/' . date('Y-m-d') . '-backup-' . bin2hex(random_bytes(16)) . '.zip';
+		$zip = new ZipArchive();
+		if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::EXCL) !== true) {
+			throw new Exception('Cannot create ZIP archive.');
+		}
+		$source = realpath($this->rootDir);
+		$filesPath = realpath($this->filesPath);
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
 		foreach ($files as $file) {
 			$file = realpath($file);
-			$source = realpath($this->rootDir);
+			$name = str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			if (is_dir($file)) {
-				$zip->addEmptyDir(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file . DIRECTORY_SEPARATOR)); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
-			} elseif (is_file($file)) {
-				$zip->addFromString(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file), $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				$zip->addEmptyDir($name . '/');
+			} elseif (is_file($file) && !$this->isBackupArchiveName($file)) { // not the archive itself, and not the old backups (each one used to nest all earlier ones)
+				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
+					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
+				} else {
+					$zip->addFromString($name, $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				}
 			}
 		}
-		$zip->close();
-		$this->redirect('data/files/' . $zipName);
+		if (!$zip->close()) {
+			@unlink($zipPath);
+			throw new Exception('Cannot create ZIP archive.');
+		}
+		return $zipPath;
+	}
+
+	/**
+	 * Send the backup archive at $zipPath as a download and remove it, also when the transfer fails
+	 * @param string $zipPath
+	 * @return void
+	 */
+	public function sendBackup(string $zipPath): void
+	{
+		try {
+			while (ob_get_level()) {
+				ob_end_clean(); // a buffer left open by a plugin would hold the whole archive in memory
+			}
+			header('Content-Type: application/zip');
+			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
+			header('Cache-Control: no-store');
+			if (!ini_get('zlib.output_compression')) {
+				header('Content-Length: ' . filesize($zipPath)); // the compressed body would be shorter than the file
+			}
+			if (function_exists('readfile')) {
+				readfile($zipPath);
+			} else {
+				$handle = fopen($zipPath, 'rb');
+				fpassthru($handle);
+				fclose($handle);
+			}
+		} finally {
+			@unlink($zipPath);
+		}
+		die();
 	}
 
 	/**

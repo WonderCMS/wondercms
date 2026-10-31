@@ -624,7 +624,7 @@ final class DatabaseLockTest extends TestCase
 			$this->markTestSkipped('needs the zip extension');
 		}
 		$root = sys_get_temp_dir() . '/wcms-zip-' . bin2hex(random_bytes(4));
-		mkdir($root . '/data/files', 0777, true);
+		mkdir($root . '/data_test/files_test', 0777, true);
 		mkdir($root . '/themes/mine', 0777, true);
 		file_put_contents($root . '/themes/mine/theme.php', '<?php // nested');
 		$held = $root . '/held.js';
