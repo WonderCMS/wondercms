@@ -669,7 +669,8 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// Without $createPage the entry links a page that already exists (createPage() writes the page first)
+		$slug = $this->createUniqueSlug($name, $menu, null, $createPage);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
@@ -690,6 +691,12 @@ class Wcms
 			}
 		}
 		$slugTree[] = $slug;
+
+		// Validate before saving either: a refused page must leave no menu entry behind
+		if ($createPage && $this->pageExistsAt($slugTree)) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
 
 		$menuCount = count(get_object_vars($menuSelectionObject));
 		while (isset($menuSelectionObject->{$menuCount})) {
@@ -727,7 +734,10 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// The renamed item is checked against its siblings and the pages at its level, not its children, and is not its own sibling
+		$parentTree = explode('-', $menu);
+		$ownKey = array_pop($parentTree);
+		$slug = $this->createUniqueSlug($name, implode('-', $parentTree), $ownKey, true);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -761,40 +771,63 @@ class Wcms
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 
 		$this->updatePageSlug($slugTree, $slug);
-		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
+		$oldPath = implode('/', $slugTree);
+		array_pop($slugTree);
+		$slugTree[] = $slug;
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === $oldPath) {
 			// Change old slug with new one
-			array_pop($slugTree);
-			$slugTree[] = $slug;
 			$this->set(self::DB_CONFIG, 'defaultPage', implode('/', $slugTree));
 		}
+		$_SESSION['redirect_to_name'] = $name;
+		$_SESSION['redirect_to'] = implode('/', $slugTree);
 	}
 
 	/**
 	 * Check if slug already exists and creates unique one
 	 *
 	 * @param string $slug
-	 * @param string|null $menu
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
+	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
 	 * @return string
 	 */
-	public function createUniqueSlug(string $slug, ?string $menu = null): string
-	{
+	public function createUniqueSlug(
+		string $slug,
+		?string $menu = null,
+		?string $excludeKey = null,
+		bool $againstPages = false
+	): string {
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		$menuCount = count(get_object_vars($allMenuItems));
+		$pages = $this->get(self::DB_PAGES_KEY);
 
-		// Check if it is subpage
-		$menuTree = $menu ? explode('-', $menu) : [];
+		// Check if it is subpage ('0', the first top-level item, is a parent too)
+		$menuTree = $menu !== null && $menu !== '' ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
-				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages ?? [];
+				$parentItem = $allMenuItems->{$childMenuKey} ?? null;
+				$allMenuItems = $parentItem->subpages ?? [];
+				$pages = $pages->{$parentItem->slug ?? ''}->subpages ?? null;
 			}
 		}
 
-		foreach ($allMenuItems as $value) {
-			if ($value->slug === $slug) {
-				$slug .= '-' . $menuCount;
-				break;
-			}
+		// Recheck every candidate: a generated '-N' can itself be a sibling's slug
+		$siblings = (array)$allMenuItems;
+		$ownSlug = null;
+		if ($excludeKey !== null) {
+			$ownSlug = $siblings[$excludeKey]->slug ?? null;
+			unset($siblings[$excludeKey]);
+		}
+		$takenSlugs = array_column($siblings, 'slug');
+		if ($againstPages && is_object($pages)) {
+			// A page without a menu entry (the 404 page, for one) is taken too; the renamed item's own page is not
+			$pageSlugs = array_map('strval', array_keys(get_object_vars($pages)));
+			$takenSlugs = array_merge($takenSlugs, array_diff($pageSlugs, [(string)$ownSlug]));
+		}
+		$base = $slug;
+		$n = 2;
+		while (in_array($slug, $takenSlugs, true)) {
+			$slug = $base . '-' . $n++;
 		}
 
 		return $slug;
@@ -810,19 +843,7 @@ class Wcms
 	 */
 	public function createPage(?array $slugTree = null, bool $createMenuItem = false): void
 	{
-		$pageExists = false;
-		$pageData = null;
-		foreach ($slugTree as $parentPage) {
-			if (!$pageData) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage} ?? null;
-				continue;
-			}
-
-			$pageData = $pageData->subpages->{$parentPage} ?? null;
-			$pageExists = !empty($pageData);
-		}
-
-		if ($pageExists) {
+		if ($this->pageExistsAt($slugTree ?? [])) {
 			$this->alert('danger', 'Cannot create page with existing slug.');
 			return;
 		}
@@ -872,6 +893,28 @@ class Wcms
 		if ($createMenuItem) {
 			$this->createMenuItem($selectedPage->{$slug}->title, $menuKey);
 		}
+	}
+
+	/**
+	 * Check if a page exists at the full slug tree, a one-segment top-level tree included
+	 *
+	 * @param array $slugTree
+	 * @return bool
+	 */
+	private function pageExistsAt(array $slugTree): bool
+	{
+		if (empty($slugTree)) {
+			return false;
+		}
+		$pages = $this->get(self::DB_PAGES_KEY);
+		foreach ($slugTree as $slug) {
+			$page = is_object($pages) ? ($pages->{$slug} ?? null) : null;
+			if (!is_object($page)) {
+				return false;
+			}
+			$pages = $page->subpages ?? null;
+		}
+		return true;
 	}
 
 	/**
@@ -989,6 +1032,13 @@ class Wcms
 			foreach ($slugTree as $childSlug) {
 				$selectedPage = $selectedPage->{$childSlug}->subpages;
 			}
+		}
+
+		if ($newSlugName === $slug) {
+			// A rename that keeps the slug: the unset below would delete the page
+			$selectedPage->{$slug}->modified = date('c');
+			$this->save();
+			return;
 		}
 
 		$selectedPage->{$newSlugName} = $selectedPage->{$slug};
@@ -2410,7 +2460,8 @@ EOT;
 		}
 	
 		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
-		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+		// The connection address only: Client-IP and X-Forwarded-For are whatever the client sends
+		$ip = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) !== false ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 		$timestamp = date('c');
 		$throttleKey = $this->isKnownBrowser() ? null : $this->loginThrottleKey();
 		$retryAfter = $throttleKey !== null ? $this->countLoginAttempt($throttleKey) : 0;
@@ -2439,7 +2490,7 @@ EOT;
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
-			$this->saveAdminLoginIP();
+			$this->saveAdminLoginIP($ip);
 			$this->rememberBrowser();
 			$this->redirect();
 		} else {
@@ -2458,13 +2509,8 @@ EOT;
 	/**
 	 * Save admins last 5 IPs
 	 */
-	private function saveAdminLoginIP(): void
+	private function saveAdminLoginIP(string $getAdminIP): void
 	{
-		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
-		if ($getAdminIP === null) {
-			return;
-		}
-
 		if (!$savedIPs = $this->get('config', 'lastLogins')) {
 			$this->set('config', 'lastLogins', []);
 			$savedIPs = [];
@@ -3098,8 +3144,6 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'] ?? null, ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItemUpdate' && $menu !== null) {
 				$this->updateMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
 			if ($target === 'menuItemCreate' && $menu !== null) {
 				$this->createMenuItem($content, $menu, $visibility, true);
