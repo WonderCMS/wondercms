@@ -45,6 +45,12 @@ class Wcms
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters */
 	public const MIN_PASSWORD_LENGTH = 8;
 
+	/** Login attempts allowed per connecting address within LOGIN_THROTTLE_WINDOW seconds; the next one gets HTTP 429 */
+	private const LOGIN_THROTTLE_LIMIT = 10;
+	private const LOGIN_THROTTLE_WINDOW = 900;
+	/** Addresses kept in the attempts file, the most recent first: a spray from many addresses cannot grow it */
+	private const LOGIN_THROTTLE_MAX_ADDRESSES = 1000;
+
 	/** @var string WCMS_REPO - repo URL */
 	public const WCMS_REPO = 'https://raw.githubusercontent.com/WonderCMS/wondercms/main/';
 
@@ -91,6 +97,9 @@ class Wcms
 
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
+
+	/** @var string $loginAttemptsPath recent failed logins per salted address hash, in data/logs/ */
+	protected $loginAttemptsPath;
 
 	/** @var string $filesPath path to uploaded files */
 	public $filesPath;
@@ -141,6 +150,7 @@ class Wcms
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
 		$this->modulesCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
 		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
+		$this->loginAttemptsPath = sprintf('%s/%s', $this->dataPath, 'logs/login-attempts.json');
 	}
 
 	/**
@@ -2502,10 +2512,22 @@ EOT;
 		// The connection address only: Client-IP and X-Forwarded-For are whatever the client sends
 		$ip = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) !== false ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 		$timestamp = date('c');
+		$throttleKey = $this->loginThrottleKey();
+		$retryAfter = $throttleKey !== null ? $this->countLoginAttempt($throttleKey) : 0;
+		if ($retryAfter > 0) { // before password_verify: a refused attempt costs no bcrypt check
+			$this->headerResponse = 'HTTP/1.1 429 Too Many Requests';
+			$this->headerResponseDefault = false;
+			header('Retry-After: ' . $retryAfter);
+			$this->alert('danger', 'Too many attempts. Try again in a few minutes.');
+			return;
+		}
 		$hash = $this->passwordHash();
 		$valid = $hash !== '' && password_verify($password, $hash);
 	
 		if ($valid) {
+			if ($throttleKey !== null) {
+				$this->clearLoginAttempts($throttleKey);
+			}
 			session_regenerate_id(true);
 			unset($_SESSION['token']); // a token the visitor's session already carried (the alert hide script, the search form, a failed login) is not the admin's: mint a new one after login, before a login_success listener reads it
 			// Success hook before any redirects
@@ -2547,6 +2569,112 @@ EOT;
 		$savedIPs[date('Y/m/d H:i:s')] = $getAdminIP;
 		krsort($savedIPs);
 		$this->set('config', 'lastLogins', array_slice($savedIPs, 0, 5));
+	}
+
+	/**
+	 * The key a login attempt is counted under: REMOTE_ADDR only (Client-IP and X-Forwarded-For are the client's to
+	 * choose), an IPv6 address by its /64 (one client holds a whole /64), an IPv4-mapped IPv6 address as the IPv4 one
+	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). The file stores an HMAC of
+	 * that, never the address: its salt comes from this install's folder and password hash, neither readable from the
+	 * public side, so the file alone (public on a site whose .htaccess predates 3.7.0) identifies nobody; a password
+	 * change starts the counts afresh. No valid address and loopback (a local proxy or health check is every visitor at
+	 * once) give null and no throttle: one key for every request would let any visitor lock the owner out
+	 * @return string|null
+	 */
+	private function loginThrottleKey(): ?string
+	{
+		$address = $_SERVER['REMOTE_ADDR'] ?? null;
+		if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false || ($packed = inet_pton($address)) === false) {
+			return null;
+		}
+		if (strlen($packed) === 16 && strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
+			$packed = substr($packed, 12);
+		}
+		if ($packed === str_repeat("\0", 15) . "\1" || (strlen($packed) === 4 && $packed[0] === "\x7f")) {
+			return null;
+		}
+		$salt = hash('sha256', $this->rootDir . "\0" . $this->passwordHash(), true);
+		return hash_hmac('sha256', strlen($packed) === 4 ? $packed : substr($packed, 0, 8), $salt);
+	}
+
+	/**
+	 * Count a login attempt for an address before its password is checked, so parallel requests cannot all pass
+	 * @param string $key
+	 * @return int 0 when counted; else the address already has LOGIN_THROTTLE_LIMIT attempts in the window, nothing is
+	 * counted and the seconds until its oldest attempt leaves the window come back
+	 */
+	private function countLoginAttempt(string $key): int
+	{
+		return $this->changeLoginAttempts(static function (array &$attempts, int $now) use ($key): int {
+			$times = $attempts[$key] ?? [];
+			if (count($times) >= self::LOGIN_THROTTLE_LIMIT) {
+				return max(1, min($times) + self::LOGIN_THROTTLE_WINDOW - $now);
+			}
+			$times[] = $now;
+			$attempts[$key] = $times;
+			return 0;
+		});
+	}
+
+	/**
+	 * A successful login clears its address
+	 * @param string $key
+	 * @return void
+	 */
+	private function clearLoginAttempts(string $key): void
+	{
+		$this->changeLoginAttempts(static function (array &$attempts) use ($key): int {
+			unset($attempts[$key]);
+			return 0;
+		});
+	}
+
+	/**
+	 * Read, prune, change and write the attempts file under an exclusive lock on a lock file next to it (writeFile()
+	 * renames a new file into place, so the file itself cannot hold the lock). Attempts older than the window are
+	 * dropped on every change and at most LOGIN_THROTTLE_MAX_ADDRESSES addresses are kept. A host without flock or
+	 * fopen changes it unlocked; a data/logs folder that cannot be written throttles nothing (it never locks the owner
+	 * out). Never database.js: a visitor's failed login writes nothing there
+	 * @param callable $change gets the attempts by reference and the time, returns the caller's result
+	 * @return int
+	 */
+	private function changeLoginAttempts(callable $change): int
+	{
+		$folder = dirname($this->loginAttemptsPath);
+		if (!is_dir($folder) && !@mkdir($folder, 0755) && !is_dir($folder)) {
+			return 0;
+		}
+		$lock = function_exists('flock') && function_exists('fopen') && function_exists('fclose')
+			? @fopen($this->loginAttemptsPath . '.lock', 'c')
+			: false;
+		if ($lock !== false) {
+			flock($lock, LOCK_EX);
+		}
+		$now = time();
+		$stored = is_file($this->loginAttemptsPath) ? json_decode($this->lockedRead($this->loginAttemptsPath), true) : [];
+		$attempts = [];
+		foreach (is_array($stored) ? $stored : [] as $address => $times) {
+			$times = array_values(array_filter(is_array($times) ? $times : [], static function ($time) use ($now): bool {
+				return is_int($time) && $time > $now - self::LOGIN_THROTTLE_WINDOW && $time <= $now;
+			}));
+			if ($times) {
+				$attempts[(string)$address] = array_slice($times, -self::LOGIN_THROTTLE_LIMIT);
+			}
+		}
+		$result = $change($attempts, $now);
+		uasort($attempts, static function (array $a, array $b): int {
+			return max($b) <=> max($a);
+		});
+		$attempts = array_slice($attempts, 0, self::LOGIN_THROTTLE_MAX_ADDRESSES, true);
+		$json = json_encode($attempts);
+		if ($json !== false && $stored !== $attempts) {
+			$this->writeFile($this->loginAttemptsPath, $json);
+		}
+		if ($lock !== false) {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+		}
+		return $result;
 	}
 
 	/**
