@@ -23,8 +23,7 @@ final class LoginThrottleTest extends TestCase
 		$_SERVER['SERVER_PORT'] = '80';
 		@unlink(self::DB_PATH);
 		@unlink(self::ATTEMPTS_PATH);
-		$wcms = $this->wcms();
-		$wcms->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]));
+		wcmsSetPasswordOnDisk($this->wcms(), self::PASSWORD);
 	}
 
 	protected function tearDown(): void
@@ -114,7 +113,9 @@ final class LoginThrottleTest extends TestCase
 
 	public function testARefusedAttemptNeverChecksThePassword(): void
 	{
-		$this->wcms()->set('config', 'password', '$2y$14$' . str_repeat('a', 22) . str_repeat('b', 31)); // a cost-14 check: a measurable time
+		$db = json_decode(file_get_contents(self::DB_PATH));
+		$db->config->password = '$2y$14$' . str_repeat('a', 22) . str_repeat('b', 31); // a cost-14 check: a measurable time; a hash, not a password, so not through wcmsSetPasswordOnDisk()
+		file_put_contents(self::DB_PATH, json_encode($db, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 		$start = microtime(true);
 		$key = $this->keyOf('203.0.113.9');
 		$checked = microtime(true) - $start;
@@ -299,7 +300,7 @@ final class LoginThrottleTest extends TestCase
 		$before = $this->keyOf('203.0.113.9');
 		$this->assertSame($before, $this->keyOf('203.0.113.9'), 'the same address keeps its key');
 
-		$this->wcms()->set('config', 'password', password_hash('anotherPass1', PASSWORD_BCRYPT, ['cost' => 4]));
+		wcmsSetPasswordOnDisk($this->wcms(), 'anotherPass1');
 
 		$this->assertNotSame($before, $this->keyOf('203.0.113.9'), 'the salt comes from the install');
 	}
@@ -420,7 +421,7 @@ final class LoginThrottleTest extends TestCase
 			$this->assertFileExists($root . '/data/database.js', 'the first request installed the site');
 			$this->assertFileDoesNotExist($root . '/data/logs/login-attempts.json', 'a visitor GET writes nothing');
 			$site = new Wcms('data', 'files', 'database.js', $root);
-			$site->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]));
+			wcmsSetPasswordOnDisk($site, self::PASSWORD);
 
 			$first = $this->request($base, self::PASSWORD);
 			$this->assertStringContainsString(' 302 ', $first['status']);

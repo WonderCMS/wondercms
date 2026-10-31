@@ -2568,7 +2568,7 @@ EOT;
 		if ($packed === str_repeat("\0", 15) . "\1" || (strlen($packed) === 4 && $packed[0] === "\x7f")) {
 			return null;
 		}
-		$salt = hash('sha256', $this->rootDir . "\0" . (string)($this->db->config->password ?? ''), true); // not get(): it creates a missing key, a database write on a visitor's request
+		$salt = hash('sha256', $this->rootDir . "\0" . $this->passwordHash(), true);
 		return hash_hmac('sha256', strlen($packed) === 4 ? $packed : substr($packed, 0, 8), $salt);
 	}
 
