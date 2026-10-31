@@ -208,6 +208,20 @@ final class BackupTest extends TestCase
 		$this->assertNothingLeftOnDisk();
 	}
 
+	public function testOutputAlreadySentMeansNoDownloadAndNothingLeft(): void
+	{
+		// A plugin printed during loadPlugins() on a host with output_buffering off: the headers are gone, so the archive would
+		// arrive as bytes inside an HTML page. The backup is not sent, the archive is removed and the page renders with an alert.
+		$this->writeRouter('echo "<p>a plugin printed this</p>"; flush();');
+		[$headers, $body] = $this->download(['output_buffering' => '0', 'display_errors' => '1']);
+		$this->assertStringContainsString(' 200', $headers[0] ?? '', implode("\n", $headers));
+		$this->assertNotSame('application/zip', $this->header($headers, 'Content-Type'), 'no download without its headers');
+		$this->assertFalse(strpos($body, 'Cannot modify header information'), 'no header warnings: ' . substr($body, 0, 300));
+		$this->assertFalse(strpos($body, 'PK'), 'no zip bytes inside the page');
+		$this->assertStringContainsString('no download', $body, 'the request goes on to render the page');
+		$this->assertNothingLeftOnDisk();
+	}
+
 	public function testACancelledDownloadLeavesNoArchiveBehind(): void
 	{
 		// The admin closes the tab or cancels the save dialog partway: PHP sees the dead socket on the next write and, unless told

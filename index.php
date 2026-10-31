@@ -3956,6 +3956,10 @@ EOT;
 				while (ob_get_level() > 0 && @ob_end_clean()) { // a buffer left open by a plugin would hold the whole archive in memory; stops on one that cannot be removed, as loadThemeAndFunctions() does (its notice must not land in front of the archive)
 				}
 			}
+			if (headers_sent()) { // a plugin already printed, unbuffered: the archive would land as bytes inside the page
+				$this->alert('danger', 'Cannot send the backup: a plugin or theme printed output before it. Disable it and try again.');
+				return;
+			}
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
 			header('Cache-Control: no-store');
@@ -3966,8 +3970,10 @@ EOT;
 				readfile($zipPath);
 			} else {
 				$handle = fopen($zipPath, 'rb');
-				fpassthru($handle);
-				fclose($handle);
+				if ($handle !== false) {
+					fpassthru($handle);
+					fclose($handle);
+				}
 			}
 		} finally {
 			@unlink($zipPath);
