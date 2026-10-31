@@ -240,7 +240,7 @@ final class SessionRevocationTest extends TestCase
 
 	public function testAStaleSaveDoesNotRevertAPasswordChange(): void
 	{
-		// A request that read database.js before the change saves its whole snapshot after it (opus-4's E1).
+		// A request that read database.js before the change saves its whole snapshot after it.
 		$stale = $this->newWcms();
 		$this->changePassword($this->login('old-secret'), 'old-secret', 'new-secret-123');
 		$stale->set('config', 'siteTitle', 'saved after the change');
