@@ -677,6 +677,12 @@ class Wcms
 		}
 		$slugTree[] = $slug;
 
+		// Validate before saving either: a refused page must leave no menu entry behind
+		if ($createPage && $this->pageExistsAt($slugTree)) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
+
 		$menuCount = count(get_object_vars($menuSelectionObject));
 		while (isset($menuSelectionObject->{$menuCount})) {
 			$menuCount++; // a key gap left by an older delete must not make the new item replace the last sibling
@@ -804,19 +810,7 @@ class Wcms
 	 */
 	public function createPage(?array $slugTree = null, bool $createMenuItem = false): void
 	{
-		$pageExists = false;
-		$pageData = null;
-		foreach ($slugTree as $parentPage) {
-			if (!$pageData) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage} ?? null;
-				continue;
-			}
-
-			$pageData = $pageData->subpages->{$parentPage} ?? null;
-			$pageExists = !empty($pageData);
-		}
-
-		if ($pageExists) {
+		if ($this->pageExistsAt($slugTree ?? [])) {
 			$this->alert('danger', 'Cannot create page with existing slug.');
 			return;
 		}
@@ -866,6 +860,28 @@ class Wcms
 		if ($createMenuItem) {
 			$this->createMenuItem($selectedPage->{$slug}->title, $menuKey);
 		}
+	}
+
+	/**
+	 * Check if a page exists at the full slug tree, a one-segment top-level tree included
+	 *
+	 * @param array $slugTree
+	 * @return bool
+	 */
+	private function pageExistsAt(array $slugTree): bool
+	{
+		if (empty($slugTree)) {
+			return false;
+		}
+		$pages = $this->get(self::DB_PAGES_KEY);
+		foreach ($slugTree as $slug) {
+			$page = is_object($pages) ? ($pages->{$slug} ?? null) : null;
+			if (!is_object($page)) {
+				return false;
+			}
+			$pages = $page->subpages ?? null;
+		}
+		return true;
 	}
 
 	/**

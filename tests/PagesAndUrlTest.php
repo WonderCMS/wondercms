@@ -525,6 +525,37 @@ final class PagesAndUrlTest extends TestCase
 		$this->assertSame('kept', $this->reload()->pages->{'how-to'}->content ?? null, 'the page survives a rename that keeps its slug');
 	}
 
+	public function testAddingAMenuPageNamedLikeATopLevelPageWithoutAMenuEntryOverwritesNothing(): void
+	{
+		// createPage() had no clash check for a one-segment slug, and createMenuItem() saved the menu entry before createPage() ran.
+		$this->wcms->loggedIn = true;
+		$before = json_encode($this->wcms->get('config', 'menuItems'));
+		$page404 = json_encode($this->reload()->pages->{'404'});
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+
+		$this->wcms->createMenuItem('404', '', 'show', true);
+
+		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}), 'the existing page is untouched');
+		$this->assertSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'no menu entry for a refused page');
+		$this->assertSame($before, json_encode($this->reload()->config->menuItems), 'nor in the saved database');
+		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
+		$this->assertArrayNotHasKey('redirect_to', $_SESSION, 'no "page created" redirect');
+	}
+
+	public function testAddingASubpageNamedLikeAnUnlistedSubpageSavesNoMenuEntry(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createPage(['home', 'unlisted']);
+		$this->wcms->set('pages', 'home', 'subpages', 'unlisted', 'content', 'kept');
+		$before = json_encode($this->wcms->get('config', 'menuItems'));
+
+		$this->wcms->createMenuItem('Unlisted', '0', 'show', true);
+
+		$this->assertSame('kept', $this->reload()->pages->home->subpages->unlisted->content ?? null);
+		$this->assertSame($before, json_encode($this->reload()->config->menuItems), 'no menu entry for a refused page');
+		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
+	}
+
 	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void
 	{
 		// A hand-uploaded folder named mytheme~ is listed with a Remove button; the cleaned name would have deleted mytheme.
