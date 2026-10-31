@@ -70,11 +70,8 @@ final class WcmsTest extends TestCase
 		$visitorToken = $this->wcms->getToken(); // the token the failed attempt's session carries (round-14 opus-7: a planted session must not know the admin's token)
 
 		// Test right password
-		$hashPass = password_hash(self::PASSWORD, PASSWORD_DEFAULT);
-		$this->wcms->set('config', 'password', $hashPass);
-		$password = $this->wcms->get('config', 'password');
-
-		$this->assertSame($hashPass, $password);
+		wcmsSetPasswordOnDisk($this->wcms, self::PASSWORD);
+		$this->assertTrue(password_verify(self::PASSWORD, $this->wcms->get('config', 'password')));
 
 		$_POST['password'] = self::PASSWORD;
 		$visitorSessionId = session_id();
@@ -94,7 +91,7 @@ final class WcmsTest extends TestCase
 	{
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$this->wcms->currentPage = 'loginURL';
-		$this->wcms->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_DEFAULT));
+		wcmsSetPasswordOnDisk($this->wcms, self::PASSWORD);
 		$visitorToken = $this->wcms->getToken();
 		$seen = null;
 		$wcms = $this->wcms;
@@ -129,8 +126,7 @@ final class WcmsTest extends TestCase
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$this->wcms->currentPage = 'loginURL';
 
-		$hashPass = password_hash(self::PASSWORD, PASSWORD_DEFAULT);
-		$this->wcms->set('config', 'password', $hashPass);
+		wcmsSetPasswordOnDisk($this->wcms, self::PASSWORD);
 		$_POST['password'] = self::PASSWORD;
 
 		$this->wcms->loginAction();

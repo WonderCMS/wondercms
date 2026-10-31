@@ -182,7 +182,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
    then the certificate (AutoSSL validates over HTTP, so it needs the name to resolve first); a DNS record before the
    vhost served another customer's default vhost under the demo name for four minutes on 2026-10-29. Delete any
    placeholder `index.html` before the built `index.php` goes in, and purge the demo host's Cloudflare cache after the
-   build. The site is
+   build, then refresh every theme and plugin on the demo from the official list zips; compare version files to the
+   list, zero differences. The site is
    behind Cloudflare: purge its cache after the page edits (Caching, Purge Everything), and remember
    `download-latest.php` is browser-cached for 48 hours, so check it from a private window.
 10. Theme or plugin changes shipped with the release (for example `themes/sky`) are pushed to

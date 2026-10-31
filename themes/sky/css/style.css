@@ -450,22 +450,25 @@ input::-moz-focus-inner {
 			}
 			/* A closed submenu takes no space; a tapped-open one stacks under its parent, so it never lies under a top item on the next row, and long names wrap inside the screen (a hover-opened one stays beside: in the flow it would move under the mouse). Inside a tapped-open list the next level opens by tap or focus only: opening reflows the bar, and the item that slides under a still mouse must not open beside it */
 			#topMenu nav ul.subPageDropdown,
-			#topMenu nav li.open li:not(.open):not(:focus-within) > ul {
+			#topMenu nav li.open li:not(.open):not(:focus-within) > ul,
+			#topMenu nav li:focus-within li:not(.open):not(:focus-within) > ul {
 				display: none
 			}
 			#topMenu nav > ul > li > ul {
 				margin-top: 0;
 				padding-top: 10px
 			}
-			/* A tapped-open top item keeps its place (nothing in the bar moves, so the second tap in place follows the link); its list opens as a full-width panel under the whole bar, and deeper tapped-open lists stack inside that panel, so long names wrap inside the screen */
+			/* A tapped-open or keyboard-focused top item keeps its place (nothing in the bar moves, so the second tap in place follows the link, and the focus a mouse click gives opens the same panel); its list opens as a panel right under the menu, as wide as the menu, and deeper open lists stack inside that panel, so long names wrap inside the screen */
 			#topMenu nav {
 				position: relative;
 				display: flow-root
 			}
-			#topMenu nav > ul > li.open {
+			#topMenu nav > ul > li.open,
+			#topMenu nav > ul > li:focus-within {
 				position: static
 			}
-			#topMenu nav > ul > li.open > ul {
+			#topMenu nav > ul > li.open > ul,
+			#topMenu nav > ul > li:focus-within > ul {
 				position: absolute;
 				left: 0;
 				right: 0;
@@ -475,17 +478,21 @@ input::-moz-focus-inner {
 				z-index: 5;
 				background-color: rgba(0, 0, 0, 0.85)
 			}
-			#topMenu nav li.open li.open > ul {
+			#topMenu nav li.open li.open > ul,
+			#topMenu nav li li:focus-within > ul {
 				position: static;
 				float: none
 			}
 			#topMenu nav li.open > ul,
-			#topMenu nav li.open > ul > li {
+			#topMenu nav li.open > ul > li,
+			#topMenu nav li:focus-within > ul,
+			#topMenu nav li:focus-within > ul > li {
 				display: block;
 				float: none;
 				width: auto
 			}
-			#topMenu nav li.open > ul > li {
+			#topMenu nav li.open > ul > li,
+			#topMenu nav li:focus-within > ul > li {
 				white-space: normal;
 				line-height: 1.4em;
 				padding-top: 1.05em;

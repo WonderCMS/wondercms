@@ -25,7 +25,7 @@ final class LoginIpTest extends TestCase
 		@unlink(__DIR__ . '/../data_test/database_test.js');
 		$this->wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
 		$this->wcms->currentPage = 'loginURL';
-		$this->wcms->set('config', 'password', password_hash(self::PASSWORD, PASSWORD_DEFAULT));
+		wcmsSetPasswordOnDisk($this->wcms, self::PASSWORD);
 	}
 
 	protected function tearDown(): void
