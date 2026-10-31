@@ -502,6 +502,7 @@ class Wcms
 
 	/**
 	 * Change password
+	 * On success the changing session is logged out and the login page shows "Password changed. Log in again." once
 	 * @return void
 	 * @throws Exception
 	 */
@@ -536,8 +537,8 @@ class Wcms
 			} finally {
 				$this->replacingPassword = false;
 			}
+			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1); // before the logout: redirect() ends the request
 			$this->logoutAction(true);
-			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
 	}
 
@@ -2795,7 +2796,7 @@ EOT;
 
 	/**
 	 * Logout action
-	 * @param bool $forceLogout
+	 * @param bool $forceLogout a logout the code decided (a password change): the queued alerts stay for the login page
 	 * @return void
 	 */
 	public function logoutAction(bool $forceLogout = false): void
@@ -2807,7 +2808,10 @@ EOT;
 			$to = isset($_GET['to']) && is_string($_GET['to']) && $_GET['to'] !== '' && !$this->isLogoutToLoginScreenEnabled()
 				? $_GET['to']
 				: $this->get('config', 'login');
-			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token'], $_SESSION['alert']);
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']);
+			if (!$forceLogout) { // the admin's own logout click drops what was queued, as before
+				unset($_SESSION['alert']);
+			}
 			$this->redirect($to);
 		}
 	}

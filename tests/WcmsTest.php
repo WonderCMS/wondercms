@@ -111,6 +111,7 @@ final class WcmsTest extends TestCase
 	{
 		$_REQUEST['token'] = $this->wcms->getToken();
 		$this->wcms->currentPage = 'logout';
+		$this->wcms->alert('success', 'Saved.');
 
 		$this->wcms->logoutAction();
 		$this->wcms->loginStatus();
@@ -118,6 +119,7 @@ final class WcmsTest extends TestCase
 		$this->assertFalse(isset($_SESSION['loggedIn']));
 		$this->assertFalse(isset($_SESSION['rootDir']));
 		$this->assertFalse(isset($_SESSION['token']));
+		$this->assertFalse(isset($_SESSION['alert']), 'the admin\'s own logout drops queued alerts (a forced logout keeps them)');
 		$this->assertFalse($this->wcms->loggedIn);
 	}
 
