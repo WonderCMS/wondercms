@@ -4016,9 +4016,6 @@ EOT;
 	 */
 	public function search(): string
 	{
-		// the page the widget runs on, which the results skip: only a page that exists, never the visitor's URL (a 404's path is the visitor's, and the login page is no result)
-		$page = $this->currentPageExists && $this->currentPage !== $this->get('config', 'login') ? implode('/', $this->currentPageTree) : '';
-		$page = $this->jsString($page);
 		$output = <<<EOT
 		<div class="wondersearch-container">
 			<input type="text" class="wondersearch-input" placeholder="Search..." aria-label="Search">
@@ -4042,7 +4039,7 @@ EOT;
 					const response = await fetch('{$this->url('search')}', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-						body: new URLSearchParams({ query, token: '{$this->getToken()}', page: {$page} })
+						body: new URLSearchParams({ query, token: '{$this->getToken()}' })
 					});
 					
 					const results = await response.json();
@@ -4074,17 +4071,6 @@ EOT;
 	}
 
 	/**
-	 * A string as a JavaScript string literal that is safe inside an inline <script>.
-	 * @param string $value
-	 * @return string
-	 */
-	private function jsString(string $value): string
-	{
-		$json = json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
-		return str_replace(["\u{2028}", "\u{2029}"], ['\u2028', '\u2029'], $json !== false ? $json : '""'); // json_encode escapes them unless JSON_UNESCAPED_UNICODE is added; before ES2019 they end a string literal
-	}
-
-	/**
 	 * Handle search requests and return JSON results.
 	 * Processes POST requests, searches pages/blog posts.
 	 * @return void Outputs JSON response and exits
@@ -4099,10 +4085,6 @@ EOT;
 			if ($query === '' || !mb_check_encoding($query, 'UTF-8')) { // an empty query would match every page; an invalid one makes the /u highlight regex fail
 				echo json_encode(['error' => 'No matching content found']);
 				exit;
-			}
-			$page = is_string($_POST['page'] ?? null) ? trim($_POST['page'], " \t\n\r\0\x0B/") : '';
-			if ($page !== '' && $this->getPageData($page) !== null) {
-				$this->currentPageTree = explode('/', $page); // the page the widget runs on, which searchPages() skips; a path that is not an existing page skips nothing
 			}
 			$results = $this->searchPages($this->get('pages'), $query);
 
@@ -4153,7 +4135,7 @@ EOT;
 			if ($slug === '404' || strpos($slug, '/') !== false || !is_object($page) || (!empty($page->private) && !$this->loggedIn)) {
 				continue;
 			}
-			if ($prefix . $slug !== implode('/', $this->currentPageTree) && $this->pageMatchesQuery($page, $query)) {
+			if ($this->pageMatchesQuery($page, $query)) {
 				$results[] = [
 					'title' => $page->title ?? '',
 					'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
