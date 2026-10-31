@@ -3141,7 +3141,7 @@ EOT;
 									<button type="submit" class="wbtn wbtn-block wbtn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 							 
 							 <p class="subTitle">Save confirmation popup</p>
 							 <p class="change small">If this is turned "ON", WonderCMS will always ask you to confirm any changes you make.</p>
@@ -3190,7 +3190,7 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
 		$output .= $this->renderAdminLoginIPs();
 		$output .= '
 				 		 </div>
@@ -3201,7 +3201,7 @@ EOT;
 							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
 							<b><a href="https://wondercms.com/news" target="_blank">News</a> &nbsp;
 							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
-							<a href="https://wondercms.com/docs" target="_blank">Docs</a> &nbsp;
+							<a href="https://docs.wondercms.com/" target="_blank">Docs</a> &nbsp;
 							<a href="https://wondercms.com/donate" target="_blank">Donate</a> &nbsp;
 							<a href="https://swag.wondercms.com" target="_blank">Shop/Merch</a></b>
 						</p>
@@ -3517,7 +3517,7 @@ EOT;
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" /><input type="hidden" name="password_recheck" />
 					</form>
-					<p class="text-right"><a href="https://www.wondercms.com/docs/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
+					<p class="text-right"><a href="https://docs.wondercms.com/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
 		return $output;
 	}
