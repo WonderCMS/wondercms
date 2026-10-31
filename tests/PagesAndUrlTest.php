@@ -395,6 +395,248 @@ final class PagesAndUrlTest extends TestCase
 		unset($_GET['delete'], $_REQUEST['token']);
 	}
 
+	public function testTheSameSubpageNameThreeTimesGivesThreeSiblingsWithDistinctSlugs(): void
+	{
+		// createUniqueSlug() appended the top-level count once and never rechecked: the third add saved a second menu entry with the second's slug.
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Same', $parentKey, 'show', true);
+		}
+
+		$this->assertSame(['same', 'same-2', 'same-3'], array_column((array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages, 'slug'));
+		$this->assertSame(['same', 'same-2', 'same-3'], array_keys((array)$this->reload()->pages->parent->subpages), 'one page per menu entry');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testTheSameNameThreeTimesOnAThirdLevelGivesDistinctSlugs(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		$this->wcms->createMenuItem('Child', $parentKey, 'show', true);
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Deep', $parentKey . '-0', 'show', true);
+		}
+
+		$this->assertSame(['deep', 'deep-2', 'deep-3'], array_column((array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages->{'0'}->subpages, 'slug'));
+		$this->assertSame(['deep', 'deep-2', 'deep-3'], array_keys((array)$this->reload()->pages->parent->subpages->child->subpages));
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testATopLevelDuplicateNeverTakesTheSlugOfAnExistingPage(): void
+	{
+		// At the top level the appended count grows with every add, so it collided only when the generated -N already existed; createPage() then overwrote that page.
+		$this->wcms->loggedIn = true;
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Same', '', 'show', true);
+		}
+		$n = count((array)$this->wcms->get('config', 'menuItems')) + 2;
+		$this->wcms->createMenuItem('Clash', '', 'show', true);
+		$this->wcms->createMenuItem('Clash ' . $n, '', 'show', true);
+		$this->wcms->set('pages', 'clash-' . $n, 'content', 'kept');
+		$this->wcms->createMenuItem('Clash', '', 'show', true);
+
+		$slugs = array_column((array)$this->wcms->get('config', 'menuItems'), 'slug');
+		$this->assertSame('kept', $this->reload()->pages->{'clash-' . $n}->content ?? null, 'the existing page keeps its content');
+		$this->assertSame(['clash', 'clash-' . $n, 'clash-2'], array_values(preg_grep('/^clash/', $slugs)));
+		$this->assertSame(['same', 'same-2', 'same-3'], array_values(preg_grep('/^same/', $slugs)));
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testANameThatAlreadyEndsInANumberStaysDistinctFromTheGeneratedSlugs(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		foreach (['Item', 'Item 2', 'Item 3', 'Item', 'Item', 'Item 2'] as $name) {
+			$this->wcms->createMenuItem($name, $parentKey, 'show', true);
+		}
+
+		$this->assertSame(['item', 'item-2', 'item-3', 'item-4', 'item-5', 'item-2-2'], array_column((array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages, 'slug'));
+		$this->assertCount(6, (array)$this->reload()->pages->parent->subpages);
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testTheSameSubpageNameUnderTheFirstMenuItemGivesDistinctSlugs(): void
+	{
+		// The first top-level item has the key '0', which PHP reads as false: createUniqueSlug() checked the top level instead of its subpages.
+		$this->wcms->loggedIn = true;
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Same', '0', 'show', true);
+		}
+
+		$this->assertSame(['same', 'same-2', 'same-3'], array_column((array)$this->wcms->get('config', 'menuItems')->{'0'}->subpages, 'slug'));
+		$this->assertSame(['same', 'same-2', 'same-3'], array_keys((array)$this->reload()->pages->home->subpages), 'one page per menu entry');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testRenamingAPageToASiblingsNameKeepsBothPages(): void
+	{
+		// updateMenuItem() checked the renamed item's children instead of its siblings, so the rename took the sibling's slug and replaced its page.
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Alpha', '', 'show', true);
+		$this->wcms->createMenuItem('Beta', '', 'show', true);
+		$this->wcms->set('pages', 'alpha', 'content', 'alpha content');
+		$this->wcms->set('pages', 'beta', 'content', 'beta content');
+		$betaKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+
+		$this->wcms->updateMenuItem('Alpha', $betaKey, 'show');
+
+		$slugs = array_column((array)$this->wcms->get('config', 'menuItems'), 'slug');
+		$this->assertSame(['alpha', 'alpha-2'], array_values(preg_grep('/^alpha/', $slugs)));
+		$pages = $this->reload()->pages;
+		$this->assertSame('alpha content', $pages->alpha->content ?? null, 'the sibling keeps its page');
+		$this->assertSame('beta content', $pages->{'alpha-2'}->content ?? null, 'the renamed page moved to the free slug');
+		$this->assertFalse(isset($pages->beta), 'the old slug is gone');
+	}
+
+	public function testRenamingASubpageOfTheFirstPageToASiblingsNameKeepsBothPages(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Alpha', '0', 'show', true);
+		$this->wcms->createMenuItem('Beta', '0', 'show', true);
+		$this->wcms->set('pages', 'home', 'subpages', 'alpha', 'content', 'alpha content');
+		$this->wcms->set('pages', 'home', 'subpages', 'beta', 'content', 'beta content');
+
+		$this->wcms->updateMenuItem('Alpha', '0-1', 'show');
+
+		$this->assertSame(['alpha', 'alpha-2'], array_column((array)$this->wcms->get('config', 'menuItems')->{'0'}->subpages, 'slug'));
+		$subpages = $this->reload()->pages->home->subpages;
+		$this->assertSame('alpha content', $subpages->alpha->content ?? null, 'the sibling keeps its page');
+		$this->assertSame('beta content', $subpages->{'alpha-2'}->content ?? null, 'the renamed page moved to the free slug');
+	}
+
+	public function testRenamingAPageToANameWithItsOwnSlugKeepsTheSlugAndThePage(): void
+	{
+		// The item must not count as its own sibling: "How to!" slugifies to how-to and must not become how-to-2.
+		$this->wcms->loggedIn = true;
+		$this->wcms->set('pages', 'how-to', 'content', 'kept');
+
+		$this->wcms->updateMenuItem('How to!', '1', 'show');
+
+		$item = $this->wcms->get('config', 'menuItems')->{'1'};
+		$this->assertSame('How to!', $item->name);
+		$this->assertSame('how-to', $item->slug);
+		$this->assertSame('kept', $this->reload()->pages->{'how-to'}->content ?? null, 'the page survives a rename that keeps its slug');
+	}
+
+	public function testAddingAMenuPageNamedLikeATopLevelPageWithoutAMenuEntryOverwritesNothing(): void
+	{
+		// createPage() had no clash check for a one-segment slug, and the slug was checked against menu entries only: a menu page named 404 replaced the 404 page.
+		$this->wcms->loggedIn = true;
+		$page404 = json_encode($this->reload()->pages->{'404'});
+
+		$this->wcms->createMenuItem('404', '', 'show', true);
+
+		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}), 'the existing page is untouched');
+		$this->assertContains('404-2', array_column((array)$this->reload()->config->menuItems, 'slug'));
+		$this->assertNotContains('404', array_column((array)$this->reload()->config->menuItems, 'slug'), 'no menu entry takes the unlisted page');
+		$this->assertTrue(isset($this->reload()->pages->{'404-2'}), 'the new page has its own slug');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+		$this->assertSame('404-2', $_SESSION['redirect_to'] ?? null);
+	}
+
+	public function testAddingASubpageNamedLikeAnUnlistedSubpageGetsAFreeSlug(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createPage(['home', 'unlisted']);
+		$this->wcms->set('pages', 'home', 'subpages', 'unlisted', 'content', 'kept');
+
+		$this->wcms->createMenuItem('Unlisted', '0', 'show', true);
+
+		$this->assertSame('kept', $this->reload()->pages->home->subpages->unlisted->content ?? null);
+		$this->assertSame(['unlisted-2'], array_column((array)$this->reload()->config->menuItems->{'0'}->subpages, 'slug'));
+		$this->assertTrue(isset($this->reload()->pages->home->subpages->{'unlisted-2'}));
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testRenamingAPageToTheNameOfAPageWithoutAMenuEntryOverwritesNothing(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Beta', '', 'show', true);
+		$this->wcms->set('pages', 'beta', 'content', 'beta content');
+		$betaKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		$page404 = json_encode($this->reload()->pages->{'404'});
+
+		$this->wcms->updateMenuItem('404', $betaKey, 'show');
+
+		$pages = $this->reload()->pages;
+		$this->assertSame($page404, json_encode($pages->{'404'}), 'the unlisted page is untouched');
+		$this->assertSame('404-2', $this->wcms->get('config', 'menuItems')->{$betaKey}->slug);
+		$this->assertSame('beta content', $pages->{'404-2'}->content ?? null, 'the renamed page moved to the free slug');
+	}
+
+	public function testCreatePageRefusesAnExistingTopLevelPage(): void
+	{
+		$this->wcms->loggedIn = true;
+		$page404 = json_encode($this->reload()->pages->{'404'});
+
+		$this->wcms->createPage(['404']);
+
+		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}));
+		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
+	}
+
+	public function testACreateThatIsRefusedSavesNoMenuEntry(): void
+	{
+		// The page is validated before the menu entry is saved; the slug is forced onto an existing page to reach the refusal.
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'createUniqueSlug'])->getMock();
+		$wcms->method('createUniqueSlug')->willReturn('404');
+		$wcms->loggedIn = true;
+		$before = json_encode($this->reload()->config->menuItems);
+		$page404 = json_encode($this->reload()->pages->{'404'});
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+
+		$wcms->createMenuItem('Anything', '', 'show', true);
+
+		$this->assertSame($before, json_encode($this->reload()->config->menuItems), 'no menu entry for a refused page');
+		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}));
+		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
+		$this->assertArrayNotHasKey('redirect_to', $_SESSION, 'no "page created" redirect');
+	}
+
+	public function testSavingAMissingPageLinksAMenuEntryWithTheSameSlug(): void
+	{
+		// createPage(..., true) writes the page, then links its menu entry: the page it just wrote must not push the entry to -2.
+		wcmsAdminSession($this->wcms);
+		$this->wcms->loginStatus();
+		$this->wcms->currentPage = 'fresh';
+		$this->wcms->currentPageTree = ['fresh'];
+		$this->wcms->currentPageExists = false;
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+		$_POST = ['fieldname' => 'content', 'content' => 'x', 'target' => 'pages', 'token' => $this->wcms->getToken()];
+
+		$this->wcms->saveAction();
+
+		$db = $this->reload();
+		$this->assertSame('x', $db->pages->fresh->content ?? null);
+		$this->assertSame(['fresh'], array_values(preg_grep('/^fresh/', array_column((array)$db->config->menuItems, 'slug'))));
+		$this->assertFalse(isset($db->pages->{'fresh-2'}));
+	}
+
+	public function testTheRedirectAfterARenameIsThePagesRealAddress(): void
+	{
+		// save() sent the editor to slugify(name): no parent path and no generated suffix, so the redirect missed the renamed page.
+		wcmsAdminSession($this->wcms);
+		$this->wcms->loginStatus();
+		$this->wcms->createMenuItem('Alpha', '0', 'show', true);
+		$this->wcms->createMenuItem('Beta', '0', 'show', true);
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+		$_POST = ['fieldname' => 'menuItem', 'content' => 'Alpha', 'target' => 'menuItemUpdate', 'menu' => '0-1', 'visibility' => 'show', 'token' => $this->wcms->getToken()];
+
+		$this->wcms->saveAction();
+
+		$this->assertSame('home/alpha-2', $_SESSION['redirect_to'] ?? null);
+		$this->assertTrue(isset($this->reload()->pages->home->subpages->{'alpha-2'}), 'the redirect target exists');
+
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+		$_POST = ['fieldname' => 'menuItem', 'content' => 'Renamed', 'target' => 'menuItemUpdate', 'menu' => '9-9', 'visibility' => 'show', 'token' => $this->wcms->getToken()];
+		$this->wcms->saveAction();
+		$this->assertArrayNotHasKey('redirect_to', $_SESSION, 'a rename that did not happen queues no redirect');
+	}
+
 	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void
 	{
 		// A hand-uploaded folder named mytheme~ is listed with a Remove button; the cleaned name would have deleted mytheme.
