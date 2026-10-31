@@ -3123,9 +3123,8 @@ EOT;
 			if ($this->isBackupTempName($file)) {
 				continue; // an unfinished backup a killed request left (before 3.7.2): never offered as a file, removed by the next backup once stale
 			}
-			$fileLink = $this->isBackupArchiveName($file)
-				? '<b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b> (old backup, delete it)' // refused over HTTP on new installs: no link that ends in a 403
-				: '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>';
+			$fileLink = '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>'
+				. ($this->isBackupArchiveName($file) ? ' (old backup: download it if you need it, then delete it)' : ''); // made before 3.7.2, which keeps no backup on the server; the owner keeps the link
 			$output .= '
 									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
@@ -3913,7 +3912,7 @@ EOT;
 	 */
 	public function isBackupArchiveName(string $name): bool
 	{
-		// The exact shape every backup has had since 3.1.0 (16, 42 or 32 hex), the same the shipped .htaccess refuses: an admin's own holiday-backup-2024.zip is an upload
+		// The exact shape every backup has had since 3.1.0 (16, 42 or 32 hex): an admin's own holiday-backup-2024.zip is an upload
 		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip$~i', $name); // a bare name or a path, with either separator
 	}
 
@@ -4033,7 +4032,7 @@ EOT;
 				}
 			}
 		} finally {
-			if (function_exists('unlink')) { // disabled on some hardened hosts: the archive stays under data/, refused by .htaccess and skipped by the next backup's walk
+			if (function_exists('unlink')) { // disabled on some hardened hosts: the archive stays under data/ (a 128-bit random name, listed nowhere) and is skipped by the next backup's walk
 				@unlink($zipPath);
 			}
 		}

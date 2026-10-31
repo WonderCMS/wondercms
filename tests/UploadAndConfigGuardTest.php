@@ -95,9 +95,10 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $html);
 	}
 
-	public function testTheFilesTabOffersAnOldBackupForDeletionOnly(): void
+	public function testTheFilesTabKeepsTheLinkToAnOldBackup(): void
 	{
-		// Backups made before 3.7.2 sit in data/files; new installs refuse them over HTTP, so the tab gives no link to one.
+		// Backups made before 3.7.2 sit in data/files. The owner is the only one who knows the name, so the tab keeps its link
+		// and its delete button and notes that it is an old backup; an unfinished one (libzip's temp file) is not listed.
 		$backup = '2026-01-01-backup-0123456789abcdef.zip';
 		$temp = $backup . '.R4t5Y6.part'; // libzip's unfinished archive from a 3.7.1 backup killed during close()
 		$uploads = ['notes-backup-plan.zip', 'holiday-backup-2024.zip', 'site-backup-1.zip', 'film.mp4.part'];
@@ -109,8 +110,8 @@ final class UploadAndConfigGuardTest extends TestCase
 		try {
 			$html = $this->wcms->settings();
 			$this->assertStringContainsString('deleteModule=' . $backup . '&type=files', $html, 'the delete button stays');
-			$this->assertStringNotContainsString('data/files/' . $backup, $html, 'no download link');
-			$this->assertSame(1, substr_count($html, 'old backup, delete it'), 'only the real backup is offered for deletion only');
+			$this->assertStringContainsString('/data/files/' . $backup . '" class="normalFont"', $html, 'the download link stays');
+			$this->assertSame(1, substr_count($html, '(old backup: download it if you need it, then delete it)'), 'only the real backup carries the note');
 			$this->assertStringNotContainsString($temp, $html, 'an unfinished backup is not listed at all');
 			foreach ($uploads as $upload) {
 				$this->assertStringContainsString('data/files/' . $upload, $html, 'an upload named like a backup but without the date and the random suffix keeps its link');
@@ -127,7 +128,7 @@ final class UploadAndConfigGuardTest extends TestCase
 	public function testOnlyTheExactBackupNameShapeIsABackup(): void
 	{
 		// Every backup since 3.1.0 is <date>-backup-<hex>.zip with 16 hex (random_bytes(8)), 42 (the microtime fallback) or 32
-		// (3.7.2). A looser pattern took an admin's own uploads for backups: no link, not archived, 403 on a new install.
+		// (3.7.2). A looser pattern took an admin's own uploads for backups: left out of the archive.
 		foreach ([
 			'2026-01-01-backup-0123456789abcdef.zip',
 			'2026-01-01-BACKUP-0123456789ABCDEF.ZIP',
@@ -398,8 +399,8 @@ final class UploadAndConfigGuardTest extends TestCase
 		// On a case-insensitive disk (Windows, macOS) Apache served /DATABASE.JS while /database.js was refused.
 		$htaccess = file_get_contents(__DIR__ . '/../.htaccess');
 		preg_match_all('~^RewriteRule (\S+) - \[([^\]]*)\]\r$~m', $htaccess, $m);
-		$this->assertSame(['database\.js', '^tests/', 'cache\.json', '^data/logs/', '(^|/)[0-9]{4}-[0-9]{2}-[0-9]{2}-backup-[0-9a-f]{16,}\.zip$'], $m[1], 'dots escaped: with NC an unescaped dot also refused data/files/Database_JS_Tutorial.pdf');
-		$this->assertSame(['F,NC', 'F,NC', 'F,NC', 'F,NC', 'F,NC'], $m[2]);
+		$this->assertSame(['database\.js', '^tests/', 'cache\.json', '^data/logs/'], $m[1], 'dots escaped: with NC an unescaped dot also refused data/files/Database_JS_Tutorial.pdf');
+		$this->assertSame(['F,NC', 'F,NC', 'F,NC', 'F,NC'], $m[2]);
 		$denied = static function (string $path) use ($m): bool {
 			foreach ($m[1] as $pattern) {
 				if (preg_match('~' . $pattern . '~i', $path)) {
@@ -408,11 +409,11 @@ final class UploadAndConfigGuardTest extends TestCase
 			}
 			return false;
 		};
-		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log', 'data/files/2026-01-01-backup-0123456789abcdef.zip', 'data/files/2026-01-01-BACKUP-0123456789ABCDEF.ZIP', 'data/2026-10-31-backup-0123456789abcdef0123456789abcdef.zip', '2026-10-31-backup-0123456789abcdef0123456789abcdef.zip'] as $path) {
+		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
 			$this->assertTrue($denied($path), $path);
 		}
-		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg', 'data/files/photos.zip', 'data/files/notes-backup-plan.zip', 'data/files/holiday-backup-2024.zip', 'data/files/site-backup-1.zip', 'data/files/2026-01-01-backup-0123456789abcde.zip'] as $path) {
-			$this->assertFalse($denied($path), $path);
+		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg', 'data/files/photos.zip', 'data/files/notes-backup-plan.zip', 'data/files/holiday-backup-2024.zip', 'data/files/site-backup-1.zip', 'data/files/2026-01-01-backup-0123456789abcdef.zip'] as $path) {
+			$this->assertFalse($denied($path), $path); // an old backup too: the Files tab links it for its owner
 		}
 		$this->assertSame(substr_count($htaccess, "\n"), substr_count($htaccess, "\r\n"), 'CRLF line ends kept');
 	}
