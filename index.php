@@ -766,7 +766,6 @@ class Wcms
 	{
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		$menuCount = count(get_object_vars($allMenuItems));
 
 		// Check if it is subpage
 		$menuTree = $menu ? explode('-', $menu) : [];
@@ -776,11 +775,12 @@ class Wcms
 			}
 		}
 
-		foreach ($allMenuItems as $value) {
-			if ($value->slug === $slug) {
-				$slug .= '-' . $menuCount;
-				break;
-			}
+		// Recheck every candidate: a generated '-N' can itself be a sibling's slug
+		$siblingSlugs = array_column((array)$allMenuItems, 'slug');
+		$base = $slug;
+		$n = 2;
+		while (in_array($slug, $siblingSlugs, true)) {
+			$slug = $base . '-' . $n++;
 		}
 
 		return $slug;

@@ -398,6 +398,70 @@ final class PagesAndUrlTest extends TestCase
 		unset($_GET['delete'], $_REQUEST['token']);
 	}
 
+	public function testTheSameSubpageNameThreeTimesGivesThreeSiblingsWithDistinctSlugs(): void
+	{
+		// createUniqueSlug() appended the top-level count once and never rechecked: the third add saved a second menu entry with the second's slug.
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Same', $parentKey, 'show', true);
+		}
+
+		$this->assertSame(['same', 'same-2', 'same-3'], array_column((array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages, 'slug'));
+		$this->assertSame(['same', 'same-2', 'same-3'], array_keys((array)$this->reload()->pages->parent->subpages), 'one page per menu entry');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testTheSameNameThreeTimesOnAThirdLevelGivesDistinctSlugs(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		$this->wcms->createMenuItem('Child', $parentKey, 'show', true);
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Deep', $parentKey . '-0', 'show', true);
+		}
+
+		$this->assertSame(['deep', 'deep-2', 'deep-3'], array_column((array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages->{'0'}->subpages, 'slug'));
+		$this->assertSame(['deep', 'deep-2', 'deep-3'], array_keys((array)$this->reload()->pages->parent->subpages->child->subpages));
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testATopLevelDuplicateNeverTakesTheSlugOfAnExistingPage(): void
+	{
+		// At the top level the appended count grows with every add, so it collided only when the generated -N already existed; createPage() then overwrote that page.
+		$this->wcms->loggedIn = true;
+		for ($i = 0; $i < 3; $i++) {
+			$this->wcms->createMenuItem('Same', '', 'show', true);
+		}
+		$n = count((array)$this->wcms->get('config', 'menuItems')) + 2;
+		$this->wcms->createMenuItem('Clash', '', 'show', true);
+		$this->wcms->createMenuItem('Clash ' . $n, '', 'show', true);
+		$this->wcms->set('pages', 'clash-' . $n, 'content', 'kept');
+		$this->wcms->createMenuItem('Clash', '', 'show', true);
+
+		$slugs = array_column((array)$this->wcms->get('config', 'menuItems'), 'slug');
+		$this->assertSame('kept', $this->reload()->pages->{'clash-' . $n}->content ?? null, 'the existing page keeps its content');
+		$this->assertSame(['clash', 'clash-' . $n, 'clash-2'], array_values(preg_grep('/^clash/', $slugs)));
+		$this->assertSame(['same', 'same-2', 'same-3'], array_values(preg_grep('/^same/', $slugs)));
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testANameThatAlreadyEndsInANumberStaysDistinctFromTheGeneratedSlugs(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Parent', '', 'show', true);
+		$parentKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		foreach (['Item', 'Item 2', 'Item 3', 'Item', 'Item', 'Item 2'] as $name) {
+			$this->wcms->createMenuItem($name, $parentKey, 'show', true);
+		}
+
+		$this->assertSame(['item', 'item-2', 'item-3', 'item-4', 'item-5', 'item-2-2'], array_column((array)$this->wcms->get('config', 'menuItems')->{$parentKey}->subpages, 'slug'));
+		$this->assertCount(6, (array)$this->reload()->pages->parent->subpages);
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
 	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void
 	{
 		// A hand-uploaded folder named mytheme~ is listed with a Remove button; the cleaned name would have deleted mytheme.
