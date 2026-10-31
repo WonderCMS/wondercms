@@ -197,6 +197,36 @@ final class InstallPasswordParagraphTest extends TestCase
 		}
 	}
 
+	public function testARenamedHomePageLosesTheParagraphAtTheNextLogin(): void
+	{
+		$this->site();
+		$before = $this->onDisk()->pages->home->content;
+		$password = $this->installPassword($before);
+		$this->site()->updateMenuItem('Accueil', '0', 'show'); // the core's rename: moves pages->home to pages->accueil, repoints defaultPage
+		$db = $this->onDisk();
+		$this->assertFalse(property_exists($db->pages, 'home'));
+		$this->assertSame('accueil', $db->config->defaultPage);
+		$this->assertSame($before, $db->pages->accueil->content);
+
+		$this->login($this->site(), $password);
+
+		$db = $this->onDisk();
+		$this->assertSame(str_replace(self::PREFIX . $password . "</b></p>\n\n", '', $before), $db->pages->accueil->content, 'gone from the page served at /, every other byte stays');
+		$this->assertFalse(property_exists($db->pages, 'home'), 'no home page is recreated');
+		$this->assertCount(1, $this->passwordAlerts());
+	}
+
+	public function testAPageCarryingTheParagraphTwiceLosesBoth(): void
+	{
+		$paragraph = self::PREFIX . 'Ab3dEf7h</b></p>';
+		$this->siteWithHome("<h1>Hi</h1>\n\n$paragraph\n\n<p>Middle.</p>\n\n$paragraph\n\n<p>End.</p>");
+
+		$this->login($this->site(), 'ownerPass1');
+
+		$this->assertSame("<h1>Hi</h1>\n\n<p>Middle.</p>\n\n<p>End.</p>", $this->onDisk()->pages->home->content);
+		$this->assertCount(1, $this->passwordAlerts(), 'one alert for the login');
+	}
+
 	public function testASiteWithoutAHomePageGetsNoneAtLogin(): void
 	{
 		$this->site();
