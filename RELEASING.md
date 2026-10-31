@@ -169,7 +169,7 @@ tag, rule 3 above; every push is read back through the API and recorded).
    files): `wondercms/`, `index.php`, `.htaccess`, `themes/`, `themes/sky/`, `theme.php`, `wcms-modules.json`, `css/`,
    `style.css`, `css/fonts/` and the two `catamaran` woff2 files; `unzip -l` must show nothing else. Then create the GitHub release with
    notes (Features and fixes / Changes / Backwards compatibility / How to update / Installation
-   with the SHA-256 of the uploaded asset) and attach the ZIP. Then download the asset from the release page and
+   with the SHA-256 of the uploaded asset) and attach the ZIP. From 3.7.2, How to update tells Apache sites that came from 3.6.x by the in-app updater (which never replaces `.htaccess`) to add the shipped deny lines, `RewriteRule ^data/logs/ - [F,NC]` among them: without it `data/logs/login-attempts.json` (addresses and timestamps of recent failed logins, nothing else) is readable. Then download the asset from the release page and
    compare its SHA-256 with the local file; the notes carry the downloaded file's hash, not the local one (a ZIP
    built on another machine or in another timezone has other member timestamps and another hash).
 9. wondercms.com: copy the ZIP next to the previous ones, point `download-latest.php` at the new

@@ -166,6 +166,7 @@ class Wcms
 		$this->loginAction();
 		$this->notFoundResponse();
 		if ($this->loggedIn) {
+			$this->knownBrowserAction();
 			$this->manuallyRefreshCacheData();
 			$this->addCustomModule();
 			$this->installUpdateModuleAction();
@@ -2594,6 +2595,21 @@ EOT;
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * A logged-in session without the known-browser cookie gets one, once per session: a session that was logged in
+	 * before the update (or before the cookie was cleared) would otherwise have no exemption at its next login
+	 * @return void
+	 * @throws Exception
+	 */
+	public function knownBrowserAction(): void
+	{
+		if (!$this->loggedIn || !empty($_SESSION['knownBrowserIssued']) || $this->isKnownBrowser()) {
+			return;
+		}
+		$_SESSION['knownBrowserIssued'] = true; // a browser that drops the cookie costs one database write per session, not one per request
+		$this->rememberBrowser();
 	}
 
 	/**

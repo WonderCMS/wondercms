@@ -32,7 +32,7 @@ final class LoginThrottleTest extends TestCase
 	{
 		$_GET = $_POST = $_REQUEST = $_COOKIE = [];
 		unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['HTTP_CLIENT_IP']);
-		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir'], $_SESSION['knownBrowserIssued']);
 		@unlink(self::ATTEMPTS_PATH);
 		@unlink(self::DB_PATH);
 	}
@@ -316,6 +316,68 @@ final class LoginThrottleTest extends TestCase
 		$this->assertCount(10, (array)$this->wcms()->get('config', 'knownBrowsers'));
 	}
 
+	private function adminSession(): Wcms
+	{
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms()->rootDir;
+		$wcms = $this->wcms();
+		$wcms->loginStatus();
+		$this->assertTrue($wcms->loggedIn);
+		return $wcms;
+	}
+
+	public function testASessionLoggedInBeforeTheUpdateGetsTheCookieOnce(): void
+	{
+		$this->assertSame([], (array)$this->wcms()->get('config', 'knownBrowsers'), 'upgrade day: no browser is known');
+
+		$this->adminSession()->knownBrowserAction();
+
+		$known = (array)$this->wcms()->get('config', 'knownBrowsers');
+		$this->assertCount(1, $known);
+		$this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string)array_key_first($known), 'only a hash is stored');
+		$database = file_get_contents(self::DB_PATH);
+		$this->adminSession()->knownBrowserAction();
+		$this->assertSame($database, file_get_contents(self::DB_PATH), 'once per session, not a database write per admin request');
+	}
+
+	public function testAKnownBrowsersSessionIsLeftAlone(): void
+	{
+		$_COOKIE[self::COOKIE] = $this->knownBrowser($this->wcms());
+		$database = file_get_contents(self::DB_PATH);
+
+		$this->adminSession()->knownBrowserAction();
+
+		$this->assertSame($database, file_get_contents(self::DB_PATH));
+	}
+
+	public function testAVisitorIsNeverGivenTheCookie(): void
+	{
+		$wcms = $this->wcms();
+		$wcms->loginStatus();
+		$database = file_get_contents(self::DB_PATH);
+
+		$wcms->knownBrowserAction();
+
+		$this->assertSame($database, file_get_contents(self::DB_PATH));
+		$this->assertArrayNotHasKey('knownBrowsers', (array)json_decode($database, true)['config']);
+	}
+
+	public function testASessionsCookieKeepsTheTenBrowserCap(): void
+	{
+		$known = [];
+		for ($i = 0; $i < 10; $i++) {
+			$known[hash('sha256', (string)$i)] = '2026/01/01 00:00:0' . (9 - $i); // stored newest first
+		}
+		$this->wcms()->set('config', 'knownBrowsers', $known);
+
+		$this->adminSession()->knownBrowserAction();
+
+		$after = (array)$this->wcms()->get('config', 'knownBrowsers');
+		$this->assertCount(10, $after);
+		$this->assertArrayNotHasKey(hash('sha256', '9'), $after, 'the oldest kept entry made room');
+		$this->assertNotContains(array_key_first($after), array_keys($known), 'the new browser is first');
+	}
+
 	public function testTheEditorCannotWriteKnownBrowsers(): void
 	{
 		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
@@ -459,6 +521,20 @@ final class LoginThrottleTest extends TestCase
 
 			$known = $this->request($base, self::PASSWORD, $cookie);
 			$this->assertStringContainsString(' 302 ', $known['status'], 'the browser that logged in before gets through');
+
+			// upgrade day: a session logged in before the update has no cookie; its next page view is given one
+			preg_match_all('/^Set-Cookie: (PHPSESSID=[^;]+)/mi', $first['headers'], $sessions);
+			$session = (string)end($sessions[1]); // the id regenerated at login
+			$site = new Wcms('data', 'files', 'database.js', $root);
+			$site->set('config', 'knownBrowsers', []);
+			$page = $this->request($base, null, null, $session);
+			$this->assertStringContainsString('id="settingsModal"', $page['body'], 'the session is the admin\'s');
+			$this->assertMatchesRegularExpression('/^Set-Cookie: ' . self::COOKIE . '=([0-9a-f]{64});.*HttpOnly/mi', $page['headers']);
+			preg_match('/^Set-Cookie: ' . self::COOKIE . '=([0-9a-f]{64})/mi', $page['headers'], $match);
+			$this->assertStringContainsString(hash('sha256', $match[1]), file_get_contents($root . '/data/database.js'));
+			$this->assertStringNotContainsString(self::COOKIE, $this->request($base, null, null, $session)['headers'], 'once per session');
+			$this->assertStringContainsString(' 429 ', $this->request($base, self::PASSWORD, null)['status'], 'the address is still throttled');
+			$this->assertStringContainsString(' 302 ', $this->request($base, self::PASSWORD, $match[1])['status'], 'the cookie the session got gets through');
 		} finally {
 			proc_terminate($server);
 			proc_close($server);
@@ -466,16 +542,20 @@ final class LoginThrottleTest extends TestCase
 		}
 	}
 
-	private function request(string $base, string $password, ?string $cookie): array
+	/**
+	 * A POST of the password to the login page, or with no password a GET of the home page
+	 */
+	private function request(string $base, ?string $password, ?string $cookie, string $session = ''): array
 	{
+		$cookies = array_filter([$session, $cookie !== null ? self::COOKIE . '=' . $cookie : '']);
 		$context = stream_context_create(['http' => [
-			'method' => 'POST',
-			'header' => "Content-Type: application/x-www-form-urlencoded\r\n" . ($cookie !== null ? 'Cookie: ' . self::COOKIE . '=' . $cookie . "\r\n" : ''),
-			'content' => http_build_query(['password' => $password]),
+			'method' => $password !== null ? 'POST' : 'GET',
+			'header' => "Content-Type: application/x-www-form-urlencoded\r\n" . ($cookies ? 'Cookie: ' . implode('; ', $cookies) . "\r\n" : ''),
+			'content' => $password !== null ? http_build_query(['password' => $password]) : '',
 			'follow_location' => 0,
 			'ignore_errors' => true,
 		]]);
-		$body = (string)file_get_contents($base . '/?page=loginURL', false, $context);
+		$body = (string)file_get_contents($base . ($password !== null ? '/?page=loginURL' : '/'), false, $context);
 		$headers = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : ($http_response_header ?? []); // the variable is deprecated in PHP 8.5
 		return ['status' => (string)($headers[0] ?? ''), 'headers' => implode("\r\n", $headers), 'body' => $body];
 	}
