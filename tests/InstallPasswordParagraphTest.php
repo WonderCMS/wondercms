@@ -5,14 +5,11 @@ use PHPUnit\Framework\TestCase;
 /**
  * createDb() writes the install password into the public home page; the admin's first successful login removes that
  * paragraph (and an existing site's next login does), a paragraph edited by hand stays, a visitor never removes it.
- * Sites installed before 3.2.0 lose the <h4> that carried the password and the login link, and keep a login link.
+ * Sites installed before 3.2.0 lose the <h4> that carried the password and the login link; nothing is written in its place.
  */
 final class InstallPasswordParagraphTest extends TestCase
 {
 	private const PREFIX = '<p>Your password for editing everything is: <b>';
-
-	/** @var string|null a throwaway site root with its own themes folder; null: the repository, whose Sky theme prints footer() */
-	private $root;
 
 	protected function setUp(): void
 	{
@@ -28,26 +25,16 @@ final class InstallPasswordParagraphTest extends TestCase
 		$_SERVER['REQUEST_METHOD'] = 'GET';
 		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
 		@unlink($this->db());
-		if ($this->root !== null) {
-			foreach (['data_test/files_test', 'data_test', 'themes/bare', 'themes', 'plugins'] as $dir) {
-				foreach (glob($this->root . '/' . $dir . '/*') ?: [] as $file) {
-					is_file($file) && unlink($file);
-				}
-				@rmdir($this->root . '/' . $dir);
-			}
-			@rmdir($this->root);
-			$this->root = null;
-		}
 	}
 
 	private function db(): string
 	{
-		return ($this->root ?? __DIR__ . '/..') . '/data_test/database_installpw.js';
+		return __DIR__ . '/../data_test/database_installpw.js';
 	}
 
 	private function site(): Wcms
 	{
-		return $this->getMockBuilder(Wcms::class)->setConstructorArgs(array_merge(['data_test', 'files_test', 'database_installpw.js'], $this->root === null ? [] : [$this->root]))->onlyMethods(['redirect'])->getMock();
+		return $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_installpw.js'])->onlyMethods(['redirect'])->getMock();
 	}
 
 	private function login(Wcms $wcms, string $password): void
@@ -144,14 +131,12 @@ final class InstallPasswordParagraphTest extends TestCase
 		}
 	}
 
-	private function siteWithHome(string $content, string $login = 'loginURL', string $theme = 'sky'): void
+	private function siteWithHome(string $content): void
 	{
 		@unlink($this->db());
 		$this->site();
 		$db = $this->onDisk();
 		$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT);
-		$db->config->login = $login;
-		$db->config->theme = $theme;
 		$db->pages->home->content = $content;
 		file_put_contents($this->db(), json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 	}
@@ -161,7 +146,7 @@ final class InstallPasswordParagraphTest extends TestCase
 		return '<h4><a href="' . Wcms::url('loginURL') . '">' . $linkText . '</a> Your password is: <b>Ab3dEf7h</b></a></h4>'; // 3.1.4's createDb (3.0.x: "Click to login."), stray </a> included
 	}
 
-	public function testAPre320HomePageLosesTheH4AndKeepsALoginLink(): void
+	public function testAPre320HomePageLosesTheH4AndNothingIsAdded(): void
 	{
 		$tail = "\n\n<p class=\"mt-4\">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>";
 		foreach (['Click here to login.', 'Click to login.'] as $linkText) {
@@ -170,45 +155,11 @@ final class InstallPasswordParagraphTest extends TestCase
 			$this->login($this->site(), 'ownerPass1');
 
 			$after = $this->onDisk()->pages->home->content;
-			$this->assertSame("<h1>It's alive!</h1>" . $tail, $after, $linkText . ': the h4 and its blank line go, nothing is written in its place (Sky prints footer(), whose Login link remains), every other byte stays');
+			$this->assertSame("<h1>It's alive!</h1>" . $tail, $after, $linkText . ': the h4 and its blank line go, nothing is written in its place, every other byte stays');
 			$this->assertStringNotContainsString('Ab3dEf7h', $after);
 			$this->assertCount(1, $this->passwordAlerts());
 			unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
 		}
-	}
-
-	public function testAPre320HomePageOnAThemeWithoutTheCoreLoginLinkGetsOne(): void
-	{
-		$this->root = sys_get_temp_dir() . '/wcms-installpw-' . bin2hex(random_bytes(4));
-		mkdir($this->root . '/themes/bare', 0777, true);
-		file_put_contents($this->root . '/themes/bare/theme.php', "<?php echo \$Wcms->page('content');\n"); // neither header() nor footer(): no core Login link
-		$loginParagraph = '<p><a href="' . Wcms::url('loginURL') . '" class="button">Click here to login</a></p>';
-		$tail = "\n\n<p>More.</p>";
-
-		$this->siteWithHome("<h1>It's alive!</h1>\n\n" . $this->pre320H4() . $tail, 'loginURL', 'bare');
-		$this->login($this->site(), 'ownerPass1');
-		$this->assertSame("<h1>It's alive!</h1>\n\n" . $loginParagraph . $tail, $this->onDisk()->pages->home->content, 'no login link would remain: the login paragraph takes the h4\'s place, every other byte stays');
-		$this->assertCount(1, $this->passwordAlerts());
-		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
-
-		foreach (["\n\n<p><a href=\"" . Wcms::url('loginURL') . "\">Click here to login</a> any time.</p>", "\n\n<p><a class=\"x\" href=\"" . Wcms::url('loginURL') . "\">Sign in</a></p>"] as $kept) {
-			$this->siteWithHome("<h1>Hi</h1>\n\n" . $this->pre320H4() . $kept, 'loginURL', 'bare');
-			$this->login($this->site(), 'ownerPass1');
-			$this->assertSame("<h1>Hi</h1>" . $kept, $this->onDisk()->pages->home->content, 'a login link remains in the content: none is added');
-			unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
-		}
-	}
-
-	public function testAPre320HomePageWithACustomLoginUrlDoesNotPublishIt(): void
-	{
-		$this->siteWithHome("<h1>It's alive!</h1>\n\n" . $this->pre320H4() . "\n\n<p>More.</p>", 'my-door');
-
-		$this->login($this->site(), 'ownerPass1');
-
-		$this->assertTrue($_SESSION['loggedIn'] ?? false);
-		$after = $this->onDisk()->pages->home->content;
-		$this->assertSame("<h1>It's alive!</h1>\n\n<p>More.</p>", $after, 'the h4 goes; its link to loginURL was already dead');
-		$this->assertStringNotContainsString('my-door', $after, 'the custom login URL is not put on a public page');
 	}
 
 	public function testAHandEditedPre320H4IsNotTouched(): void
