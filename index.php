@@ -40,6 +40,15 @@ class Wcms
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters */
 	public const MIN_PASSWORD_LENGTH = 8;
 
+	/** Login attempts allowed per connecting address within LOGIN_THROTTLE_WINDOW seconds; the next one gets HTTP 429 */
+	private const LOGIN_THROTTLE_LIMIT = 10;
+	private const LOGIN_THROTTLE_WINDOW = 900;
+	/** Addresses kept in the attempts file, the most recent first: a spray from many addresses cannot grow it */
+	private const LOGIN_THROTTLE_MAX_ADDRESSES = 1000;
+	/** A browser that logged in before is never throttled; config keeps the hashes of the last few */
+	private const KNOWN_BROWSER_COOKIE = 'wcms_known_browser';
+	private const KNOWN_BROWSERS_KEPT = 10;
+
 	/** @var string WCMS_REPO - repo URL */
 	public const WCMS_REPO = 'https://raw.githubusercontent.com/WonderCMS/wondercms/main/';
 
@@ -83,6 +92,9 @@ class Wcms
 
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
+
+	/** @var string $loginAttemptsPath recent login attempts per address, in data/logs/ (denied over HTTP since 3.7.0) */
+	protected $loginAttemptsPath;
 
 	/** @var string $filesPath path to uploaded files */
 	public $filesPath;
@@ -133,6 +145,7 @@ class Wcms
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
 		$this->modulesCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
 		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
+		$this->loginAttemptsPath = sprintf('%s/%s', $this->dataPath, 'logs/login-attempts.json');
 	}
 
 	/**
@@ -2398,9 +2411,21 @@ EOT;
 		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
 		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 		$timestamp = date('c');
+		$throttleKey = $this->isKnownBrowser() ? null : $this->loginThrottleKey();
+		$retryAfter = $throttleKey !== null ? $this->countLoginAttempt($throttleKey) : 0;
+		if ($retryAfter > 0) { // before password_verify: a refused attempt costs no bcrypt check
+			$this->headerResponse = 'HTTP/1.1 429 Too Many Requests';
+			$this->headerResponseDefault = false;
+			header('Retry-After: ' . $retryAfter);
+			$this->alert('danger', 'Too many attempts. Try again in a few minutes.');
+			return;
+		}
 		$valid = password_verify($password, $this->get('config', 'password'));
 	
 		if ($valid) {
+			if ($throttleKey !== null) {
+				$this->clearLoginAttempts($throttleKey);
+			}
 			session_regenerate_id(true);
 			unset($_SESSION['token']); // a token the visitor's session already carried (the alert hide script, the search form, a failed login) is not the admin's: mint a new one after login, before a login_success listener reads it
 			// Success hook before any redirects
@@ -2414,6 +2439,7 @@ EOT;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
 			$this->saveAdminLoginIP();
+			$this->rememberBrowser();
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2446,6 +2472,152 @@ EOT;
 		$savedIPs[date('Y/m/d H:i:s')] = $getAdminIP;
 		krsort($savedIPs);
 		$this->set('config', 'lastLogins', array_slice($savedIPs, 0, 5));
+	}
+
+	/**
+	 * The bucket a login attempt is counted in: REMOTE_ADDR only (Client-IP and X-Forwarded-For are the client's to
+	 * choose), an IPv6 address by its /64 (one client holds a whole /64), an IPv4-mapped IPv6 address as the IPv4 one
+	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). No valid address gives null
+	 * and no throttle: one bucket for every request would let any visitor lock the owner out
+	 * @return string|null
+	 */
+	private function loginThrottleKey(): ?string
+	{
+		$address = $_SERVER['REMOTE_ADDR'] ?? null;
+		if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false) {
+			return null;
+		}
+		$packed = inet_pton($address);
+		if ($packed === false || strlen($packed) === 4) {
+			return $address;
+		}
+		if (strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
+			return (string)inet_ntop(substr($packed, 12));
+		}
+		return inet_ntop(substr($packed, 0, 8) . str_repeat("\0", 8)) . '/64';
+	}
+
+	/**
+	 * Count a login attempt for an address before its password is checked, so parallel requests cannot all pass
+	 * @param string $key
+	 * @return int 0 when counted; else the address already has LOGIN_THROTTLE_LIMIT attempts in the window, nothing is
+	 * counted and the seconds until its oldest attempt leaves the window come back
+	 */
+	private function countLoginAttempt(string $key): int
+	{
+		return $this->changeLoginAttempts(static function (array &$attempts, int $now) use ($key): int {
+			$times = $attempts[$key] ?? [];
+			if (count($times) >= self::LOGIN_THROTTLE_LIMIT) {
+				return max(1, min($times) + self::LOGIN_THROTTLE_WINDOW - $now);
+			}
+			$times[] = $now;
+			$attempts[$key] = $times;
+			return 0;
+		});
+	}
+
+	/**
+	 * A successful login clears its address
+	 * @param string $key
+	 * @return void
+	 */
+	private function clearLoginAttempts(string $key): void
+	{
+		$this->changeLoginAttempts(static function (array &$attempts) use ($key): int {
+			unset($attempts[$key]);
+			return 0;
+		});
+	}
+
+	/**
+	 * Read, prune, change and write the attempts file under an exclusive lock on a lock file next to it (writeFile()
+	 * renames a new file into place, so the file itself cannot hold the lock). Attempts older than the window are
+	 * dropped on every change and at most LOGIN_THROTTLE_MAX_ADDRESSES addresses are kept. A host without flock or
+	 * fopen changes it unlocked; a data/logs folder that cannot be written throttles nothing (it never locks the owner
+	 * out). Never database.js: a visitor's failed login writes nothing there
+	 * @param callable $change gets the attempts by reference and the time, returns the caller's result
+	 * @return int
+	 */
+	private function changeLoginAttempts(callable $change): int
+	{
+		$folder = dirname($this->loginAttemptsPath);
+		if (!is_dir($folder) && !@mkdir($folder, 0755) && !is_dir($folder)) {
+			return 0;
+		}
+		$lock = function_exists('flock') && function_exists('fopen') && function_exists('fclose')
+			? @fopen($this->loginAttemptsPath . '.lock', 'c')
+			: false;
+		if ($lock !== false) {
+			flock($lock, LOCK_EX);
+		}
+		$now = time();
+		$stored = is_file($this->loginAttemptsPath) ? json_decode($this->lockedRead($this->loginAttemptsPath), true) : [];
+		$attempts = [];
+		foreach (is_array($stored) ? $stored : [] as $address => $times) {
+			$times = array_values(array_filter(is_array($times) ? $times : [], static function ($time) use ($now): bool {
+				return is_int($time) && $time > $now - self::LOGIN_THROTTLE_WINDOW && $time <= $now;
+			}));
+			if ($times) {
+				$attempts[(string)$address] = array_slice($times, -self::LOGIN_THROTTLE_LIMIT);
+			}
+		}
+		$result = $change($attempts, $now);
+		uasort($attempts, static function (array $a, array $b): int {
+			return max($b) <=> max($a);
+		});
+		$attempts = array_slice($attempts, 0, self::LOGIN_THROTTLE_MAX_ADDRESSES, true);
+		$json = json_encode($attempts);
+		if ($json !== false && $stored !== $attempts) {
+			$this->writeFile($this->loginAttemptsPath, $json);
+		}
+		if ($lock !== false) {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+		}
+		return $result;
+	}
+
+	/**
+	 * Does this request carry the cookie of a browser that logged in before
+	 * @return bool
+	 */
+	private function isKnownBrowser(): bool
+	{
+		$value = $_COOKIE[self::KNOWN_BROWSER_COOKIE] ?? null;
+		if (!is_string($value) || !preg_match('/^[0-9a-f]{64}$/', $value)) {
+			return false;
+		}
+		$hash = hash('sha256', $value);
+		foreach (array_keys((array)($this->db->config->knownBrowsers ?? [])) as $known) { // not get(): it creates a missing key, a database write on a visitor's request
+			if (hash_equals((string)$known, $hash)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * After a login, give this browser the known-browser cookie (or renew the one it has) and keep its hash, never the
+	 * value, with the last KNOWN_BROWSERS_KEPT. The cookie only spares the browser the throttle; it never logs in
+	 * @return void
+	 * @throws Exception
+	 */
+	private function rememberBrowser(): void
+	{
+		$value = $this->isKnownBrowser() ? $_COOKIE[self::KNOWN_BROWSER_COOKIE] : bin2hex(random_bytes(32));
+		$hash = hash('sha256', $value);
+		$known = (array)($this->db->config->knownBrowsers ?? []);
+		unset($known[$hash]);
+		$known = [$hash => date('Y/m/d H:i:s')] + array_slice($known, 0, self::KNOWN_BROWSERS_KEPT - 1, true);
+		$this->set('config', 'knownBrowsers', $known);
+		$directory = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+		setcookie(self::KNOWN_BROWSER_COOKIE, $value, [
+			'expires' => time() + 31536000,
+			'path' => $directory === '' || $directory === '.' ? '/' : '/' . $directory . '/',
+			'secure' => self::isCurrentlyOnSSL(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		]);
 	}
 
 	/**
@@ -2923,7 +3095,7 @@ EOT;
 				$this->orderMenuItem($content, $menu);
 			}
 			if ($target === 'config') {
-				if (in_array($fieldname, ['password', 'customModules', 'menuItems', 'forceLogout', 'lastLogins', self::DISABLED_PLUGINS_KEY], true)) {
+				if (in_array($fieldname, ['password', 'customModules', 'menuItems', 'forceLogout', 'lastLogins', 'knownBrowsers', self::DISABLED_PLUGINS_KEY], true)) {
 					return;
 				}
 				if ($fieldname === 'defaultPage' && $content !== 'blog' && $this->getPageData($content) === null) {
