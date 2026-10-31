@@ -93,34 +93,79 @@ final class SearchTest extends TestCase
 		$this->assertSame(['games/', 'games/board/'], array_column($this->search('games'), 'slug'), 'the full path is compared, not the last slug');
 	}
 
-	public function testASearchRequestSkipsThePageItIsPostedTo(): void
+	private function probeSearch(string $page, ?string $urlPage = null): string
 	{
-		// searchAction() runs before init() resolves the page; the widget posts to the page it runs on
-		$probe = static function (string $page): string {
-			return (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search zebra ' . escapeshellarg('<p>zebra crossing</p>') . ' ' . escapeshellarg($page));
-		};
-		$this->assertSame('{"error":"No matching content found"}', $probe('home'));
-		$this->assertSame('{"error":"No matching content found"}', $probe('home/'), 'the trailing slash the widget posts with resolves the same page');
-		$this->assertSame('home', json_decode($probe('how-to'), true)[0]['slug'] ?? null);
-		$this->assertSame('home', json_decode($probe(''), true)[0]['slug'] ?? null, 'a request that names no page skips nothing: code that posts to the site root still finds the home page');
+		return (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search zebra ' . escapeshellarg('<p>zebra crossing</p>') . ' ' . escapeshellarg($page) . ($urlPage !== null ? ' ' . escapeshellarg($urlPage) : ''));
 	}
 
-	public function testTheWidgetOnTheSiteRootPostsToTheDefaultPageSoItIsSkipped(): void
+	public function testASearchRequestSkipsThePageItsWidgetRunsOn(): void
 	{
-		// #407 at /: the URL names no page, so a POST to window.location.href skipped nothing and the home page listed itself.
-		// The widget posts to the page the server resolved instead (the theme calls search() after pageStatus()).
-		unset($_GET['page']);
-		$this->wcms->pageStatus();
-		$widget = $this->wcms->search();
-		$this->assertStringContainsString("fetch('" . Wcms::url('home/') . "'", $widget);
-		$this->assertStringNotContainsString('window.location.href', $widget);
+		// searchAction() runs before init() resolves the page; the widget sends the page it runs on as a field
+		$none = '{"error":"No matching content found"}';
+		$this->assertSame($none, $this->probeSearch('home'));
+		$this->assertSame($none, $this->probeSearch('home/'), 'a trailing slash names the same page');
+		$this->assertSame('home', json_decode($this->probeSearch('how-to'), true)[0]['slug'] ?? null);
+		$this->assertSame('home', json_decode($this->probeSearch(''), true)[0]['slug'] ?? null, 'a request that names no page skips nothing: code that posts to the site root still finds the home page');
+	}
 
-		$probe = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search zebra ' . escapeshellarg('<p>zebra crossing</p>') . ' ' . escapeshellarg('home/'));
-		$this->assertSame('{"error":"No matching content found"}', $probe, 'posted where the widget on / posts, the home page is not a result');
+	public function testAPageFieldThatIsNotAnExistingPageSkipsNothing(): void
+	{
+		foreach (['nope', 'home/nope', 'home//x', '/home/x', 'array:'] as $page) {
+			$this->assertSame('home', json_decode($this->probeSearch($page), true)[0]['slug'] ?? null, $page);
+		}
+		$this->assertSame('home', json_decode($this->probeSearch('', 'home'), true)[0]['slug'] ?? null, 'the URL the search is posted to does not choose the skip');
+	}
 
-		$_GET['page'] = 'games/board/';
-		$this->wcms->pageStatus();
-		$this->assertStringContainsString("fetch('" . Wcms::url('games/board/') . "'", $this->wcms->search(), 'a nested page posts to its own path');
+	public function testTheWidgetPostsToTheSearchEndpointAndSendsThePageItRunsOn(): void
+	{
+		// #407 at /, /home, /home/ and a nested page: the server's own path of an existing page, never the URL as typed
+		$cases = ['' => '"home"', 'home' => '"home"', 'home/' => '"home"', 'games/board/' => '"games\/board"', 'games/board/chess' => '"games\/board\/chess"'];
+		foreach ($cases as $urlPage => $field) {
+			$_GET = $urlPage === '' ? [] : ['page' => $urlPage];
+			$this->wcms->pageStatus();
+			$widget = $this->wcms->search();
+			$this->assertStringContainsString("fetch('" . Wcms::url('search') . "', {", $widget, (string)$urlPage);
+			$this->assertStringContainsString(", page: $field })", $widget, (string)$urlPage);
+		}
+		$this->assertSame($this->probeSearch('home'), $this->probeSearch(json_decode('"home"')), 'the field as the browser sends it skips home');
+		$this->assertSame('home', json_decode($this->probeSearch(json_decode('"games\/board"')), true)[0]['slug'] ?? null);
+	}
+
+	public function testACrafted404UrlDoesNotReachTheWidgetScript(): void
+	{
+		// the fetch target and the page field come from server state only: a 404's path is the visitor's, the login page is no result
+		$widgets = [];
+		foreach (['nope', 'other/evil.txt?', 'other/evil.txt#', 'a\\x27b', "foo\nbar", "foo\u{2028}bar", '../x', "a'b\"c</script>", 'loginURL'] as $urlPage) {
+			$_GET = ['page' => $urlPage];
+			$this->wcms->pageStatus();
+			$this->assertFalse($this->wcms->currentPageExists, $urlPage);
+			$widgets[$urlPage] = $this->wcms->search();
+		}
+		foreach ($widgets as $urlPage => $widget) {
+			$this->assertSame($widgets['nope'], $widget, 'the script on ' . json_encode($urlPage) . ' is the plain 404 script');
+		}
+		$this->assertStringContainsString("fetch('" . Wcms::url('search') . "', {", $widgets['nope']);
+		$this->assertStringContainsString(', page: "" })', $widgets['nope']);
+		foreach (['evil', 'foo', 'x27', 'loginURL'] as $visitorText) {
+			$this->assertStringNotContainsString($visitorText, $widgets['nope']);
+		}
+	}
+
+	public function testJsStringIsSafeInsideAnInlineScript(): void
+	{
+		$method = new ReflectionMethod(Wcms::class, 'jsString');
+		if (PHP_VERSION_ID < 80100) {
+			$method->setAccessible(true);
+		}
+		$value = "a\nb\r\u{2028}\u{2029}'\"</script>&\\";
+		$literal = $method->invoke($this->wcms, $value);
+		$this->assertSame($value, json_decode($literal), 'the literal reads back as the value');
+		$inner = substr($literal, 1, -1);
+		$this->assertDoesNotMatchRegularExpression("/[\n\r'\"<>&\u{2028}\u{2029}]/u", $inner);
+		$this->assertStringStartsWith('"', $literal);
+		$this->assertStringEndsWith('"', $literal);
+		$this->assertSame('"\u2028"', $method->invoke($this->wcms, "\u{2028}"));
+		$this->assertSame('"\ufffd"', $method->invoke($this->wcms, "\xff"), 'invalid UTF-8 is a literal, not false');
 	}
 
 	public function testHiddenPagesAreSearchableAnd404IsNot(): void

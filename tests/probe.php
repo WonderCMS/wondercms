@@ -7,7 +7,8 @@
  * php tests/probe.php upload <tmpfile> <name>       uploadFileAction() with that file; prints the alert
  * php tests/probe.php update-run <dir> <newcore> [plant]  updateAction() inside <dir> (a copy of the site), downloading <newcore>;
  *                                                   plant = dir | stale | symlink | dangling puts that in the way at the temp path first (fixed by ProbeWcms::tempPath())
- * php tests/probe.php search <query> [text] [page]  searchAction() as a visitor with a valid token, posted to [page]; prints its JSON
+ * php tests/probe.php search <query> [text] [page] [url-page]  searchAction() as a visitor with a valid token, page field [page]
+ *                                                   (array: sends an array), posted to [url-page]; prints its JSON
  * php tests/probe.php locked-save <title>           save() with config.siteTitle set; prints the title read back
  * php tests/probe.php locked-read                   getDb(); prints the title it read (the wait happens in the constructor's read; the test times it from outside)
  * php tests/probe.php locked-json <file>            getJsonFileData() on the file (cache.json's read); prints what it decoded
@@ -88,7 +89,10 @@ switch ($mode) {
 			$wcms->set('pages', 'home', 'content', $argv[3]); // page text for the excerpt and highlight checks
 		}
 		if (isset($argv[4]) && $argv[4] !== '') {
-			$_GET['page'] = $argv[4]; // the page the search is posted to
+			$_POST['page'] = $argv[4] === 'array:' ? ['home'] : $argv[4]; // the widget's page field
+		}
+		if (isset($argv[5])) {
+			$_GET['page'] = $argv[5]; // the URL the search is posted to
 		}
 		$_POST['token'] = $wcms->getToken();
 		$m = new ReflectionMethod(Wcms::class, 'searchAction');
