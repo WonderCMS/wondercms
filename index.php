@@ -2396,7 +2396,8 @@ EOT;
 		}
 	
 		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
-		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+		// The connection address only: Client-IP and X-Forwarded-For are whatever the client sends
+		$ip = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) !== false ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 		$timestamp = date('c');
 		$valid = password_verify($password, $this->get('config', 'password'));
 	
@@ -2413,7 +2414,7 @@ EOT;
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
-			$this->saveAdminLoginIP();
+			$this->saveAdminLoginIP($ip);
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2431,13 +2432,8 @@ EOT;
 	/**
 	 * Save admins last 5 IPs
 	 */
-	private function saveAdminLoginIP(): void
+	private function saveAdminLoginIP(string $getAdminIP): void
 	{
-		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
-		if ($getAdminIP === null) {
-			return;
-		}
-
 		if (!$savedIPs = $this->get('config', 'lastLogins')) {
 			$this->set('config', 'lastLogins', []);
 			$savedIPs = [];
