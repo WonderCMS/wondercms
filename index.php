@@ -6,7 +6,12 @@
  * @license MIT
  */
 
-session_start();
+session_start([
+	'cookie_httponly' => true,
+	'cookie_samesite' => 'Lax',
+	'cookie_secure' => Wcms::isCurrentlyOnSSL(), // the class is declared below at the top level, so it is bound before this line runs (as new Wcms() below relies on)
+	'use_strict_mode' => true, // a session id the server never issued is replaced, not adopted
+]);
 define('VERSION', '3.7.1');
 mb_internal_encoding('UTF-8');
 
@@ -68,6 +73,9 @@ class Wcms
 
 	/** @var bool $loggedIn - check if admin is logged in */
 	public $loggedIn = false;
+
+	/** @var bool $replacingPassword - set by changePasswordAction() for the one save that may replace the password hash */
+	private $replacingPassword = false;
 
 	/** @var array $listeners for hooks */
 	public $listeners = [];
@@ -488,8 +496,12 @@ class Wcms
 				$this->redirect();
 				return;
 			}
-			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-			$this->set('config', 'forceLogout', true);
+			$this->replacingPassword = true;
+			try {
+				$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT)); // a new hash, a new stamp: every session stamped with the old one is logged out at its next request
+			} finally {
+				$this->replacingPassword = false;
+			}
 			$this->logoutAction(true);
 			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
@@ -1361,6 +1373,7 @@ EOT;
 
 	/**
 	 * Get something from database
+	 * Creates and saves a missing key: never call it for an optional key on an unauthenticated path
 	 */
 	public function get()
 	{
@@ -2398,7 +2411,8 @@ EOT;
 		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
 		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 		$timestamp = date('c');
-		$valid = password_verify($password, $this->get('config', 'password'));
+		$hash = $this->passwordHash();
+		$valid = $hash !== '' && password_verify($password, $hash);
 	
 		if ($valid) {
 			session_regenerate_id(true);
@@ -2412,7 +2426,7 @@ EOT;
 	
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
-			$this->set('config', 'forceLogout', false);
+			$_SESSION['authStamp'] = $this->authStamp($hash); // the hash that was verified, never a re-read one: a password change during the login leaves this session out
 			$this->saveAdminLoginIP();
 			$this->redirect();
 		} else {
@@ -2449,14 +2463,41 @@ EOT;
 	}
 
 	/**
-	 * Check if admin is logged in
+	 * Check if admin is logged in: the session must belong to this install and carry the stamp of the password hash on
+	 * disk, so a password change (or a hash edited by hand in database.js) logs out every session from before it.
+	 * A session from 3.7.1 or older has no stamp and logs in once more. config.forceLogout is no longer read.
 	 * @return void
 	 */
 	public function loginStatus(): void
 	{
-		$this->loggedIn = $this->get('config', 'forceLogout')
-			? false
-			: isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$thisInstall = isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$expected = $this->authStamp($this->passwordHash());
+		$given = $_SESSION['authStamp'] ?? null;
+		$this->loggedIn = $thisInstall && $expected !== '' && is_string($given) && hash_equals($expected, $given);
+		if ($thisInstall && !$this->loggedIn) {
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']); // emptied, so nothing reading $_SESSION directly (a hand-uploaded plugin) sees it as an admin session
+		}
+	}
+
+	/**
+	 * The password hash on disk, read without get(): get() would create and save a missing key on a visitor's request
+	 * @return string empty when the key is missing or not a string (a hand-edited database)
+	 */
+	private function passwordHash(): string
+	{
+		$config = $this->db->{self::DB_CONFIG} ?? null;
+		$hash = is_object($config) ? ($config->password ?? null) : null;
+		return is_string($hash) ? $hash : '';
+	}
+
+	/**
+	 * What a login session carries instead of the hash itself; unique per install through the bcrypt salt
+	 * @param string $hash
+	 * @return string empty for an empty hash, which no session matches
+	 */
+	private function authStamp(string $hash): string
+	{
+		return $hash === '' ? '' : hash_hmac('sha256', 'wcms-session-v1', $hash);
 	}
 
 	/**
@@ -2498,7 +2539,7 @@ EOT;
 			$to = isset($_GET['to']) && is_string($_GET['to']) && $_GET['to'] !== '' && !$this->isLogoutToLoginScreenEnabled()
 				? $_GET['to']
 				: $this->get('config', 'login');
-			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token'], $_SESSION['alert']);
 			$this->redirect($to);
 		}
 	}
@@ -2880,6 +2921,17 @@ EOT;
 				sprintf('%s/%s', $logsPath, $logName)
 			);
 			return;
+		}
+		if ($path === $this->dbPath && !$this->replacingPassword) {
+			// Every save writes the whole snapshot this request read; one read before a password change (a login spends ~100 ms
+			// in bcrypt) would write the old hash back and revive every session stamped with it. Only changePasswordAction() replaces it.
+			$onDisk = json_decode($this->lockedRead($path));
+			$diskHash = is_object($onDisk) && isset($onDisk->{self::DB_CONFIG}) && is_object($onDisk->{self::DB_CONFIG}) ? ($onDisk->{self::DB_CONFIG}->password ?? null) : null;
+			$config = $content->{self::DB_CONFIG} ?? null;
+			if (is_string($diskHash) && $diskHash !== '' && is_object($config) && ($config->password ?? null) !== $diskHash) { // no readable hash on disk (the first install, a vanished file): saved as it is
+				$config->password = $diskHash; // $content is $this->db: the request's own copy is corrected too
+				$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+			}
 		}
 		if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
 			$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
