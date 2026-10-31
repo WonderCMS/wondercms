@@ -364,13 +364,37 @@ class Wcms
 		if (!$this->loggedIn) {
 			return;
 		}
-		$backupList = glob($this->filesPath . '/*-backup-*.zip');
+		$backupList = array_filter(glob($this->filesPath . '/*-backup-*.zip') ?: [], [$this, 'isBackupArchiveName']);
 		if (!empty($backupList)) {
 			$this->alert('danger',
-				'Backup files detected. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete unnecessary backup files</b></a>');
+				'Old backup files detected. Backups now download to your computer and are not kept on the server. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete the old backup files</b></a>');
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
+			$this->removeStaleBackupArchives();
 			$this->zipBackup();
+		}
+	}
+
+	/**
+	 * Remove archives a killed backup request left under data/ (a time limit or a fatal mid-stream skips the finally that
+	 * unlinks), and libzip's in-progress files a request killed during close() left under data/ (or, before 3.7.2, under
+	 * data/files). Only the exact backup names, and only older than a request can live: a fresh one is another request's
+	 * archive about to be sent, or still being written.
+	 *
+	 * @return void
+	 */
+	public function removeStaleBackupArchives(): void
+	{
+		if (!function_exists('unlink')) {
+			return; // a host that disables unlink keeps the leftovers; the walk skips them, so the next backup still works
+		}
+		$maxAge = max(300, (int)ini_get('max_execution_time'));
+		$candidates = array_merge(glob($this->dataPath . '/*-backup-*.zip*') ?: [], glob($this->filesPath . '/*-backup-*.zip.*') ?: []);
+		foreach ($candidates as $file) {
+			$isLeftover = $this->isBackupTempName($file) || (dirname($file) === $this->dataPath && $this->isBackupArchiveName($file)); // a finished archive in data/files is an old backup, the admin's to delete in Files
+			if ($isLeftover && is_file($file) && filemtime($file) < time() - $maxAge) {
+				@unlink($file);
+			}
 		}
 	}
 
@@ -3288,10 +3312,15 @@ EOT;
 							 <p class="subTitle marginTop20">Delete files</p>
 							 <div class="change">';
 		foreach ($fileList as $file) {
+			if ($this->isBackupTempName($file)) {
+				continue; // an unfinished backup a killed request left (before 3.7.2): never offered as a file, removed by the next backup once stale
+			}
+			$fileLink = '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>'
+				. ($this->isBackupArchiveName($file) ? ' (old backup: download it if you need it, then delete it)' : ''); // made before 3.7.2, which keeps no backup on the server; the owner keeps the link
 			$output .= '
 									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
-										<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>
+										' . $fileLink . '
 									</span>
 									<p></p>';
 		}
@@ -4048,37 +4077,158 @@ EOT;
 	}
 
 	/**
-	 * Create a ZIP backup of whole WonderCMS installation (all files)
+	 * Create a ZIP backup of whole WonderCMS installation (all files) and send it to the admin as a download.
+	 * Nothing is kept on the server: before 3.7.2 the archive stayed in data/files under a public URL.
 	 *
 	 * @return void
 	 */
 	public function zipBackup(): void
 	{
+		if ($this->backupSender() === '') {
+			$this->alert('danger', 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).');
+			return;
+		}
 		try {
-			$randomNumber = random_bytes(8);
+			$zipPath = $this->createBackupArchive();
 		} catch (Exception $e) {
-			$randomNumber = microtime(false);
-		}
-		$zipName = date('Y-m-d') . '-backup-' . bin2hex($randomNumber) . '.zip';
-		$zipPath = $this->rootDir . '/data/files/' . $zipName;
-		$zip = new ZipArchive();
-		if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
 			$this->alert('danger', 'Cannot create ZIP archive.');
+			return;
 		}
+		$this->sendBackup($zipPath);
+	}
+
+	/**
+	 * Is $name a backup archive (data/files/<date>-backup-<hex>.zip before 3.7.2, data/<date>-backup-<hex>.zip while one is sent)
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isBackupArchiveName(string $name): bool
+	{
+		// The exact shape every backup has had since 3.1.0 (16, 42 or 32 hex): an admin's own holiday-backup-2024.zip is an upload
+		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip$~i', $name); // a bare name or a path, with either separator
+	}
+
+	/**
+	 * Is $name the file libzip writes a backup archive into during close(): <backup name>.XXXXXX.part (libzip 1.10+),
+	 * <backup name>.XXXXXX (older) or <backup name>.<8 hex> (Windows). It is renamed to the backup name when complete;
+	 * a killed request leaves it behind as a partial copy of the site
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isBackupTempName(string $name): bool
+	{
+		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip\.[A-Za-z0-9]{6,8}(\.part)?$~iD', $name);
+	}
+
+	/**
+	 * Build the backup archive under data/ and return its path; the caller sends and removes it
+	 * @return string
+	 * @throws Exception
+	 */
+	public function createBackupArchive(): string
+	{
+		$zipPath = $this->dataPath . '/' . date('Y-m-d') . '-backup-' . bin2hex(random_bytes(16)) . '.zip';
+		$zip = new ZipArchive();
+		if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::EXCL) !== true) {
+			throw new Exception('Cannot create ZIP archive.');
+		}
+		$source = realpath($this->rootDir);
+		$filesPath = realpath($this->filesPath);
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
 		foreach ($files as $file) {
 			$file = realpath($file);
-			$source = realpath($this->rootDir);
+			$name = str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			if (is_dir($file)) {
-				$zip->addEmptyDir(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file . DIRECTORY_SEPARATOR)); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
-			} elseif (is_file($file)) {
-				$zip->addFromString(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file), $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				$zip->addEmptyDir($name . '/');
+			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)) { // not the archive itself, not the old backups (each one used to nest all earlier ones), and not another build's file in progress
+				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
+					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
+				} else {
+					$zip->addFromString($name, $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				}
 			}
 		}
-		$zip->close();
-		$this->redirect('data/files/' . $zipName);
+		if (!$zip->close()) {
+			if (function_exists('unlink')) {
+				@unlink($zipPath);
+			}
+			throw new Exception('Cannot create ZIP archive.');
+		}
+		return $zipPath;
+	}
+
+	/**
+	 * The function that sends the backup on this host: readfile, else fopen with fpassthru, else fopen with an fread loop;
+	 * '' where hardened disable_functions leave none (the backup is then refused before it is built)
+	 * @return string
+	 */
+	private function backupSender(): string
+	{
+		if (function_exists('readfile')) {
+			return 'readfile';
+		}
+		if (!function_exists('fopen')) {
+			return '';
+		}
+		if (function_exists('fpassthru')) {
+			return 'fpassthru';
+		}
+		return function_exists('fread') ? 'fread' : '';
+	}
+
+	/**
+	 * Send the backup archive at $zipPath as a download and remove it, also when the transfer fails
+	 * @param string $zipPath
+	 * @return void
+	 */
+	public function sendBackup(string $zipPath): void
+	{
+		try {
+			if (function_exists('ignore_user_abort')) {
+				ignore_user_abort(true); // the admin who cancels the download must not stop the script before the finally below removes the archive
+			}
+			if (function_exists('ob_get_level') && function_exists('ob_end_clean')) { // a host that disables the ob_* functions has no buffer to close
+				while (ob_get_level() > 0 && @ob_end_clean()) { // a buffer left open by a plugin would hold the whole archive in memory; stops on one that cannot be removed, as loadThemeAndFunctions() does (its notice must not land in front of the archive)
+				}
+			}
+			if (headers_sent()) { // a plugin already printed, unbuffered: the archive would land as bytes inside the page
+				$this->alert('danger', 'Cannot send the backup: a plugin or theme printed output before it. Disable it and try again.');
+				return;
+			}
+			$sender = $this->backupSender(); // chosen and opened before any header: once the attachment headers are out, a failure is a corrupt download
+			$handle = in_array($sender, ['fpassthru', 'fread'], true) ? @fopen($zipPath, 'rb') : null;
+			if ($sender === '' || $handle === false) {
+				$this->alert('danger', $sender === '' ? 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).' : 'Cannot send the backup: the archive could not be opened.');
+				return;
+			}
+			header('Content-Type: application/zip');
+			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
+			header('Cache-Control: no-store');
+			if (!ini_get('zlib.output_compression')) {
+				header('Content-Length: ' . filesize($zipPath)); // the compressed body would be shorter than the file
+			}
+			if ($handle === null) {
+				readfile($zipPath);
+			} else {
+				if ($sender === 'fpassthru') {
+					fpassthru($handle);
+				} else {
+					while (($chunk = fread($handle, 1048576)) !== false && $chunk !== '') {
+						echo $chunk;
+					}
+				}
+				if (function_exists('fclose')) {
+					fclose($handle);
+				}
+			}
+		} finally {
+			if (function_exists('unlink')) { // disabled on some hardened hosts: the archive stays under data/ (a 128-bit random name, listed nowhere) and is skipped by the next backup's walk
+				@unlink($zipPath);
+			}
+		}
+		die();
 	}
 
 	/**

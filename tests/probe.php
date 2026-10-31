@@ -11,7 +11,7 @@
  * php tests/probe.php locked-save <title>           save() with config.siteTitle set; prints the title read back
  * php tests/probe.php locked-read                   getDb(); prints the title it read (the wait happens in the constructor's read; the test times it from outside)
  * php tests/probe.php locked-json <file>            getJsonFileData() on the file (cache.json's read); prints what it decoded
- * php tests/probe.php locked-zip <root>             zipBackup() of <root> into <root>/data/files; prints the archive paths
+ * php tests/probe.php locked-zip <root>             createBackupArchive() of <root> into <root>/data_test; prints the archive path
  * php tests/probe.php locked-stale-saves <go> <ms>  reads the database, prints "ready", waits for the file <go> (- for none), then
  *                                                   saves siteTitle from that snapshot for <ms> milliseconds (0: once); prints the count
  * php tests/probe.php module-delete <root> <type> <name>          deleteFileModuleAction() as the admin; prints the alerts
@@ -135,8 +135,7 @@ switch ($mode) {
 		echo json_encode(['saves' => $saves]);
 		break;
 	case 'locked-zip':
-		$wcms->zipBackup();
-		echo json_encode(['zips' => glob($argv[2] . '/data/files/*.zip')]);
+		echo json_encode(['zips' => [$wcms->createBackupArchive()]]);
 		break;
 	case 'module-delete':
 	case 'module-install':

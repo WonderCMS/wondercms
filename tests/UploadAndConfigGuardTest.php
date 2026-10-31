@@ -95,6 +95,91 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $html);
 	}
 
+	public function testTheFilesTabKeepsTheLinkToAnOldBackup(): void
+	{
+		// Backups made before 3.7.2 sit in data/files. The owner is the only one who knows the name, so the tab keeps its link
+		// and its delete button and notes that it is an old backup; an unfinished one (libzip's temp file) is not listed.
+		$backup = '2026-01-01-backup-0123456789abcdef.zip';
+		$temp = $backup . '.R4t5Y6.part'; // libzip's unfinished archive from a 3.7.1 backup killed during close()
+		$uploads = ['notes-backup-plan.zip', 'holiday-backup-2024.zip', 'site-backup-1.zip', 'film.mp4.part'];
+		file_put_contents($this->wcms->filesPath . '/' . $backup, 'old');
+		file_put_contents($this->wcms->filesPath . '/' . $temp, 'partial');
+		foreach ($uploads as $upload) {
+			file_put_contents($this->wcms->filesPath . '/' . $upload, 'an upload');
+		}
+		try {
+			$html = $this->wcms->settings();
+			$this->assertStringContainsString('deleteModule=' . $backup . '&type=files', $html, 'the delete button stays');
+			$this->assertStringContainsString('/data/files/' . $backup . '" class="normalFont"', $html, 'the download link stays');
+			$this->assertSame(1, substr_count($html, '(old backup: download it if you need it, then delete it)'), 'only the real backup carries the note');
+			$this->assertStringNotContainsString($temp, $html, 'an unfinished backup is not listed at all');
+			foreach ($uploads as $upload) {
+				$this->assertStringContainsString('data/files/' . $upload, $html, 'an upload named like a backup but without the date and the random suffix keeps its link');
+			}
+		} finally {
+			@unlink($this->wcms->filesPath . '/' . $temp);
+			@unlink($this->wcms->filesPath . '/' . $backup);
+			foreach ($uploads as $upload) {
+				@unlink($this->wcms->filesPath . '/' . $upload);
+			}
+		}
+	}
+
+	public function testOnlyTheExactBackupNameShapeIsABackup(): void
+	{
+		// Every backup since 3.1.0 is <date>-backup-<hex>.zip with 16 hex (random_bytes(8)), 42 (the microtime fallback) or 32
+		// (3.7.2). A looser pattern took an admin's own uploads for backups: left out of the archive.
+		foreach ([
+			'2026-01-01-backup-0123456789abcdef.zip',
+			'2026-01-01-BACKUP-0123456789ABCDEF.ZIP',
+			'2024-05-06-backup-' . str_repeat('0', 42) . '.zip',
+			'2026-10-31-backup-' . str_repeat('f', 32) . '.zip',
+			'/srv/site/data/2026-10-31-backup-' . str_repeat('f', 32) . '.zip',
+			'C:\\site\\data\\2026-10-31-backup-' . str_repeat('f', 32) . '.zip',
+		] as $name) {
+			$this->assertTrue($this->wcms->isBackupArchiveName($name), $name);
+		}
+		foreach ([
+			'holiday-backup-2024.zip',
+			'site-backup-1.zip',
+			'db-backup-cafe.zip',
+			'notes-backup-plan.zip',
+			'2026-01-01-backup-0123456789abcde.zip', // 15 hex
+			'2026-01-01-backup-0123456789abcdef.zip.tmp',
+			'x2026-01-01-backup-0123456789abcdef.zip',
+			'photos.zip',
+		] as $name) {
+			$this->assertFalse($this->wcms->isBackupArchiveName($name), $name);
+		}
+	}
+
+	public function testOnlyLibzipsTempNamesOfABackupAreBackupTempFiles(): void
+	{
+		$backup = '2026-10-31-backup-' . str_repeat('f', 32) . '.zip';
+		foreach ([
+			$backup . '.2uyoxo.part', // libzip 1.10 and later
+			$backup . '.Ab12Cd', // older libzip
+			$backup . '.0a1b2c3d', // libzip on Windows
+			'2026-01-01-backup-0123456789abcdef.zip.R4t5Y6.part', // 3.7.1's name in data/files
+			'/srv/site/data/' . $backup . '.2uyoxo.part',
+			'C:\\site\\data\\' . $backup . '.0a1b2c3d',
+		] as $name) {
+			$this->assertTrue($this->wcms->isBackupTempName($name), $name);
+		}
+		foreach ([
+			$backup, // the finished archive is isBackupArchiveName()'s
+			$backup . '.tmp',
+			$backup . '.abc12.part', // 5 characters
+			$backup . '.2uyoxo.part.php',
+			$backup . ".2uyoxo.part\n",
+			'film.mp4.part',
+			'holiday-backup-2024.zip.2uyoxo.part',
+			'x' . $backup . '.2uyoxo.part',
+		] as $name) {
+			$this->assertFalse($this->wcms->isBackupTempName($name), $name);
+		}
+	}
+
 	public function testACustomModuleUrlMustBeHttpOrHttps(): void
 	{
 		$dir = sys_get_temp_dir() . '/wcms-module-' . bin2hex(random_bytes(3));
@@ -327,8 +412,8 @@ final class UploadAndConfigGuardTest extends TestCase
 		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.lock', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
 			$this->assertTrue($denied($path), $path);
 		}
-		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg'] as $path) {
-			$this->assertFalse($denied($path), $path);
+		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg', 'data/files/photos.zip', 'data/files/notes-backup-plan.zip', 'data/files/holiday-backup-2024.zip', 'data/files/site-backup-1.zip', 'data/files/2026-01-01-backup-0123456789abcdef.zip'] as $path) {
+			$this->assertFalse($denied($path), $path); // an old backup too: the Files tab links it for its owner
 		}
 		$this->assertSame(substr_count($htaccess, "\n"), substr_count($htaccess, "\r\n"), 'CRLF line ends kept');
 	}
