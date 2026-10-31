@@ -100,7 +100,7 @@ final class UploadAndConfigGuardTest extends TestCase
 		$dir = sys_get_temp_dir() . '/wcms-module-' . bin2hex(random_bytes(3));
 		mkdir($dir);
 		file_put_contents($dir . '/wcms-modules.json', json_encode(['themes' => ['local' => ['name' => 'Local', 'repo' => 'file://' . $dir, 'zip' => 'file://' . $dir . '/local.zip', 'summary' => 's', 'version' => '1.0.0', 'image' => '']]]));
-		$this->wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+		wcmsSetPasswordOnDisk($this->wcms, 'secret');
 		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
 		$_POST = ['pluginThemeUrl' => 'file://' . $dir . '/wcms-modules.json', 'pluginThemeType' => 'themes', 'password_recheck' => 'secret', 'token' => $this->wcms->getToken()];
 		try {
@@ -324,7 +324,7 @@ final class UploadAndConfigGuardTest extends TestCase
 			}
 			return false;
 		};
-		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
+		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.lock', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
 			$this->assertTrue($denied($path), $path);
 		}
 		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg'] as $path) {

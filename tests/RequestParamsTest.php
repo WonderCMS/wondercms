@@ -71,8 +71,7 @@ final class RequestParamsTest extends TestCase
 
 	public function testAnArrayPageToDeleteChangesNothing(): void
 	{
-		$_SESSION['loggedIn'] = true;
-		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		wcmsAdminSession($this->wcms);
 		$this->wcms->loginStatus();
 		$before = file_get_contents(__DIR__ . '/../data_test/database_test.js');
 		$_GET = $_REQUEST = ['delete' => ['home'], 'token' => $this->wcms->getToken()];
