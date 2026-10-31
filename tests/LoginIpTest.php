@@ -56,13 +56,20 @@ final class LoginIpTest extends TestCase
 		$this->logIn();
 		$this->assertSame(['203.0.113.5'], $this->storedIps());
 
-		unset($_SERVER['HTTP_CLIENT_IP']);
+		$_SERVER['HTTP_CLIENT_IP'] = '192.0.2.9';
 		$_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.7';
 		$this->assertSame('203.0.113.5', $this->recordedBy(function () {
 			$this->wcms->loggedIn = false;
 			unset($_SESSION['loggedIn']);
 			$this->logIn();
-		}), 'a well-formed forwarded address is not trusted either');
+		}), 'well-formed Client-IP and X-Forwarded-For addresses are not trusted either');
+
+		unset($_SERVER['HTTP_CLIENT_IP']);
+		$this->assertSame('203.0.113.5', $this->recordedBy(function () {
+			$this->wcms->loggedIn = false;
+			unset($_SESSION['loggedIn']);
+			$this->logIn();
+		}), 'nor a well-formed X-Forwarded-For on its own');
 	}
 
 	public function testAnAddressThatIsNotAnIpIsRecordedAsUnknown(): void

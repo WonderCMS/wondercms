@@ -88,7 +88,7 @@ final class UploadAndConfigGuardTest extends TestCase
 
 	public function testLoginIpsAreEscapedInTheSettingsPanel(): void
 	{
-		// A proxy header is stored as sent; the settings panel must print it as text.
+		// Before 3.7.2 a proxy header was stored as sent and can still be in the database; the settings panel must print it as text.
 		$this->wcms->set('config', 'lastLogins', ['2026/10/28 10:00:00' => '<img src=x onerror=alert(1)>']);
 		$html = $this->wcms->settings();
 		$this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $html);
