@@ -134,7 +134,7 @@ final class PrivatePagesTest extends TestCase
 
 	public function testTheHomePageThePagesAboveItAndThe404PageCannotBePrivate(): void
 	{
-		$this->wcms->createPage(['404'], true);
+		$this->wcms->createMenuItem('404'); // a menu entry for the existing 404 page; createPage() refuses an existing slug
 		$this->wcms->set('config', 'defaultPage', 'games/board');
 		$this->wcms = $this->admin();
 		$menu = $this->wcms->get('config', 'menuItems');
