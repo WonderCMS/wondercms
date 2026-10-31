@@ -2414,6 +2414,7 @@ EOT;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
 			$this->saveAdminLoginIP();
+			$this->removeInstallPasswordParagraph();
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2446,6 +2447,28 @@ EOT;
 		$savedIPs[date('Y/m/d H:i:s')] = $getAdminIP;
 		krsort($savedIPs);
 		$this->set('config', 'lastLogins', array_slice($savedIPs, 0, 5));
+	}
+
+	/**
+	 * Remove the password paragraph createDb() writes into the public home page, at the admin's first login (and at the
+	 * next login of a site installed before this check existed). Only the untouched paragraph matches: a home page whose
+	 * paragraph was edited by hand is not written.
+	 * @return void
+	 * @throws Exception
+	 */
+	private function removeInstallPasswordParagraph(): void
+	{
+		$pages = $this->get('pages');
+		if (!isset($pages->home->content) || !is_string($pages->home->content)) { // not get('pages', 'home'): get() would create a deleted home page
+			return;
+		}
+		$content = preg_replace('~<p>Your password for editing everything is: <b>[^<]*</b></p>(?:\r?\n){0,2}~', '', $pages->home->content, 1, $count);
+		if ($content === null || $count !== 1) {
+			return;
+		}
+		$this->set('pages', 'home', 'content', $content);
+		$this->alert('info',
+			'Your password is no longer shown on the home page; to change it, open <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
 	}
 
 	/**
