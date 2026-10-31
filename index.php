@@ -288,7 +288,7 @@ class Wcms
 					. '">'
 					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove();">&times;</button>' : '')
 					. $alert['message']
-					. $this->hideAlerts();
+					. ($this->loggedIn ? $this->hideAlerts() : '</div>'); // hideAlerts() closes the alert after its link; a visitor gets no link
 			}
 		}
 		$output .= '</div>';
@@ -1045,7 +1045,23 @@ class Wcms
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
-		return $this->hook('css', '')[0];
+		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, only on a page that shows one (alerts() prints what is queued, or already printed it), all under .alertWrapper so a theme's own .alert boxes are untouched.
+		// The admin stylesheet stays admin-only; !important beats a theme's own button rules. The hook keeps its argument ('' for a visitor, as before), so a listener that replaces it cannot drop these rules; its output follows them
+		if (!$this->printedAlerts && (empty($_SESSION['alert']) || isset($_POST['fieldname'], $_POST['content'], $_POST['target']))) {
+			return $this->hook('css', '')[0];
+		}
+		$styles = <<<'EOT'
+<style>
+.alertWrapper{position:fixed;top:0;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;font-size:14px;line-height:1.5}
+.alertWrapper .alert{position:relative;top:70px;margin-bottom:20px;padding:20px 30px;border:1px solid transparent;border-radius:5px;text-align:left}
+.alertWrapper .alert-danger{color:#a94442;background-color:#f2dede;border-color:#ebccd1}
+.alertWrapper .alert-success{color:#155724;background-color:#d4edda;border-color:#c3e6cb}
+.alertWrapper .alert-dismissible{padding-right:50px}
+.alertWrapper .alert .close{position:absolute;top:10px;right:14px;width:auto;height:auto;min-width:0;min-height:0;margin:0;padding:0 4px;background:none!important;border:0!important;border-radius:0;box-shadow:none;color:#000!important;opacity:.4;font:700 21px/1 Arial,sans-serif;letter-spacing:normal;text-transform:none;text-shadow:#fff 0 1px 0;-webkit-appearance:none;appearance:none;cursor:pointer}
+.alertWrapper .alert .close:after{display:none}
+</style>
+EOT;
+		return $styles . $this->hook('css', '')[0];
 	}
 
 	/**
@@ -3185,7 +3201,7 @@ EOT;
 									<button type="submit" class="wbtn wbtn-block wbtn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 							 
 							 <p class="subTitle">Save confirmation popup</p>
 							 <p class="change small">If this is turned "ON", WonderCMS will always ask you to confirm any changes you make.</p>
@@ -3234,7 +3250,7 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
 		$output .= $this->renderAdminLoginIPs();
 		$output .= '
 				 		 </div>
@@ -3245,7 +3261,7 @@ EOT;
 							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
 							<b><a href="https://wondercms.com/news" target="_blank">News</a> &nbsp;
 							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
-							<a href="https://wondercms.com/docs" target="_blank">Docs</a> &nbsp;
+							<a href="https://docs.wondercms.com/" target="_blank">Docs</a> &nbsp;
 							<a href="https://wondercms.com/donate" target="_blank">Donate</a> &nbsp;
 							<a href="https://swag.wondercms.com" target="_blank">Shop/Merch</a></b>
 						</p>
@@ -3561,7 +3577,7 @@ EOT;
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" /><input type="hidden" name="password_recheck" />
 					</form>
-					<p class="text-right"><a href="https://www.wondercms.com/docs/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
+					<p class="text-right"><a href="https://docs.wondercms.com/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
 		return $output;
 	}
@@ -4170,7 +4186,7 @@ EOT;
 				$results[] = [
 					'title' => $page->title ?? '',
 					'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
-					'slug' => $prefix . $slug
+					'slug' => $prefix . $slug . (!empty((array)($page->subpages ?? [])) ? '/' : '') // a parent ends with '/', as in the menu (renderPageNavMenuItem), so its relative links resolve the same
 				];
 			}
 			if (!empty($page->subpages) && is_object($page->subpages)) {
