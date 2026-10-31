@@ -38,6 +38,18 @@ final class AlertStyleTest extends TestCase
 		$this->assertDoesNotMatchRegularExpression('/:hover|:focus|:checked|@media|url\(/', $css, 'touch and mouse render the same; nothing is fetched');
 	}
 
+	public function testACssListenerThatReplacesItsArgumentKeepsTheVisitorAlertRules(): void
+	{
+		// the hook keeps its 3.7.1 argument ('' for a visitor); the alert rules are not something a plugin can drop by returning its own string
+		$this->wcms->loggedIn = false;
+		$received = null;
+		$this->wcms->addListener('css', static function ($args) use (&$received) { $received = $args[0]; return ['/* plugin */']; });
+		$css = $this->wcms->css();
+		$this->assertSame('', $received);
+		$this->assertStringContainsString('.alertWrapper .alert .close{', $css);
+		$this->assertStringEndsWith('</style>/* plugin */', $css, 'the plugin\'s rules follow the core\'s, as the admin stylesheet\'s listeners do');
+	}
+
 	public function testTheAdminGetsTheStylesheetAndNotTheInlineRules(): void
 	{
 		$this->wcms->loggedIn = true;

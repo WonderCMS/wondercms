@@ -995,7 +995,8 @@ class Wcms
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
-		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, the admin stylesheet stays admin-only; !important beats a theme's own button rules
+		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, the admin stylesheet stays admin-only; !important beats a theme's own button rules.
+		// The hook keeps its argument ('' for a visitor, as before), so a listener that replaces it cannot drop these rules; its output follows them
 		$styles = <<<'EOT'
 <style>
 .alertWrapper{position:fixed;top:0;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;font-size:14px;line-height:1.5}
@@ -1007,7 +1008,7 @@ EOT;
 .alertWrapper .alert .close:after{display:none}
 </style>
 EOT;
-		return $this->hook('css', $styles)[0];
+		return $styles . $this->hook('css', '')[0];
 	}
 
 	/**
@@ -4035,7 +4036,7 @@ EOT;
 				}
 
 				try {
-					const response = await fetch(window.location.href, {
+					const response = await fetch('{$this->getCurrentPageUrl()}', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 						body: new URLSearchParams({ query, token: '{$this->getToken()}' })
@@ -4086,7 +4087,7 @@ EOT;
 				exit;
 			}
 			if (is_string($_GET['page'] ?? null) && trim($_GET['page'], " \t\n\r\0\x0B/") !== '') {
-				$this->pageStatus(); // the widget posts to the page it runs on, which searchPages() skips; init() searches before it resolves the page. No page named (code posting to the site root) skips nothing
+				$this->pageStatus(); // the widget posts to the page it runs on (the server's path, home/ at the site root), which searchPages() skips; init() searches before it resolves the page. No page named (code posting to the site root) skips nothing
 			}
 			$results = $this->searchPages($this->get('pages'), $query);
 

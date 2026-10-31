@@ -100,8 +100,27 @@ final class SearchTest extends TestCase
 			return (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search zebra ' . escapeshellarg('<p>zebra crossing</p>') . ' ' . escapeshellarg($page));
 		};
 		$this->assertSame('{"error":"No matching content found"}', $probe('home'));
+		$this->assertSame('{"error":"No matching content found"}', $probe('home/'), 'the trailing slash the widget posts with resolves the same page');
 		$this->assertSame('home', json_decode($probe('how-to'), true)[0]['slug'] ?? null);
 		$this->assertSame('home', json_decode($probe(''), true)[0]['slug'] ?? null, 'a request that names no page skips nothing: code that posts to the site root still finds the home page');
+	}
+
+	public function testTheWidgetOnTheSiteRootPostsToTheDefaultPageSoItIsSkipped(): void
+	{
+		// #407 at /: the URL names no page, so a POST to window.location.href skipped nothing and the home page listed itself.
+		// The widget posts to the page the server resolved instead (the theme calls search() after pageStatus()).
+		unset($_GET['page']);
+		$this->wcms->pageStatus();
+		$widget = $this->wcms->search();
+		$this->assertStringContainsString("fetch('" . Wcms::url('home/') . "'", $widget);
+		$this->assertStringNotContainsString('window.location.href', $widget);
+
+		$probe = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' search zebra ' . escapeshellarg('<p>zebra crossing</p>') . ' ' . escapeshellarg('home/'));
+		$this->assertSame('{"error":"No matching content found"}', $probe, 'posted where the widget on / posts, the home page is not a result');
+
+		$_GET['page'] = 'games/board/';
+		$this->wcms->pageStatus();
+		$this->assertStringContainsString("fetch('" . Wcms::url('games/board/') . "'", $this->wcms->search(), 'a nested page posts to its own path');
 	}
 
 	public function testHiddenPagesAreSearchableAnd404IsNot(): void
