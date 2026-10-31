@@ -3900,7 +3900,8 @@ EOT;
 	 */
 	public function isBackupArchiveName(string $name): bool
 	{
-		return (bool)preg_match('~-backup-[0-9a-f]+\.zip$~i', $name); // the same pattern the shipped .htaccess refuses
+		// The exact shape every backup has had since 3.1.0 (16, 42 or 32 hex), the same the shipped .htaccess refuses: an admin's own holiday-backup-2024.zip is an upload
+		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip$~i', $name); // a bare name or a path, with either separator
 	}
 
 	/**

@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 final class BackupTest extends TestCase
 {
 	private const LEGACY = '2026-01-01-backup-0123456789abcdef.zip';
+	private const UPLOAD = 'holiday-backup-2024.zip'; // an admin's own upload, named like a backup but without the date and the random suffix
 
 	/** @var resource|null */
 	private $server;
@@ -34,6 +35,7 @@ final class BackupTest extends TestCase
 		file_put_contents($this->site . '/themes/sky/theme.php', '<?php // sky');
 		file_put_contents($this->site . '/data/files/photo.jpg', 'jpeg');
 		file_put_contents($this->site . '/data/files/' . self::LEGACY, 'an old backup with an old password hash');
+		file_put_contents($this->site . '/data/files/' . self::UPLOAD, 'holiday photos');
 		$this->writeRouter();
 	}
 
@@ -142,7 +144,7 @@ final class BackupTest extends TestCase
 	{
 		$this->assertSame([], glob($this->site . '/data/*.zip'), 'no archive left under data/');
 		$this->assertSame([], array_values(array_diff(scandir($this->site . '/data'), ['.', '..', 'files', 'database.js'])), 'nothing else left under data/ either');
-		$this->assertSame([self::LEGACY, 'photo.jpg'], array_values(array_diff(scandir($this->site . '/data/files'), ['.', '..'])), 'nothing new in data/files');
+		$this->assertSame([self::LEGACY, self::UPLOAD, 'photo.jpg'], array_values(array_diff(scandir($this->site . '/data/files'), ['.', '..'])), 'nothing new in data/files');
 	}
 
 	public function testTheBackupIsStreamedToTheAdminAndNothingStaysOnDisk(): void
@@ -155,11 +157,11 @@ final class BackupTest extends TestCase
 		$this->assertSame((string)strlen($body), $this->header($headers, 'Content-Length'));
 		$this->assertSame('no-store', $this->header($headers, 'Cache-Control'));
 		$entries = $this->entries($body);
-		foreach (['index.php', 'data/database.js', 'data/files/photo.jpg', 'themes/sky/theme.php'] as $name) {
+		foreach (['index.php', 'data/database.js', 'data/files/photo.jpg', 'data/files/' . self::UPLOAD, 'themes/sky/theme.php'] as $name) {
 			$this->assertContains($name, $entries);
 		}
 		$this->assertNotContains('data/files/' . self::LEGACY, $entries, 'an old backup is not nested in the new one');
-		$this->assertSame([], preg_grep('~-backup-[0-9a-f]+\.zip$~', $entries), 'nor the archive itself');
+		$this->assertSame([], preg_grep('~\d{4}-\d{2}-\d{2}-backup-[0-9a-f]+\.zip$~', $entries), 'nor the archive itself');
 		$this->assertNothingLeftOnDisk();
 	}
 
@@ -237,14 +239,19 @@ final class BackupTest extends TestCase
 		// older than a request can live, and keeps a fresh one, which another admin's request may be about to send.
 		$stale = $this->site . '/data/2026-01-01-backup-' . str_repeat('ab', 16) . '.zip';
 		$fresh = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('cd', 16) . '.zip';
+		$upload = $this->site . '/data/' . self::UPLOAD; // not a backup name: never swept, whatever its age
 		file_put_contents($stale, 'left behind');
 		file_put_contents($fresh, 'being sent by another request');
+		file_put_contents($upload, 'an upload');
 		touch($stale, time() - 3600);
+		touch($upload, time() - 3600);
 		[$headers, $body] = $this->download();
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
 		$this->assertFileDoesNotExist($stale, 'the stale archive is swept');
 		$this->assertFileExists($fresh, 'a fresh archive is kept');
+		$this->assertFileExists($upload, 'a file that is not a backup is kept');
 		unlink($fresh);
+		unlink($upload);
 		$this->assertNothingLeftOnDisk();
 	}
 }
