@@ -45,9 +45,6 @@ class Wcms
 	private const LOGIN_THROTTLE_WINDOW = 900;
 	/** Addresses kept in the attempts file, the most recent first: a spray from many addresses cannot grow it */
 	private const LOGIN_THROTTLE_MAX_ADDRESSES = 1000;
-	/** A browser that logged in before is never throttled; config keeps the hashes of the last few */
-	private const KNOWN_BROWSER_COOKIE = 'wcms_known_browser';
-	private const KNOWN_BROWSERS_KEPT = 10;
 
 	/** @var string WCMS_REPO - repo URL */
 	public const WCMS_REPO = 'https://raw.githubusercontent.com/WonderCMS/wondercms/main/';
@@ -93,7 +90,7 @@ class Wcms
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
 
-	/** @var string $loginAttemptsPath recent login attempts per address, in data/logs/ (denied over HTTP since 3.7.0) */
+	/** @var string $loginAttemptsPath recent failed logins per salted address hash, in data/logs/ */
 	protected $loginAttemptsPath;
 
 	/** @var string $filesPath path to uploaded files */
@@ -166,7 +163,6 @@ class Wcms
 		$this->loginAction();
 		$this->notFoundResponse();
 		if ($this->loggedIn) {
-			$this->knownBrowserAction();
 			$this->manuallyRefreshCacheData();
 			$this->addCustomModule();
 			$this->installUpdateModuleAction();
@@ -2463,7 +2459,7 @@ EOT;
 		// The connection address only: Client-IP and X-Forwarded-For are whatever the client sends
 		$ip = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) !== false ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 		$timestamp = date('c');
-		$throttleKey = $this->isKnownBrowser() ? null : $this->loginThrottleKey();
+		$throttleKey = $this->loginThrottleKey();
 		$retryAfter = $throttleKey !== null ? $this->countLoginAttempt($throttleKey) : 0;
 		if ($retryAfter > 0) { // before password_verify: a refused attempt costs no bcrypt check
 			$this->headerResponse = 'HTTP/1.1 429 Too Many Requests';
@@ -2491,7 +2487,6 @@ EOT;
 			$_SESSION['rootDir'] = $this->rootDir;
 			$this->set('config', 'forceLogout', false);
 			$this->saveAdminLoginIP($ip);
-			$this->rememberBrowser();
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2522,26 +2517,29 @@ EOT;
 	}
 
 	/**
-	 * The bucket a login attempt is counted in: REMOTE_ADDR only (Client-IP and X-Forwarded-For are the client's to
+	 * The key a login attempt is counted under: REMOTE_ADDR only (Client-IP and X-Forwarded-For are the client's to
 	 * choose), an IPv6 address by its /64 (one client holds a whole /64), an IPv4-mapped IPv6 address as the IPv4 one
-	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). No valid address gives null
-	 * and no throttle: one bucket for every request would let any visitor lock the owner out
+	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). The file stores an HMAC of
+	 * that, never the address: its salt comes from this install's folder and password hash, neither readable from the
+	 * public side, so the file alone (public on a site whose .htaccess predates 3.7.0) identifies nobody; a password
+	 * change starts the counts afresh. No valid address and loopback (a local proxy or health check is every visitor at
+	 * once) give null and no throttle: one key for every request would let any visitor lock the owner out
 	 * @return string|null
 	 */
 	private function loginThrottleKey(): ?string
 	{
 		$address = $_SERVER['REMOTE_ADDR'] ?? null;
-		if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false) {
+		if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false || ($packed = inet_pton($address)) === false) {
 			return null;
 		}
-		$packed = inet_pton($address);
-		if ($packed === false || strlen($packed) === 4) {
-			return $address;
+		if (strlen($packed) === 16 && strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
+			$packed = substr($packed, 12);
 		}
-		if (strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
-			return (string)inet_ntop(substr($packed, 12));
+		if ($packed === str_repeat("\0", 15) . "\1" || (strlen($packed) === 4 && $packed[0] === "\x7f")) {
+			return null;
 		}
-		return inet_ntop(substr($packed, 0, 8) . str_repeat("\0", 8)) . '/64';
+		$salt = hash('sha256', $this->rootDir . "\0" . (string)($this->db->config->password ?? ''), true); // not get(): it creates a missing key, a database write on a visitor's request
+		return hash_hmac('sha256', strlen($packed) === 4 ? $packed : substr($packed, 0, 8), $salt);
 	}
 
 	/**
@@ -2622,64 +2620,6 @@ EOT;
 			fclose($lock);
 		}
 		return $result;
-	}
-
-	/**
-	 * Does this request carry the cookie of a browser that logged in before
-	 * @return bool
-	 */
-	private function isKnownBrowser(): bool
-	{
-		$value = $_COOKIE[self::KNOWN_BROWSER_COOKIE] ?? null;
-		if (!is_string($value) || !preg_match('/^[0-9a-f]{64}$/', $value)) {
-			return false;
-		}
-		$hash = hash('sha256', $value);
-		foreach (array_keys((array)($this->db->config->knownBrowsers ?? [])) as $known) { // not get(): it creates a missing key, a database write on a visitor's request
-			if (hash_equals((string)$known, $hash)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * A logged-in session without the known-browser cookie gets one, once per session: a session that was logged in
-	 * before the update (or before the cookie was cleared) would otherwise have no exemption at its next login
-	 * @return void
-	 * @throws Exception
-	 */
-	public function knownBrowserAction(): void
-	{
-		if (!$this->loggedIn || !empty($_SESSION['knownBrowserIssued']) || $this->isKnownBrowser()) {
-			return;
-		}
-		$_SESSION['knownBrowserIssued'] = true; // a browser that drops the cookie costs one database write per session, not one per request
-		$this->rememberBrowser();
-	}
-
-	/**
-	 * After a login, give this browser the known-browser cookie (or renew the one it has) and keep its hash, never the
-	 * value, with the last KNOWN_BROWSERS_KEPT. The cookie only spares the browser the throttle; it never logs in
-	 * @return void
-	 * @throws Exception
-	 */
-	private function rememberBrowser(): void
-	{
-		$value = $this->isKnownBrowser() ? $_COOKIE[self::KNOWN_BROWSER_COOKIE] : bin2hex(random_bytes(32));
-		$hash = hash('sha256', $value);
-		$known = (array)($this->db->config->knownBrowsers ?? []);
-		unset($known[$hash]);
-		$known = [$hash => date('Y/m/d H:i:s')] + array_slice($known, 0, self::KNOWN_BROWSERS_KEPT - 1, true);
-		$this->set('config', 'knownBrowsers', $known);
-		$directory = trim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-		setcookie(self::KNOWN_BROWSER_COOKIE, $value, [
-			'expires' => time() + 31536000,
-			'path' => $directory === '' || $directory === '.' ? '/' : '/' . $directory . '/',
-			'secure' => self::isCurrentlyOnSSL(),
-			'httponly' => true,
-			'samesite' => 'Lax',
-		]);
 	}
 
 	/**
@@ -3155,7 +3095,7 @@ EOT;
 				$this->orderMenuItem($content, $menu);
 			}
 			if ($target === 'config') {
-				if (in_array($fieldname, ['password', 'customModules', 'menuItems', 'forceLogout', 'lastLogins', 'knownBrowsers', self::DISABLED_PLUGINS_KEY], true)) {
+				if (in_array($fieldname, ['password', 'customModules', 'menuItems', 'forceLogout', 'lastLogins', self::DISABLED_PLUGINS_KEY], true)) {
 					return;
 				}
 				if ($fieldname === 'defaultPage' && $content !== 'blog' && $this->getPageData($content) === null) {
