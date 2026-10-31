@@ -2453,6 +2453,9 @@ EOT;
 	 * Remove the password paragraph createDb() writes into the public home page, at the admin's first login (and at the
 	 * next login of a site installed before this check existed). Only the untouched paragraph matches: a home page whose
 	 * paragraph was edited by hand is not written.
+	 * Before 3.2.0 the password sat in an <h4> that was also the login link (with a stray </a>): it is replaced by the
+	 * current login paragraph when no other login link remains, unless the login URL was changed (a public link would
+	 * give the new one away; the old link was already dead).
 	 * @return void
 	 * @throws Exception
 	 */
@@ -2463,6 +2466,14 @@ EOT;
 			return;
 		}
 		$content = preg_replace('~<p>Your password for editing everything is: <b>[^<]*</b></p>(?:\r?\n){0,2}~', '', $pages->home->content, 1, $count);
+		if ($content !== null && $count === 0
+			&& preg_match('~<h4><a href="[^"]*">[^<]*</a> Your password is: <b>[^<]*</b></a></h4>((?:\r?\n){0,2})~', $content, $m, PREG_OFFSET_CAPTURE)) {
+			$content = substr_replace($content, '', $m[0][1], strlen($m[0][0]));
+			if (strpos($content, 'Click here to login') === false && $this->get('config', 'login') === 'loginURL') {
+				$content = substr_replace($content, '<p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>' . $m[1][0], $m[0][1], 0);
+			}
+			$count = 1;
+		}
 		if ($content === null || $count !== 1) {
 			return;
 		}
