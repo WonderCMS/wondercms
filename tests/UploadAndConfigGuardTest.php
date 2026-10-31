@@ -99,8 +99,10 @@ final class UploadAndConfigGuardTest extends TestCase
 	{
 		// Backups made before 3.7.2 sit in data/files; new installs refuse them over HTTP, so the tab gives no link to one.
 		$backup = '2026-01-01-backup-0123456789abcdef.zip';
-		$uploads = ['notes-backup-plan.zip', 'holiday-backup-2024.zip', 'site-backup-1.zip'];
+		$temp = $backup . '.R4t5Y6.part'; // libzip's unfinished archive from a 3.7.1 backup killed during close()
+		$uploads = ['notes-backup-plan.zip', 'holiday-backup-2024.zip', 'site-backup-1.zip', 'film.mp4.part'];
 		file_put_contents($this->wcms->filesPath . '/' . $backup, 'old');
+		file_put_contents($this->wcms->filesPath . '/' . $temp, 'partial');
 		foreach ($uploads as $upload) {
 			file_put_contents($this->wcms->filesPath . '/' . $upload, 'an upload');
 		}
@@ -109,10 +111,12 @@ final class UploadAndConfigGuardTest extends TestCase
 			$this->assertStringContainsString('deleteModule=' . $backup . '&type=files', $html, 'the delete button stays');
 			$this->assertStringNotContainsString('data/files/' . $backup, $html, 'no download link');
 			$this->assertSame(1, substr_count($html, 'old backup, delete it'), 'only the real backup is offered for deletion only');
+			$this->assertStringNotContainsString($temp, $html, 'an unfinished backup is not listed at all');
 			foreach ($uploads as $upload) {
 				$this->assertStringContainsString('data/files/' . $upload, $html, 'an upload named like a backup but without the date and the random suffix keeps its link');
 			}
 		} finally {
+			@unlink($this->wcms->filesPath . '/' . $temp);
 			@unlink($this->wcms->filesPath . '/' . $backup);
 			foreach ($uploads as $upload) {
 				@unlink($this->wcms->filesPath . '/' . $upload);
@@ -145,6 +149,33 @@ final class UploadAndConfigGuardTest extends TestCase
 			'photos.zip',
 		] as $name) {
 			$this->assertFalse($this->wcms->isBackupArchiveName($name), $name);
+		}
+	}
+
+	public function testOnlyLibzipsTempNamesOfABackupAreBackupTempFiles(): void
+	{
+		$backup = '2026-10-31-backup-' . str_repeat('f', 32) . '.zip';
+		foreach ([
+			$backup . '.2uyoxo.part', // libzip 1.10 and later
+			$backup . '.Ab12Cd', // older libzip
+			$backup . '.0a1b2c3d', // libzip on Windows
+			'2026-01-01-backup-0123456789abcdef.zip.R4t5Y6.part', // 3.7.1's name in data/files
+			'/srv/site/data/' . $backup . '.2uyoxo.part',
+			'C:\\site\\data\\' . $backup . '.0a1b2c3d',
+		] as $name) {
+			$this->assertTrue($this->wcms->isBackupTempName($name), $name);
+		}
+		foreach ([
+			$backup, // the finished archive is isBackupArchiveName()'s
+			$backup . '.tmp',
+			$backup . '.abc12.part', // 5 characters
+			$backup . '.2uyoxo.part.php',
+			$backup . ".2uyoxo.part\n",
+			'film.mp4.part',
+			'holiday-backup-2024.zip.2uyoxo.part',
+			'x' . $backup . '.2uyoxo.part',
+		] as $name) {
+			$this->assertFalse($this->wcms->isBackupTempName($name), $name);
 		}
 	}
 

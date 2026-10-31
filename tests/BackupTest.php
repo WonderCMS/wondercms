@@ -299,6 +299,46 @@ final class BackupTest extends TestCase
 		$this->assertNothingLeftOnDisk();
 	}
 
+	public function testLibzipTempFilesAreNeverArchivedAndStaleOnesAreSwept(): void
+	{
+		// During close() libzip writes the archive as <name>.zip.XXXXXX.part (older libzip <name>.zip.XXXXXX, Windows
+		// <name>.zip.<8 hex>) and renames it when done. A second build (a double click, two admins) met another's growing file
+		// in its walk and read it into memory; a request killed during close() left one that every later backup nested.
+		$fresh = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('ab', 16) . '.zip.Ab12Cd.part';
+		$big = fopen($fresh, 'wb');
+		$chunk = str_repeat("\0", 1 << 20);
+		for ($i = 0; $i < 40; $i++) {
+			fwrite($big, $chunk);
+		}
+		fclose($big);
+		$stale = [
+			$this->site . '/data/2026-01-01-backup-' . str_repeat('cd', 16) . '.zip.Xy34Zw.part',
+			$this->site . '/data/2026-01-01-backup-' . str_repeat('ef', 16) . '.zip.q1W2e3',
+			$this->site . '/data/2026-01-01-backup-' . str_repeat('01', 16) . '.zip.0a1b2c3d',
+			$this->site . '/data/files/2025-12-31-backup-0123456789abcdef.zip.R4t5Y6.part', // 3.7.1 built its archive in data/files
+		];
+		foreach ($stale as $file) {
+			file_put_contents($file, 'a partial copy of the site');
+			touch($file, time() - 3600);
+		}
+		$upload = $this->site . '/data/files/film.mp4.part'; // an admin's own upload, not a backup's temp name
+		file_put_contents($upload, 'half a film');
+		touch($upload, time() - 3600);
+		[$headers, $body] = $this->download(['memory_limit' => '32M']);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), 'a fresh 40 MB temp file under a 32 MB memory limit: ' . substr($body, 0, 300));
+		$entries = $this->entries($body);
+		$this->assertSame([], array_values(preg_grep('~-backup-[0-9a-f]+\.zip\.~', $entries)), 'no temp file is archived');
+		$this->assertContains('data/files/film.mp4.part', $entries);
+		foreach ($stale as $file) {
+			$this->assertFileDoesNotExist($file, 'a stale temp file is swept');
+		}
+		$this->assertFileExists($fresh, 'a fresh one is another build in progress: kept');
+		$this->assertFileExists($upload, 'an upload is never swept');
+		unlink($fresh);
+		unlink($upload);
+		$this->assertNothingLeftOnDisk();
+	}
+
 	/** Two backups on one server with $ini, the first one's leftover aged past the sweep's threshold in between */
 	private function assertTwoBackupsDownloadWithUnlinkDisabled(array $ini): void
 	{

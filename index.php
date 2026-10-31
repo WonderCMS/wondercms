@@ -369,8 +369,9 @@ class Wcms
 
 	/**
 	 * Remove archives a killed backup request left under data/ (a time limit or a fatal mid-stream skips the finally that
-	 * unlinks). Only the exact backup name, and only older than a request can live: a fresh one is another request's
-	 * archive about to be sent.
+	 * unlinks), and libzip's in-progress files a request killed during close() left under data/ (or, before 3.7.2, under
+	 * data/files). Only the exact backup names, and only older than a request can live: a fresh one is another request's
+	 * archive about to be sent, or still being written.
 	 *
 	 * @return void
 	 */
@@ -380,9 +381,11 @@ class Wcms
 			return; // a host that disables unlink keeps the leftovers; the walk skips them, so the next backup still works
 		}
 		$maxAge = max(300, (int)ini_get('max_execution_time'));
-		foreach (glob($this->dataPath . '/*-backup-*.zip') ?: [] as $archive) {
-			if ($this->isBackupArchiveName($archive) && is_file($archive) && filemtime($archive) < time() - $maxAge) {
-				@unlink($archive);
+		$candidates = array_merge(glob($this->dataPath . '/*-backup-*.zip*') ?: [], glob($this->filesPath . '/*-backup-*.zip.*') ?: []);
+		foreach ($candidates as $file) {
+			$isLeftover = $this->isBackupTempName($file) || (dirname($file) === $this->dataPath && $this->isBackupArchiveName($file)); // a finished archive in data/files is an old backup, the admin's to delete in Files
+			if ($isLeftover && is_file($file) && filemtime($file) < time() - $maxAge) {
+				@unlink($file);
 			}
 		}
 	}
@@ -3117,6 +3120,9 @@ EOT;
 							 <p class="subTitle marginTop20">Delete files</p>
 							 <div class="change">';
 		foreach ($fileList as $file) {
+			if ($this->isBackupTempName($file)) {
+				continue; // an unfinished backup a killed request left (before 3.7.2): never offered as a file, removed by the next backup once stale
+			}
 			$fileLink = $this->isBackupArchiveName($file)
 				? '<b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b> (old backup, delete it)' // refused over HTTP on new installs: no link that ends in a 403
 				: '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>';
@@ -3912,6 +3918,18 @@ EOT;
 	}
 
 	/**
+	 * Is $name the file libzip writes a backup archive into during close(): <backup name>.XXXXXX.part (libzip 1.10+),
+	 * <backup name>.XXXXXX (older) or <backup name>.<8 hex> (Windows). It is renamed to the backup name when complete;
+	 * a killed request leaves it behind as a partial copy of the site
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isBackupTempName(string $name): bool
+	{
+		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip\.[A-Za-z0-9]{6,8}(\.part)?$~iD', $name);
+	}
+
+	/**
 	 * Build the backup archive under data/ and return its path; the caller sends and removes it
 	 * @return string
 	 * @throws Exception
@@ -3933,7 +3951,7 @@ EOT;
 			$name = str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			if (is_dir($file)) {
 				$zip->addEmptyDir($name . '/');
-			} elseif (is_file($file) && !$this->isBackupArchiveName($file)) { // not the archive itself, and not the old backups (each one used to nest all earlier ones)
+			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)) { // not the archive itself, not the old backups (each one used to nest all earlier ones), and not another build's file in progress
 				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
 					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
 				} else {
