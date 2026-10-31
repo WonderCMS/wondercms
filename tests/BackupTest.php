@@ -51,7 +51,7 @@ final class BackupTest extends TestCase
 			$_POST = ["backup" => "", "token" => $wcms->getToken()];
 			' . $prelude . '
 			$wcms->backupAction();
-			echo "no download";');
+			echo "no download " . json_encode($_SESSION["alert"] ?? []);');
 	}
 
 	protected function tearDown(): void
@@ -190,6 +190,31 @@ final class BackupTest extends TestCase
 		[$headers, $body] = $this->download(['disable_functions' => 'readfile']);
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
 		$this->assertContains('data/database.js', $this->entries($body));
+		$this->assertNothingLeftOnDisk();
+	}
+
+	public function testTheBackupDownloadsWhereReadfileAndFpassthruAreDisabled(): void
+	{
+		// The last fallback is a plain fread loop; fclose is disabled too, so its guard is pinned as well
+		[$headers, $body] = $this->download(['disable_functions' => 'readfile,fpassthru,fclose', 'display_errors' => '1']);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertSame((string)strlen($body), $this->header($headers, 'Content-Length'), 'the whole archive and nothing after it');
+		$this->assertStringNotContainsString('Fatal error', $body);
+		$this->assertContains('data/database.js', $this->entries($body));
+		$this->assertNothingLeftOnDisk();
+	}
+
+	public function testNoDownloadAndAnAlertWhereNoFileCanBeSent(): void
+	{
+		// readfile and fopen both disabled: the attachment headers went out first and the body was a fatal page saved as a .zip.
+		// Now the backup is refused before it is built: no headers, no archive, the page renders with an alert.
+		[$headers, $body] = $this->download(['disable_functions' => 'readfile,fopen,fclose', 'display_errors' => '1']);
+		$this->assertStringContainsString(' 200', $headers[0] ?? '', implode("\n", $headers));
+		$this->assertNotSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertNull($this->header($headers, 'Content-Disposition'));
+		$this->assertStringNotContainsString('Fatal error', $body);
+		$this->assertStringContainsString('no download', $body, 'the request goes on to render the page');
+		$this->assertStringContainsString('Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).', $body);
 		$this->assertNothingLeftOnDisk();
 	}
 

@@ -3887,6 +3887,10 @@ EOT;
 	 */
 	public function zipBackup(): void
 	{
+		if ($this->backupSender() === '') {
+			$this->alert('danger', 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).');
+			return;
+		}
 		try {
 			$zipPath = $this->createBackupArchive();
 		} catch (Exception $e) {
@@ -3947,6 +3951,25 @@ EOT;
 	}
 
 	/**
+	 * The function that sends the backup on this host: readfile, else fopen with fpassthru, else fopen with an fread loop;
+	 * '' where hardened disable_functions leave none (the backup is then refused before it is built)
+	 * @return string
+	 */
+	private function backupSender(): string
+	{
+		if (function_exists('readfile')) {
+			return 'readfile';
+		}
+		if (!function_exists('fopen')) {
+			return '';
+		}
+		if (function_exists('fpassthru')) {
+			return 'fpassthru';
+		}
+		return function_exists('fread') ? 'fread' : '';
+	}
+
+	/**
 	 * Send the backup archive at $zipPath as a download and remove it, also when the transfer fails
 	 * @param string $zipPath
 	 * @return void
@@ -3965,18 +3988,29 @@ EOT;
 				$this->alert('danger', 'Cannot send the backup: a plugin or theme printed output before it. Disable it and try again.');
 				return;
 			}
+			$sender = $this->backupSender(); // chosen and opened before any header: once the attachment headers are out, a failure is a corrupt download
+			$handle = in_array($sender, ['fpassthru', 'fread'], true) ? @fopen($zipPath, 'rb') : null;
+			if ($sender === '' || $handle === false) {
+				$this->alert('danger', $sender === '' ? 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).' : 'Cannot send the backup: the archive could not be opened.');
+				return;
+			}
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
 			header('Cache-Control: no-store');
 			if (!ini_get('zlib.output_compression')) {
 				header('Content-Length: ' . filesize($zipPath)); // the compressed body would be shorter than the file
 			}
-			if (function_exists('readfile')) {
+			if ($handle === null) {
 				readfile($zipPath);
 			} else {
-				$handle = fopen($zipPath, 'rb');
-				if ($handle !== false) {
+				if ($sender === 'fpassthru') {
 					fpassthru($handle);
+				} else {
+					while (($chunk = fread($handle, 1048576)) !== false && $chunk !== '') {
+						echo $chunk;
+					}
+				}
+				if (function_exists('fclose')) {
 					fclose($handle);
 				}
 			}
