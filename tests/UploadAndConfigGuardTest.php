@@ -95,6 +95,24 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $html);
 	}
 
+	public function testTheFilesTabOffersAnOldBackupForDeletionOnly(): void
+	{
+		// Backups made before 3.7.2 sit in data/files; new installs refuse them over HTTP, so the tab gives no link to one.
+		$backup = '2026-01-01-backup-0123456789abcdef.zip';
+		file_put_contents($this->wcms->filesPath . '/' . $backup, 'old');
+		file_put_contents($this->wcms->filesPath . '/notes-backup-plan.zip', 'an upload');
+		try {
+			$html = $this->wcms->settings();
+			$this->assertStringContainsString('deleteModule=' . $backup . '&type=files', $html, 'the delete button stays');
+			$this->assertStringNotContainsString('data/files/' . $backup, $html, 'no download link');
+			$this->assertStringContainsString('old backup, delete it', $html);
+			$this->assertStringContainsString('data/files/notes-backup-plan.zip', $html, 'an upload named like a backup but without the random suffix keeps its link');
+		} finally {
+			@unlink($this->wcms->filesPath . '/' . $backup);
+			@unlink($this->wcms->filesPath . '/notes-backup-plan.zip');
+		}
+	}
+
 	public function testACustomModuleUrlMustBeHttpOrHttps(): void
 	{
 		$dir = sys_get_temp_dir() . '/wcms-module-' . bin2hex(random_bytes(3));
@@ -314,8 +332,8 @@ final class UploadAndConfigGuardTest extends TestCase
 		// On a case-insensitive disk (Windows, macOS) Apache served /DATABASE.JS while /database.js was refused.
 		$htaccess = file_get_contents(__DIR__ . '/../.htaccess');
 		preg_match_all('~^RewriteRule (\S+) - \[([^\]]*)\]\r$~m', $htaccess, $m);
-		$this->assertSame(['database\.js', '^tests/', 'cache\.json', '^data/logs/'], $m[1], 'dots escaped: with NC an unescaped dot also refused data/files/Database_JS_Tutorial.pdf');
-		$this->assertSame(['F,NC', 'F,NC', 'F,NC', 'F,NC'], $m[2]);
+		$this->assertSame(['database\.js', '^tests/', 'cache\.json', '^data/logs/', '-backup-[0-9a-f]+\.zip$'], $m[1], 'dots escaped: with NC an unescaped dot also refused data/files/Database_JS_Tutorial.pdf');
+		$this->assertSame(['F,NC', 'F,NC', 'F,NC', 'F,NC', 'F,NC'], $m[2]);
 		$denied = static function (string $path) use ($m): bool {
 			foreach ($m[1] as $pattern) {
 				if (preg_match('~' . $pattern . '~i', $path)) {
@@ -324,10 +342,10 @@ final class UploadAndConfigGuardTest extends TestCase
 			}
 			return false;
 		};
-		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
+		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log', 'data/files/2026-01-01-backup-0123456789abcdef.zip', 'data/files/2026-01-01-BACKUP-0123456789ABCDEF.ZIP', 'data/2026-10-31-backup-0123456789abcdef0123456789abcdef.zip'] as $path) {
 			$this->assertTrue($denied($path), $path);
 		}
-		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg'] as $path) {
+		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg', 'data/files/photos.zip', 'data/files/notes-backup-plan.zip'] as $path) {
 			$this->assertFalse($denied($path), $path);
 		}
 		$this->assertSame(substr_count($htaccess, "\n"), substr_count($htaccess, "\r\n"), 'CRLF line ends kept');
