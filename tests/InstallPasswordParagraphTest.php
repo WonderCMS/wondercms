@@ -9,15 +9,17 @@ use PHPUnit\Framework\TestCase;
  */
 final class InstallPasswordParagraphTest extends TestCase
 {
-	private const DB = __DIR__ . '/../data_test/database_installpw.js';
 	private const PREFIX = '<p>Your password for editing everything is: <b>';
+
+	/** @var string|null a throwaway site root with its own themes folder; null: the repository, whose Sky theme prints footer() */
+	private $root;
 
 	protected function setUp(): void
 	{
 		$_SERVER['SERVER_NAME'] = 'wondercms.doc';
 		$_SERVER['SERVER_PORT'] = '80';
 		$_SERVER['REQUEST_METHOD'] = 'GET';
-		@unlink(self::DB);
+		@unlink($this->db());
 	}
 
 	protected function tearDown(): void
@@ -25,12 +27,27 @@ final class InstallPasswordParagraphTest extends TestCase
 		$_GET = $_POST = $_REQUEST = [];
 		$_SERVER['REQUEST_METHOD'] = 'GET';
 		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['token'], $_SESSION['rootDir']);
-		@unlink(self::DB);
+		@unlink($this->db());
+		if ($this->root !== null) {
+			foreach (['data_test/files_test', 'data_test', 'themes/bare', 'themes', 'plugins'] as $dir) {
+				foreach (glob($this->root . '/' . $dir . '/*') ?: [] as $file) {
+					is_file($file) && unlink($file);
+				}
+				@rmdir($this->root . '/' . $dir);
+			}
+			@rmdir($this->root);
+			$this->root = null;
+		}
+	}
+
+	private function db(): string
+	{
+		return ($this->root ?? __DIR__ . '/..') . '/data_test/database_installpw.js';
 	}
 
 	private function site(): Wcms
 	{
-		return $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_installpw.js'])->onlyMethods(['redirect'])->getMock();
+		return $this->getMockBuilder(Wcms::class)->setConstructorArgs(array_merge(['data_test', 'files_test', 'database_installpw.js'], $this->root === null ? [] : [$this->root]))->onlyMethods(['redirect'])->getMock();
 	}
 
 	private function login(Wcms $wcms, string $password): void
@@ -45,7 +62,7 @@ final class InstallPasswordParagraphTest extends TestCase
 
 	private function onDisk(): stdClass
 	{
-		return json_decode(file_get_contents(self::DB));
+		return json_decode(file_get_contents($this->db()));
 	}
 
 	private function installPassword(string $content): string
@@ -57,7 +74,7 @@ final class InstallPasswordParagraphTest extends TestCase
 	private function passwordAlerts(): array
 	{
 		return array_values(array_filter($_SESSION['alert']['info'] ?? [], static function ($alert) {
-			return strpos($alert['message'], 'no longer shown on the home page') !== false;
+			return strpos($alert['message'], 'Your password was shown on the public home page until now; that line is removed. Please change it in ') === 0;
 		}));
 	}
 
@@ -80,7 +97,7 @@ final class InstallPasswordParagraphTest extends TestCase
 
 		$alerts = $this->passwordAlerts();
 		$this->assertCount(1, $alerts, 'the admin is told once');
-		$this->assertStringContainsString('data-target-tab="#security"', $alerts[0]['message']);
+		$this->assertStringContainsString('<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>', $alerts[0]['message']);
 	}
 
 	public function testAnExistingSiteLosesTheParagraphAtItsNextLogin(): void
@@ -89,7 +106,7 @@ final class InstallPasswordParagraphTest extends TestCase
 		$db = $this->onDisk();
 		$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT); // changed since the install: the old one still shows
 		$db->pages->home->content = "<h1>My shop</h1>\n\n" . self::PREFIX . "Ab3dEf7h</b></p>\n\n<p>Opening hours: 9 to 5.</p>";
-		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+		file_put_contents($this->db(), json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
 		$this->login($this->site(), 'ownerPass1');
 
@@ -110,12 +127,12 @@ final class InstallPasswordParagraphTest extends TestCase
 			"<h1>Hi</h1>\n\n<p>Your password for editing is: <b>Ab3dEf7h</b></p>",
 			"<h1>Hi</h1>\n\n<p><a href=\"/loginURL\" class=\"button\">Click here to login</a></p>",
 		] as $content) {
-			@unlink(self::DB);
+			@unlink($this->db());
 			$this->site();
 			$db = $this->onDisk();
 			$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT);
 			$db->pages->home->content = $content;
-			file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+			file_put_contents($this->db(), json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 			$pagesBefore = json_encode($this->onDisk()->pages);
 
 			$this->login($this->site(), 'ownerPass1');
@@ -127,15 +144,16 @@ final class InstallPasswordParagraphTest extends TestCase
 		}
 	}
 
-	private function siteWithHome(string $content, string $login = 'loginURL'): void
+	private function siteWithHome(string $content, string $login = 'loginURL', string $theme = 'sky'): void
 	{
-		@unlink(self::DB);
+		@unlink($this->db());
 		$this->site();
 		$db = $this->onDisk();
 		$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT);
 		$db->config->login = $login;
+		$db->config->theme = $theme;
 		$db->pages->home->content = $content;
-		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+		file_put_contents($this->db(), json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 	}
 
 	private function pre320H4(string $linkText = 'Click here to login.'): string
@@ -145,7 +163,6 @@ final class InstallPasswordParagraphTest extends TestCase
 
 	public function testAPre320HomePageLosesTheH4AndKeepsALoginLink(): void
 	{
-		$loginParagraph = '<p><a href="' . Wcms::url('loginURL') . '" class="button">Click here to login</a></p>';
 		$tail = "\n\n<p class=\"mt-4\">To install an awesome editor, open Settings -> Plugins -> Install Summernote.</p>";
 		foreach (['Click here to login.', 'Click to login.'] as $linkText) {
 			$this->siteWithHome("<h1>It's alive!</h1>\n\n" . $this->pre320H4($linkText) . $tail);
@@ -153,16 +170,33 @@ final class InstallPasswordParagraphTest extends TestCase
 			$this->login($this->site(), 'ownerPass1');
 
 			$after = $this->onDisk()->pages->home->content;
-			$this->assertSame("<h1>It's alive!</h1>\n\n" . $loginParagraph . $tail, $after, $linkText . ': the h4 is replaced by the login paragraph, every other byte stays');
+			$this->assertSame("<h1>It's alive!</h1>" . $tail, $after, $linkText . ': the h4 and its blank line go, nothing is written in its place (Sky prints footer(), whose Login link remains), every other byte stays');
 			$this->assertStringNotContainsString('Ab3dEf7h', $after);
 			$this->assertCount(1, $this->passwordAlerts());
 			unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
 		}
+	}
 
-		$kept = "\n\n<p><a href=\"" . Wcms::url('loginURL') . "\">Click here to login</a> any time.</p>";
-		$this->siteWithHome("<h1>Hi</h1>\n\n" . $this->pre320H4() . $kept);
+	public function testAPre320HomePageOnAThemeWithoutTheCoreLoginLinkGetsOne(): void
+	{
+		$this->root = sys_get_temp_dir() . '/wcms-installpw-' . bin2hex(random_bytes(4));
+		mkdir($this->root . '/themes/bare', 0777, true);
+		file_put_contents($this->root . '/themes/bare/theme.php', "<?php echo \$Wcms->page('content');\n"); // neither header() nor footer(): no core Login link
+		$loginParagraph = '<p><a href="' . Wcms::url('loginURL') . '" class="button">Click here to login</a></p>';
+		$tail = "\n\n<p>More.</p>";
+
+		$this->siteWithHome("<h1>It's alive!</h1>\n\n" . $this->pre320H4() . $tail, 'loginURL', 'bare');
 		$this->login($this->site(), 'ownerPass1');
-		$this->assertSame("<h1>Hi</h1>" . $kept, $this->onDisk()->pages->home->content, 'a login link remains: no second one is added');
+		$this->assertSame("<h1>It's alive!</h1>\n\n" . $loginParagraph . $tail, $this->onDisk()->pages->home->content, 'no login link would remain: the login paragraph takes the h4\'s place, every other byte stays');
+		$this->assertCount(1, $this->passwordAlerts());
+		unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
+
+		foreach (["\n\n<p><a href=\"" . Wcms::url('loginURL') . "\">Click here to login</a> any time.</p>", "\n\n<p><a class=\"x\" href=\"" . Wcms::url('loginURL') . "\">Sign in</a></p>"] as $kept) {
+			$this->siteWithHome("<h1>Hi</h1>\n\n" . $this->pre320H4() . $kept, 'loginURL', 'bare');
+			$this->login($this->site(), 'ownerPass1');
+			$this->assertSame("<h1>Hi</h1>" . $kept, $this->onDisk()->pages->home->content, 'a login link remains in the content: none is added');
+			unset($_SESSION['alert'], $_SESSION['loggedIn'], $_SESSION['rootDir']);
+		}
 	}
 
 	public function testAPre320HomePageWithACustomLoginUrlDoesNotPublishIt(): void
@@ -234,7 +268,7 @@ final class InstallPasswordParagraphTest extends TestCase
 		$db->config->password = password_hash('ownerPass1', PASSWORD_DEFAULT);
 		$db->config->defaultPage = 'how-to';
 		unset($db->pages->home);
-		file_put_contents(self::DB, json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+		file_put_contents($this->db(), json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
 		$this->login($this->site(), 'ownerPass1');
 
@@ -245,7 +279,7 @@ final class InstallPasswordParagraphTest extends TestCase
 	public function testAVisitorRequestNeverRemovesTheParagraph(): void
 	{
 		$this->site();
-		$bytes = file_get_contents(self::DB);
+		$bytes = file_get_contents($this->db());
 		$password = $this->installPassword($this->onDisk()->pages->home->content);
 
 		foreach ([['GET', null, null], ['GET', 'loginURL', null], ['POST', 'loginURL', 'wrong' . $password], ['GET', 'how-to', null]] as [$method, $page, $tried]) {
@@ -255,7 +289,7 @@ final class InstallPasswordParagraphTest extends TestCase
 			$visitor = $this->site();
 			$visitor->init();
 			$this->assertFalse($visitor->loggedIn);
-			$this->assertSame($bytes, file_get_contents(self::DB), $method . ' ' . ($page ?? '/') . ': the database is not written');
+			$this->assertSame($bytes, file_get_contents($this->db()), $method . ' ' . ($page ?? '/') . ': the database is not written');
 		}
 		$this->assertStringContainsString(self::PREFIX . $password, $this->onDisk()->pages->home->content);
 	}
