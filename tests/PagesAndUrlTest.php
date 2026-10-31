@@ -57,8 +57,7 @@ final class PagesAndUrlTest extends TestCase
 
 	public function testSavingUnderAMissingParentPageChangesNothing(): void
 	{
-		$_SESSION['loggedIn'] = true;
-		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		wcmsAdminSession($this->wcms);
 		$this->wcms->loginStatus();
 		$this->wcms->currentPage = 'child';
 		$this->wcms->currentPageTree = ['missing', 'child'];
@@ -85,8 +84,7 @@ final class PagesAndUrlTest extends TestCase
 			$this->assertNotNull($wcms->getPageData('games/board'));
 		}
 
-		$_SESSION['loggedIn'] = true;
-		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		wcmsAdminSession($this->wcms);
 		$this->wcms->loginStatus();
 		$before = file_get_contents($this->dbPath);
 		foreach ([['missing', 'diary'], ['missing', 'games', 'child']] as $tree) {
@@ -197,8 +195,7 @@ final class PagesAndUrlTest extends TestCase
 			$this->assertSame('hello-world', $visitor->currentPage);
 
 			$this->wcms->createPage(['blog'], true);
-			$_SESSION['loggedIn'] = true;
-			$_SESSION['rootDir'] = $this->wcms->rootDir;
+			wcmsAdminSession($this->wcms);
 			$this->wcms->loginStatus();
 			$_SERVER['REQUEST_URI'] = '/blog/blog/sub';
 			$_GET = ['page' => 'blog/sub'];

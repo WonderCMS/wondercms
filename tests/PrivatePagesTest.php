@@ -321,8 +321,7 @@ final class PrivatePagesTest extends TestCase
 		$cacheBefore = @file_get_contents($cache);
 		file_put_contents($cache, '{"themes":{},"plugins":{}}'); // with today's stamp: no module or core check (no network, no stamp write)
 		$this->wcms->set('config', 'lastModulesSync', date('Y/m/d'));
-		$_SESSION['loggedIn'] = true;
-		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		wcmsAdminSession($this->wcms);
 		try {
 			$this->admin()->init(); // setUp showed the menu items without syncing the pages: this view syncs and saves
 			$this->assertSame('show', json_decode(file_get_contents(self::DB))->pages->games->visibility, 'a view that syncs a change still saves');

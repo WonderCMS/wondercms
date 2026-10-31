@@ -106,7 +106,7 @@ final class CustomModulesTest extends TestCase
 
 	public function testAWrongModuleTypeIsRefused(): void
 	{
-		$this->wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+		wcmsSetPasswordOnDisk($this->wcms, 'secret');
 		$before = file_get_contents(self::DB);
 		unset($_SESSION['alert']);
 		$_POST = ['pluginThemeUrl' => 'https://example.test/files/wcms-modules.json', 'pluginThemeType' => 'files', 'password_recheck' => 'secret', 'token' => $this->wcms->getToken()];
@@ -138,7 +138,7 @@ final class CustomModulesTest extends TestCase
 			$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'getFileFromRepo'])->getMock();
 			$wcms->method('getFileFromRepo')->willReturn('{"version":1,"themes":{},"plugins":{}}');
 			$wcms->loggedIn = true;
-			$wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+			wcmsSetPasswordOnDisk($wcms, 'secret');
 			unset($_SESSION['alert']);
 			$_POST = ['pluginThemeUrl' => $url, 'pluginThemeType' => 'plugins', 'password_recheck' => 'secret', 'token' => $wcms->getToken()];
 			$wcms->addCustomModule();

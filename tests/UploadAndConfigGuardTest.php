@@ -100,7 +100,7 @@ final class UploadAndConfigGuardTest extends TestCase
 		$dir = sys_get_temp_dir() . '/wcms-module-' . bin2hex(random_bytes(3));
 		mkdir($dir);
 		file_put_contents($dir . '/wcms-modules.json', json_encode(['themes' => ['local' => ['name' => 'Local', 'repo' => 'file://' . $dir, 'zip' => 'file://' . $dir . '/local.zip', 'summary' => 's', 'version' => '1.0.0', 'image' => '']]]));
-		$this->wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+		wcmsSetPasswordOnDisk($this->wcms, 'secret');
 		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
 		$_POST = ['pluginThemeUrl' => 'file://' . $dir . '/wcms-modules.json', 'pluginThemeType' => 'themes', 'password_recheck' => 'secret', 'token' => $this->wcms->getToken()];
 		try {
