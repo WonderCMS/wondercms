@@ -362,7 +362,25 @@ class Wcms
 				'Old backup files detected. Backups now download to your computer and are not kept on the server. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete the old backup files</b></a>');
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
+			$this->removeStaleBackupArchives();
 			$this->zipBackup();
+		}
+	}
+
+	/**
+	 * Remove archives a killed backup request left under data/ (a time limit or a fatal mid-stream skips the finally that
+	 * unlinks). Only the exact backup name, and only older than a request can live: a fresh one is another request's
+	 * archive about to be sent.
+	 *
+	 * @return void
+	 */
+	public function removeStaleBackupArchives(): void
+	{
+		$maxAge = max(300, (int)ini_get('max_execution_time'));
+		foreach (glob($this->dataPath . '/*-backup-*.zip') ?: [] as $archive) {
+			if ($this->isBackupArchiveName($archive) && is_file($archive) && filemtime($archive) < time() - $maxAge) {
+				@unlink($archive);
+			}
 		}
 	}
 
@@ -3930,6 +3948,9 @@ EOT;
 	public function sendBackup(string $zipPath): void
 	{
 		try {
+			if (function_exists('ignore_user_abort')) {
+				ignore_user_abort(true); // the admin who cancels the download must not stop the script before the finally below removes the archive
+			}
 			while (ob_get_level()) {
 				ob_end_clean(); // a buffer left open by a plugin would hold the whole archive in memory
 			}

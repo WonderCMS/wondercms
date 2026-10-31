@@ -34,6 +34,12 @@ final class BackupTest extends TestCase
 		file_put_contents($this->site . '/themes/sky/theme.php', '<?php // sky');
 		file_put_contents($this->site . '/data/files/photo.jpg', 'jpeg');
 		file_put_contents($this->site . '/data/files/' . self::LEGACY, 'an old backup with an old password hash');
+		$this->writeRouter();
+	}
+
+	/** The router constructs Wcms over the temp site and runs backupAction() as the admin; $prelude runs first (a plugin's doing) */
+	private function writeRouter(string $prelude = ''): void
+	{
 		file_put_contents($this->tmp . '/router.php', '<?php
 			define("PHPUNIT_TESTING", true);
 			require ' . var_export(realpath(__DIR__ . '/../index.php'), true) . ';
@@ -41,6 +47,7 @@ final class BackupTest extends TestCase
 			$wcms->loggedIn = true;
 			$_SESSION = [];
 			$_POST = ["backup" => "", "token" => $wcms->getToken()];
+			' . $prelude . '
 			$wcms->backupAction();
 			echo "no download";');
 	}
@@ -56,8 +63,8 @@ final class BackupTest extends TestCase
 		}
 	}
 
-	/** Start php -S with $ini settings and request a backup; return [status line and headers, body] */
-	private function download(array $ini = []): array
+	/** Start php -S with $ini settings over the router; return its port once it accepts connections */
+	private function startServer(array $ini = []): int
 	{
 		$socket = stream_socket_server('tcp://127.0.0.1:0');
 		$name = stream_socket_get_name($socket, false);
@@ -70,7 +77,6 @@ final class BackupTest extends TestCase
 		}
 		array_push($command, '-S', '127.0.0.1:' . $port, $this->tmp . '/router.php');
 		$this->server = proc_open($command, [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $this->tmp);
-		$context = stream_context_create(['http' => ['timeout' => 60, 'ignore_errors' => true, 'follow_location' => 0]]);
 		for ($i = 0; $i < 50; $i++) {
 			$fp = @fsockopen('127.0.0.1', $port);
 			if ($fp) {
@@ -79,9 +85,31 @@ final class BackupTest extends TestCase
 			}
 			usleep(100000);
 		}
+		return $port;
+	}
+
+	/** Start php -S with $ini settings and request a backup; return [status line and headers, body] */
+	private function download(array $ini = []): array
+	{
+		$port = $this->startServer($ini);
+		$context = stream_context_create(['http' => ['timeout' => 60, 'ignore_errors' => true, 'follow_location' => 0]]);
 		$body = @file_get_contents('http://127.0.0.1:' . $port . '/', false, $context);
 		$this->assertNotFalse($body, 'the local server answers');
 		return [$http_response_header ?? [], $body];
+	}
+
+	/** Poll data/ for up to $seconds until no zip is left; return what is left */
+	private function zipsLeftUnderData(int $seconds): array
+	{
+		$until = microtime(true) + $seconds;
+		do {
+			$left = glob($this->site . '/data/*.zip');
+			if ($left === []) {
+				return [];
+			}
+			usleep(100000);
+		} while (microtime(true) < $until);
+		return $left;
 	}
 
 	private function header(array $headers, string $name): ?string
@@ -155,6 +183,48 @@ final class BackupTest extends TestCase
 		[$headers, $body] = $this->download(['disable_functions' => 'readfile']);
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
 		$this->assertContains('data/database.js', $this->entries($body));
+		$this->assertNothingLeftOnDisk();
+	}
+
+	public function testACancelledDownloadLeavesNoArchiveBehind(): void
+	{
+		// The admin closes the tab or cancels the save dialog partway: PHP sees the dead socket on the next write and, unless told
+		// to ignore the abort, bails out of the script without running finally; the whole archive then stayed under data/.
+		$big = fopen($this->site . '/data/files/video.mp4', 'wb');
+		for ($i = 0; $i < 24; $i++) {
+			fwrite($big, random_bytes(1 << 20)); // random, so the archive is as large and the socket buffers fill
+		}
+		fclose($big);
+		$port = $this->startServer();
+		$client = fsockopen('127.0.0.1', $port, $errno, $errstr, 10);
+		$this->assertNotFalse($client, 'connects: ' . $errstr);
+		fwrite($client, "GET / HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n");
+		$head = '';
+		while (strpos($head, "\r\n\r\n") === false && !feof($client)) {
+			$head .= fread($client, 1024);
+		}
+		$this->assertStringContainsString('Content-Type: application/zip', $head, 'the download started');
+		$this->assertCount(1, glob($this->site . '/data/*.zip'), 'the archive is on disk while it is sent');
+		fclose($client); // cancelled after the first bytes
+		$this->assertSame([], $this->zipsLeftUnderData(20), 'the archive is removed although the admin went away');
+		unlink($this->site . '/data/files/video.mp4');
+		$this->assertNothingLeftOnDisk();
+	}
+
+	public function testTheNextBackupSweepsAStaleArchiveAndKeepsAFreshOne(): void
+	{
+		// A time limit or a fatal mid-stream skips finally and leaves an archive under data/: the next backup removes any that is
+		// older than a request can live, and keeps a fresh one, which another admin's request may be about to send.
+		$stale = $this->site . '/data/2026-01-01-backup-' . str_repeat('ab', 16) . '.zip';
+		$fresh = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('cd', 16) . '.zip';
+		file_put_contents($stale, 'left behind');
+		file_put_contents($fresh, 'being sent by another request');
+		touch($stale, time() - 3600);
+		[$headers, $body] = $this->download();
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertFileDoesNotExist($stale, 'the stale archive is swept');
+		$this->assertFileExists($fresh, 'a fresh archive is kept');
+		unlink($fresh);
 		$this->assertNothingLeftOnDisk();
 	}
 }
