@@ -148,7 +148,7 @@ final class BackupTest extends TestCase
 	private function assertNothingLeftOnDisk(): void
 	{
 		$this->assertSame([], glob($this->site . '/data/*.zip'), 'no archive left under data/');
-		$this->assertSame([], array_values(array_diff(scandir($this->site . '/data'), ['.', '..', 'files', 'database.js'])), 'nothing else left under data/ either');
+		$this->assertSame([], array_values(array_diff(scandir($this->site . '/data'), ['.', '..', 'files', 'database.js', 'database.js.lock'])), 'nothing else left under data/ either'); // save()'s lock file stays, empty, by design
 		$this->assertSame([self::LEGACY, self::UPLOAD, 'photo.jpg'], array_values(array_diff(scandir($this->site . '/data/files'), ['.', '..'])), 'nothing new in data/files');
 	}
 

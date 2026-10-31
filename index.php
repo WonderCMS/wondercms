@@ -6,7 +6,12 @@
  * @license MIT
  */
 
-session_start();
+session_start([
+	'cookie_httponly' => true,
+	'cookie_samesite' => 'Lax',
+	'cookie_secure' => Wcms::isCurrentlyOnSSL(), // the class is declared below at the top level, so it is bound before this line runs (as new Wcms() below relies on)
+	'use_strict_mode' => true, // a session id the server never issued is replaced, not adopted
+]);
 define('VERSION', '3.7.1');
 mb_internal_encoding('UTF-8');
 
@@ -68,6 +73,9 @@ class Wcms
 
 	/** @var bool $loggedIn - check if admin is logged in */
 	public $loggedIn = false;
+
+	/** @var bool $replacingPassword - set by changePasswordAction() for the one save that may replace the password hash */
+	private $replacingPassword = false;
 
 	/** @var array $listeners for hooks */
 	public $listeners = [];
@@ -288,7 +296,7 @@ class Wcms
 					. '">'
 					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove();">&times;</button>' : '')
 					. $alert['message']
-					. $this->hideAlerts();
+					. ($this->loggedIn ? $this->hideAlerts() : '</div>'); // hideAlerts() closes the alert after its link; a visitor gets no link
 			}
 		}
 		$output .= '</div>';
@@ -512,8 +520,12 @@ class Wcms
 				$this->redirect();
 				return;
 			}
-			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-			$this->set('config', 'forceLogout', true);
+			$this->replacingPassword = true;
+			try {
+				$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT)); // a new hash, a new stamp: every session stamped with the old one is logged out at its next request
+			} finally {
+				$this->replacingPassword = false;
+			}
 			$this->logoutAction(true);
 			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
@@ -679,7 +691,8 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// Without $createPage the entry links a page that already exists (createPage() writes the page first)
+		$slug = $this->createUniqueSlug($name, $menu, null, $createPage);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
@@ -700,6 +713,12 @@ class Wcms
 			}
 		}
 		$slugTree[] = $slug;
+
+		// Validate before saving either: a refused page must leave no menu entry behind
+		if ($createPage && $this->pageExistsAt($slugTree)) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
 
 		$menuCount = count(get_object_vars($menuSelectionObject));
 		while (isset($menuSelectionObject->{$menuCount})) {
@@ -737,7 +756,10 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// The renamed item is checked against its siblings and the pages at its level, not its children, and is not its own sibling
+		$parentTree = explode('-', $menu);
+		$ownKey = array_pop($parentTree);
+		$slug = $this->createUniqueSlug($name, implode('-', $parentTree), $ownKey, true);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -771,40 +793,63 @@ class Wcms
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 
 		$this->updatePageSlug($slugTree, $slug);
-		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
+		$oldPath = implode('/', $slugTree);
+		array_pop($slugTree);
+		$slugTree[] = $slug;
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === $oldPath) {
 			// Change old slug with new one
-			array_pop($slugTree);
-			$slugTree[] = $slug;
 			$this->set(self::DB_CONFIG, 'defaultPage', implode('/', $slugTree));
 		}
+		$_SESSION['redirect_to_name'] = $name;
+		$_SESSION['redirect_to'] = implode('/', $slugTree);
 	}
 
 	/**
 	 * Check if slug already exists and creates unique one
 	 *
 	 * @param string $slug
-	 * @param string|null $menu
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
+	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
 	 * @return string
 	 */
-	public function createUniqueSlug(string $slug, ?string $menu = null): string
-	{
+	public function createUniqueSlug(
+		string $slug,
+		?string $menu = null,
+		?string $excludeKey = null,
+		bool $againstPages = false
+	): string {
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		$menuCount = count(get_object_vars($allMenuItems));
+		$pages = $this->get(self::DB_PAGES_KEY);
 
-		// Check if it is subpage
-		$menuTree = $menu ? explode('-', $menu) : [];
+		// Check if it is subpage ('0', the first top-level item, is a parent too)
+		$menuTree = $menu !== null && $menu !== '' ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
-				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages ?? [];
+				$parentItem = $allMenuItems->{$childMenuKey} ?? null;
+				$allMenuItems = $parentItem->subpages ?? [];
+				$pages = $pages->{$parentItem->slug ?? ''}->subpages ?? null;
 			}
 		}
 
-		foreach ($allMenuItems as $value) {
-			if ($value->slug === $slug) {
-				$slug .= '-' . $menuCount;
-				break;
-			}
+		// Recheck every candidate: a generated '-N' can itself be a sibling's slug
+		$siblings = (array)$allMenuItems;
+		$ownSlug = null;
+		if ($excludeKey !== null) {
+			$ownSlug = $siblings[$excludeKey]->slug ?? null;
+			unset($siblings[$excludeKey]);
+		}
+		$takenSlugs = array_column($siblings, 'slug');
+		if ($againstPages && is_object($pages)) {
+			// A page without a menu entry (the 404 page, for one) is taken too; the renamed item's own page is not
+			$pageSlugs = array_map('strval', array_keys(get_object_vars($pages)));
+			$takenSlugs = array_merge($takenSlugs, array_diff($pageSlugs, [(string)$ownSlug]));
+		}
+		$base = $slug;
+		$n = 2;
+		while (in_array($slug, $takenSlugs, true)) {
+			$slug = $base . '-' . $n++;
 		}
 
 		return $slug;
@@ -820,19 +865,7 @@ class Wcms
 	 */
 	public function createPage(?array $slugTree = null, bool $createMenuItem = false): void
 	{
-		$pageExists = false;
-		$pageData = null;
-		foreach ($slugTree as $parentPage) {
-			if (!$pageData) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage} ?? null;
-				continue;
-			}
-
-			$pageData = $pageData->subpages->{$parentPage} ?? null;
-			$pageExists = !empty($pageData);
-		}
-
-		if ($pageExists) {
+		if ($this->pageExistsAt($slugTree ?? [])) {
 			$this->alert('danger', 'Cannot create page with existing slug.');
 			return;
 		}
@@ -882,6 +915,28 @@ class Wcms
 		if ($createMenuItem) {
 			$this->createMenuItem($selectedPage->{$slug}->title, $menuKey);
 		}
+	}
+
+	/**
+	 * Check if a page exists at the full slug tree, a one-segment top-level tree included
+	 *
+	 * @param array $slugTree
+	 * @return bool
+	 */
+	private function pageExistsAt(array $slugTree): bool
+	{
+		if (empty($slugTree)) {
+			return false;
+		}
+		$pages = $this->get(self::DB_PAGES_KEY);
+		foreach ($slugTree as $slug) {
+			$page = is_object($pages) ? ($pages->{$slug} ?? null) : null;
+			if (!is_object($page)) {
+				return false;
+			}
+			$pages = $page->subpages ?? null;
+		}
+		return true;
 	}
 
 	/**
@@ -1001,6 +1056,13 @@ class Wcms
 			}
 		}
 
+		if ($newSlugName === $slug) {
+			// A rename that keeps the slug: the unset below would delete the page
+			$selectedPage->{$slug}->modified = date('c');
+			$this->save();
+			return;
+		}
+
 		$selectedPage->{$newSlugName} = $selectedPage->{$slug};
 		$selectedPage->{$newSlugName}->modified = date('c');
 		unset($selectedPage->{$slug});
@@ -1019,7 +1081,23 @@ class Wcms
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
-		return $this->hook('css', '')[0];
+		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, only on a page that shows one (alerts() prints what is queued, or already printed it), all under .alertWrapper so a theme's own .alert boxes are untouched.
+		// The admin stylesheet stays admin-only; !important beats a theme's own button rules. The hook keeps its argument ('' for a visitor, as before), so a listener that replaces it cannot drop these rules; its output follows them
+		if (!$this->printedAlerts && (empty($_SESSION['alert']) || isset($_POST['fieldname'], $_POST['content'], $_POST['target']))) {
+			return $this->hook('css', '')[0];
+		}
+		$styles = <<<'EOT'
+<style>
+.alertWrapper{position:fixed;top:0;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;font-size:14px;line-height:1.5}
+.alertWrapper .alert{position:relative;top:70px;margin-bottom:20px;padding:20px 30px;border:1px solid transparent;border-radius:5px;text-align:left}
+.alertWrapper .alert-danger{color:#a94442;background-color:#f2dede;border-color:#ebccd1}
+.alertWrapper .alert-success{color:#155724;background-color:#d4edda;border-color:#c3e6cb}
+.alertWrapper .alert-dismissible{padding-right:50px}
+.alertWrapper .alert .close{position:absolute;top:10px;right:14px;width:auto;height:auto;min-width:0;min-height:0;margin:0;padding:0 4px;background:none!important;border:0!important;border-radius:0;box-shadow:none;color:#000!important;opacity:.4;font:700 21px/1 Arial,sans-serif;letter-spacing:normal;text-transform:none;text-shadow:#fff 0 1px 0;-webkit-appearance:none;appearance:none;cursor:pointer}
+.alertWrapper .alert .close:after{display:none}
+</style>
+EOT;
+		return $styles . $this->hook('css', '')[0];
 	}
 
 	/**
@@ -1385,6 +1463,7 @@ EOT;
 
 	/**
 	 * Get something from database
+	 * Creates and saves a missing key: never call it for an optional key on an unauthenticated path
 	 */
 	public function get()
 	{
@@ -2420,9 +2499,11 @@ EOT;
 		}
 	
 		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
-		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+		// The connection address only: Client-IP and X-Forwarded-For are whatever the client sends
+		$ip = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) !== false ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 		$timestamp = date('c');
-		$valid = password_verify($password, $this->get('config', 'password'));
+		$hash = $this->passwordHash();
+		$valid = $hash !== '' && password_verify($password, $hash);
 	
 		if ($valid) {
 			session_regenerate_id(true);
@@ -2436,8 +2517,8 @@ EOT;
 	
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
-			$this->set('config', 'forceLogout', false);
-			$this->saveAdminLoginIP();
+			$_SESSION['authStamp'] = $this->authStamp($hash); // the hash that was verified, never a re-read one: a password change during the login leaves this session out
+			$this->saveAdminLoginIP($ip);
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2455,13 +2536,8 @@ EOT;
 	/**
 	 * Save admins last 5 IPs
 	 */
-	private function saveAdminLoginIP(): void
+	private function saveAdminLoginIP(string $getAdminIP): void
 	{
-		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
-		if ($getAdminIP === null) {
-			return;
-		}
-
 		if (!$savedIPs = $this->get('config', 'lastLogins')) {
 			$this->set('config', 'lastLogins', []);
 			$savedIPs = [];
@@ -2473,14 +2549,41 @@ EOT;
 	}
 
 	/**
-	 * Check if admin is logged in
+	 * Check if admin is logged in: the session must belong to this install and carry the stamp of the password hash on
+	 * disk, so a password change (or a hash edited by hand in database.js) logs out every session from before it.
+	 * A session from 3.7.1 or older has no stamp and logs in once more. config.forceLogout is no longer read.
 	 * @return void
 	 */
 	public function loginStatus(): void
 	{
-		$this->loggedIn = $this->get('config', 'forceLogout')
-			? false
-			: isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$thisInstall = isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$expected = $this->authStamp($this->passwordHash());
+		$given = $_SESSION['authStamp'] ?? null;
+		$this->loggedIn = $thisInstall && $expected !== '' && is_string($given) && hash_equals($expected, $given);
+		if ($thisInstall && !$this->loggedIn) {
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']); // emptied, so nothing reading $_SESSION directly (a hand-uploaded plugin) sees it as an admin session
+		}
+	}
+
+	/**
+	 * The password hash on disk, read without get(): get() would create and save a missing key on a visitor's request
+	 * @return string empty when the key is missing or not a string (a hand-edited database)
+	 */
+	private function passwordHash(): string
+	{
+		$config = $this->db->{self::DB_CONFIG} ?? null;
+		$hash = is_object($config) ? ($config->password ?? null) : null;
+		return is_string($hash) ? $hash : '';
+	}
+
+	/**
+	 * What a login session carries instead of the hash itself; unique per install through the bcrypt salt
+	 * @param string $hash
+	 * @return string empty for an empty hash, which no session matches
+	 */
+	private function authStamp(string $hash): string
+	{
+		return $hash === '' ? '' : hash_hmac('sha256', 'wcms-session-v1', $hash);
 	}
 
 	/**
@@ -2522,7 +2625,7 @@ EOT;
 			$to = isset($_GET['to']) && is_string($_GET['to']) && $_GET['to'] !== '' && !$this->isLogoutToLoginScreenEnabled()
 				? $_GET['to']
 				: $this->get('config', 'login');
-			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token'], $_SESSION['alert']);
 			$this->redirect($to);
 		}
 	}
@@ -2905,9 +3008,50 @@ EOT;
 			);
 			return;
 		}
-		if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
-			$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+		$lock = $path === $this->dbPath ? $this->lockDatabase() : null; // the password change saves through here too, so it waits for the same lock
+		try {
+			if ($path === $this->dbPath && !$this->replacingPassword) {
+				// Every save writes the whole snapshot this request read; one read before a password change (a login spends ~100 ms
+				// in bcrypt) would write the old hash back and revive every session stamped with it. Only changePasswordAction() replaces it.
+				$onDisk = json_decode($this->lockedRead($path));
+				$diskHash = is_object($onDisk) && isset($onDisk->{self::DB_CONFIG}) && is_object($onDisk->{self::DB_CONFIG}) ? ($onDisk->{self::DB_CONFIG}->password ?? null) : null;
+				$config = $content->{self::DB_CONFIG} ?? null;
+				if (is_string($diskHash) && $diskHash !== '' && is_object($config) && ($config->password ?? null) !== $diskHash) { // no readable hash on disk (the first install, a vanished file): saved as it is
+					$config->password = $diskHash; // $content is $this->db: the request's own copy is corrected too
+					$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+				}
+			}
+			if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
+				$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+			}
+		} finally {
+			if ($lock !== null) {
+				flock($lock, LOCK_UN);
+				fclose($lock);
+			}
 		}
+	}
+
+	/**
+	 * An exclusive lock on database.js.lock (denied over HTTP by the database\.js rule in .htaccess), held by save() from the
+	 * re-read of the password hash on disk until the new file is renamed into place: without it a save from a snapshot read
+	 * before a password change could re-read the old hash, the change rename its file, and this save rename the old hash back
+	 * @return resource|null null where flock() or fopen() is disabled or the lock file cannot be opened: the save goes ahead unlocked
+	 */
+	private function lockDatabase()
+	{
+		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('fclose')) {
+			return null;
+		}
+		$handle = @fopen($this->dbPath . '.lock', 'c'); // created empty, never truncated or written
+		if ($handle === false) {
+			return null;
+		}
+		if (!flock($handle, LOCK_EX)) { // a filesystem without locking saves as before
+			fclose($handle);
+			return null;
+		}
+		return $handle;
 	}
 
 	/**
@@ -2934,8 +3078,6 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'] ?? null, ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItemUpdate' && $menu !== null) {
 				$this->updateMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
 			if ($target === 'menuItemCreate' && $menu !== null) {
 				$this->createMenuItem($content, $menu, $visibility, true);
@@ -3170,7 +3312,7 @@ EOT;
 									<button type="submit" class="wbtn wbtn-block wbtn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 							 
 							 <p class="subTitle">Save confirmation popup</p>
 							 <p class="change small">If this is turned "ON", WonderCMS will always ask you to confirm any changes you make.</p>
@@ -3219,7 +3361,7 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
 		$output .= $this->renderAdminLoginIPs();
 		$output .= '
 				 		 </div>
@@ -3230,7 +3372,7 @@ EOT;
 							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
 							<b><a href="https://wondercms.com/news" target="_blank">News</a> &nbsp;
 							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
-							<a href="https://wondercms.com/docs" target="_blank">Docs</a> &nbsp;
+							<a href="https://docs.wondercms.com/" target="_blank">Docs</a> &nbsp;
 							<a href="https://wondercms.com/donate" target="_blank">Donate</a> &nbsp;
 							<a href="https://swag.wondercms.com" target="_blank">Shop/Merch</a></b>
 						</p>
@@ -3546,7 +3688,7 @@ EOT;
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" /><input type="hidden" name="password_recheck" />
 					</form>
-					<p class="text-right"><a href="https://www.wondercms.com/docs/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
+					<p class="text-right"><a href="https://docs.wondercms.com/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
 		return $output;
 	}
@@ -4276,7 +4418,7 @@ EOT;
 				$results[] = [
 					'title' => $page->title ?? '',
 					'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
-					'slug' => $prefix . $slug
+					'slug' => $prefix . $slug . (!empty((array)($page->subpages ?? [])) ? '/' : '') // a parent ends with '/', as in the menu (renderPageNavMenuItem), so its relative links resolve the same
 				];
 			}
 			if (!empty($page->subpages) && is_object($page->subpages)) {

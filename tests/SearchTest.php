@@ -50,9 +50,30 @@ final class SearchTest extends TestCase
 	public function testFindsSubpagesAtAnyDepthWithFullSlugPath(): void
 	{
 		$slugs = array_column($this->search('games'), 'slug');
-		$this->assertContains('games/board', $slugs);
-		$this->assertCount(1, array_keys($slugs, 'games/board'), 'the legacy top-level duplicate must not be a second hit');
+		$this->assertContains('games/board/', $slugs);
+		$this->assertCount(1, array_keys($slugs, 'games/board/'), 'the legacy top-level duplicate must not be a second hit');
 		$this->assertSame(['games/board/chess'], array_column($this->search('Шахматы'), 'slug'));
+	}
+
+	public function testAPageWithSubpagesEndsWithASlashAsInTheMenu(): void
+	{
+		// #407: the menu links a parent as games/board/, so a relative link on that page resolves under it; search must agree
+		$this->assertSame(['games/', 'games/board/'], array_column($this->search('games'), 'slug'));
+		$this->assertSame(['games/board/chess'], array_column($this->search('Шахматы'), 'slug'), 'a page without subpages keeps the bare slug');
+
+		$db = json_decode(file_get_contents(__DIR__ . '/../data_test/database_test.js'));
+		$chess = (object)['name' => 'Chess', 'slug' => 'chess', 'visibility' => 'show', 'subpages' => new stdClass()];
+		$board = (object)['name' => 'Board', 'slug' => 'board', 'visibility' => 'show', 'subpages' => (object)['0' => $chess]];
+		$db->config->menuItems->{'9'} = (object)['name' => 'Games', 'slug' => 'games', 'visibility' => 'show', 'subpages' => (object)['0' => $board]];
+		$db->pages->{'hidden-page'}->subpages = new stdClass(); // an emptied parent: the menu writes no slash for it
+		file_put_contents(__DIR__ . '/../data_test/database_test.js', json_encode($db));
+		$this->wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect'])->getMock();
+		$menu = $this->wcms->menu();
+		foreach (array_column($this->search('games'), 'slug') as $slug) {
+			$this->assertStringContainsString('href="' . Wcms::url($slug) . '"', $menu, 'the menu links ' . $slug . ' the same way');
+		}
+		$this->assertStringContainsString('href="' . Wcms::url('games/board/chess') . '"', $menu);
+		$this->assertSame(['hidden-page'], array_column($this->search('secret garden'), 'slug'));
 	}
 
 	public function testHiddenPagesAreSearchableAnd404IsNot(): void

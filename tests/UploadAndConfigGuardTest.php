@@ -88,7 +88,7 @@ final class UploadAndConfigGuardTest extends TestCase
 
 	public function testLoginIpsAreEscapedInTheSettingsPanel(): void
 	{
-		// A proxy header is stored as sent; the settings panel must print it as text.
+		// Before 3.7.2 a proxy header was stored as sent and can still be in the database; the settings panel must print it as text.
 		$this->wcms->set('config', 'lastLogins', ['2026/10/28 10:00:00' => '<img src=x onerror=alert(1)>']);
 		$html = $this->wcms->settings();
 		$this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $html);
@@ -185,7 +185,7 @@ final class UploadAndConfigGuardTest extends TestCase
 		$dir = sys_get_temp_dir() . '/wcms-module-' . bin2hex(random_bytes(3));
 		mkdir($dir);
 		file_put_contents($dir . '/wcms-modules.json', json_encode(['themes' => ['local' => ['name' => 'Local', 'repo' => 'file://' . $dir, 'zip' => 'file://' . $dir . '/local.zip', 'summary' => 's', 'version' => '1.0.0', 'image' => '']]]));
-		$this->wcms->set('config', 'password', password_hash('secret', PASSWORD_DEFAULT));
+		wcmsSetPasswordOnDisk($this->wcms, 'secret');
 		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
 		$_POST = ['pluginThemeUrl' => 'file://' . $dir . '/wcms-modules.json', 'pluginThemeType' => 'themes', 'password_recheck' => 'secret', 'token' => $this->wcms->getToken()];
 		try {
@@ -409,7 +409,7 @@ final class UploadAndConfigGuardTest extends TestCase
 			}
 			return false;
 		};
-		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
+		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.lock', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
 			$this->assertTrue($denied($path), $path);
 		}
 		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg', 'data/files/photos.zip', 'data/files/notes-backup-plan.zip', 'data/files/holiday-backup-2024.zip', 'data/files/site-backup-1.zip', 'data/files/2026-01-01-backup-0123456789abcdef.zip'] as $path) {
