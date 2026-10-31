@@ -4035,7 +4035,7 @@ EOT;
 				}
 
 				try {
-					const response = await fetch('{$this->url('search')}', {
+					const response = await fetch(window.location.href, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 						body: new URLSearchParams({ query, token: '{$this->getToken()}' })
@@ -4084,6 +4084,9 @@ EOT;
 			if ($query === '' || !mb_check_encoding($query, 'UTF-8')) { // an empty query would match every page; an invalid one makes the /u highlight regex fail
 				echo json_encode(['error' => 'No matching content found']);
 				exit;
+			}
+			if (is_string($_GET['page'] ?? null) && trim($_GET['page'], " \t\n\r\0\x0B/") !== '') {
+				$this->pageStatus(); // the widget posts to the page it runs on, which searchPages() skips; init() searches before it resolves the page. No page named (code posting to the site root) skips nothing
 			}
 			$results = $this->searchPages($this->get('pages'), $query);
 
@@ -4134,11 +4137,11 @@ EOT;
 			if ($slug === '404' || strpos($slug, '/') !== false || !is_object($page) || (!empty($page->private) && !$this->loggedIn)) {
 				continue;
 			}
-			if ($this->pageMatchesQuery($page, $query)) {
+			if ($prefix . $slug !== implode('/', $this->currentPageTree) && $this->pageMatchesQuery($page, $query)) {
 				$results[] = [
 					'title' => $page->title ?? '',
 					'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
-					'slug' => $prefix . $slug
+					'slug' => $prefix . $slug . (!empty((array)($page->subpages ?? [])) ? '/' : '') // a parent ends with '/', as in the menu (renderPageNavMenuItem), so its relative links resolve the same
 				];
 			}
 			if (!empty($page->subpages) && is_object($page->subpages)) {
