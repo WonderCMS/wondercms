@@ -480,17 +480,37 @@ final class ThemeFolderTest extends TestCase
 		unset($_SESSION['alert']);
 	}
 
-	public function testTheSameAlertRaisedTwiceIsQueuedOnceWhenAListenerTranslatesIt(): void
+	public function testTheSameAlertRaisedTwiceIsShownOnceWhenAListenerReplacesItsText(): void
 	{
-		$this->wcms->addListener('alert', static function ($args) { // what the translation plugins do
+		// The returned text is the whole API (#377); the second listener is what the translation plugins do today, also
+		// removing the earlier copy from $_SESSION['alert'] themselves for cores older than 3.7.0, and must keep working.
+		$replace = static function ($args) {
 			$args[0] = str_replace('Wrong password.', 'Falsches Passwort.', $args[0]);
 			return $args;
-		});
-		unset($_SESSION['alert']);
-		$this->wcms->alert('danger', 'Wrong password.');
-		$this->wcms->alert('danger', 'Wrong password.');
-		$this->assertSame(['Falsches Passwort.'], array_column($_SESSION['alert']['danger'], 'message'));
-		unset($_SESSION['alert']);
+		};
+		$replaceAndUnset = static function ($args) use ($replace) {
+			$new = $replace($args);
+			foreach ($_SESSION['alert'] ?? [] as $class => $queued) {
+				foreach ($queued as $i => $alert) {
+					if ($new[0] !== $args[0] && $alert['message'] === $new[0]) {
+						unset($_SESSION['alert'][$class][$i]);
+					}
+				}
+			}
+			return $new;
+		};
+		foreach (['returned text only' => $replace, 'today\'s plugins' => $replaceAndUnset] as $label => $listener) {
+			$wcms = new Wcms('data_test', 'files_test', 'database_test.js');
+			$wcms->addListener('alert', $listener);
+			unset($_SESSION['alert']);
+			foreach (['Wrong password.', 'Wrong password.', 'Saved.', 'Saved.'] as $message) {
+				$wcms->alert('danger', $message);
+			}
+			$html = $wcms->alerts();
+			$this->assertSame(1, substr_count($html, 'Falsches Passwort.'), $label . ': the returned text, once');
+			$this->assertStringNotContainsString('Wrong password.', $html, $label);
+			$this->assertSame(1, substr_count($html, 'Saved.'), $label . ': a text the listener returns unchanged still dedupes');
+		}
 	}
 
 	public function testAnAlertListenerTranslatesTheHideLinkAndNothingElse(): void

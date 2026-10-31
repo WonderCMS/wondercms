@@ -202,13 +202,184 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['apple.png', 'photo1.png', 'Photo2.png', 'photo10.png'], $m[1], 'scandir() alone gives Photo2, apple, photo1, photo10');
 	}
 
+	public function testTheFilesTabSortsAnAccentedNameAmongItsLetter(): void
+	{
+		if (!extension_loaded('intl')) {
+			$this->markTestSkipped('without intl the Files tab sorts byte-wise past ASCII, as 3.7.0 did');
+		}
+		foreach (['zebra.png', 'Édith.png', 'apple.png', 'photo10.png', 'photo2.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'Édith.png', 'photo2.png', 'photo10.png', 'zebra.png'], array_map('rawurldecode', $m[1]), 'natcasesort() alone puts Édith after zebra');
+	}
+
+	/**
+	 * The stub Collator cannot be undeclared, so it lives and dies in its own process (the annotations for PHPUnit 9.6, the attributes for 11.5)
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	#[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+	#[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+	public function testAPolyfillCollatorWithoutIntlIsNotUsed(): void
+	{
+		if (extension_loaded('intl')) {
+			$this->markTestSkipped('intl is loaded, so no stub Collator can be declared');
+		}
+		if (!class_exists('Collator')) {
+			eval('class Collator { public function __construct($locale) { throw new RuntimeException("polyfill Collator"); } }');
+		}
+		foreach (['zebra.png', 'Édith.png', 'apple.png'] as $name) {
+			file_put_contents($this->root . '/data_test/files_test/' . $name, 'x');
+		}
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(['apple.png', 'zebra.png', 'Édith.png'], array_map('rawurldecode', $m[1]), 'natcasesort(), as 3.7.0');
+	}
+
+	public function testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort(): void
+	{
+		$names = ['zebra.png', "\xE9dith.png", 'apple.png', 'photo10.png', 'Photo2.png'];
+		foreach ($names as $name) {
+			if (@file_put_contents($this->root . '/data_test/files_test/' . $name, 'x') === false) {
+				$this->markTestSkipped('this file system refuses a name that is not UTF-8');
+			}
+		}
+		if (!in_array("\xE9dith.png", scandir($this->root . '/data_test/files_test'), true)) {
+			$this->markTestSkipped('this filesystem rewrites non-UTF-8 names');
+		}
+		natcasesort($names);
+		preg_match_all('~deleteModule=([^&]+)&type=files~', $this->wcms->settings(), $m);
+		$this->assertSame(array_values($names), array_map('rawurldecode', $m[1]));
+	}
+
+	public function testAThemeFolderNameThatFoldsToSkyIsRefusedLikeSky(): void
+	{
+		// macOS resolves 'ſky' and 'SKY' with a Kelvin sign (U+212A) to sky/; strcasecmp() compares bytes and let both through.
+		$name = "S\u{212A}Y";
+		mkdir($this->root . '/themes/' . $name, 0777, true);
+		file_put_contents($this->root . '/themes/' . $name . '/theme.php', '<?php');
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('<h4>' . $name . '</h4>', $html, 'listed');
+		$this->assertStringNotContainsString('deleteModule=' . rawurlencode($name) . '&', $html);
+		$this->wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		foreach ([$name, 'ſky'] as $request) {
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => $request, 'type' => 'themes', 'token' => $this->wcms->getToken()];
+			try {
+				$this->wcms->deleteFileModuleAction();
+				$this->fail('no redirect');
+			} catch (RuntimeException $e) {
+				$this->assertStringStartsWith('Sky is the fallback theme', $_SESSION['alert']['danger'][0]['message'] ?? '', $request);
+			}
+		}
+		$this->assertFileExists($this->root . '/themes/' . $name . '/theme.php');
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+	}
+
+	public function testADanglingSymlinkIsRemovedLikeAnyEntry(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		foreach (['themes' => '/themes/', 'plugins' => '/plugins/', 'files' => '/data_test/files_test/'] as $type => $folder) {
+			$link = $this->root . $folder . 'gone-' . $type;
+			symlink($this->root . '/no-such-target', $link); // realpath() is false for it
+			unset($_SESSION['alert']);
+			$_REQUEST = ['deleteModule' => basename($link), 'type' => $type, 'token' => $this->wcms->getToken()];
+			$this->wcms->deleteFileModuleAction();
+			$this->assertFalse(is_link($link), $type);
+			$this->assertSame('Deleted ' . basename($link) . '.', $_SESSION['alert']['success'][0]['message'] ?? '', $type);
+		}
+		$this->assertDirectoryDoesNotExist($this->root . '/no-such-target', 'nothing is created behind the link');
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+	}
+
+	public function testADanglingSymlinkIsListedWithARemoveButtonOnly(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		symlink($this->root . '/no-such-target', $this->root . '/themes/gone-theme');
+		symlink($this->root . '/no-such-target', $this->root . '/plugins/gone-plugin');
+		symlink($this->root . '/no-such-target', $this->root . '/themes/sky');
+		foreach (['themes' => 'gone-theme', 'plugins' => 'gone-plugin'] as $type => $name) {
+			$entry = $this->wcms->listAllModules($type)['exist'][$name] ?? null;
+			$this->assertIsArray($entry, $type);
+			$this->assertFalse($entry['install'], $type);
+			$this->assertNull($entry['currentVersion'], $type);
+			$this->assertSame('A link whose target is gone (found in the ' . $type . ' folder).', $entry['summary']);
+		}
+		$html = $this->wcms->settings();
+		$this->assertStringContainsString('deleteModule=gone-theme&type=themes', $html);
+		$this->assertStringContainsString('deleteModule=gone-plugin&type=plugins', $html);
+		$this->assertStringNotContainsString('selectModule=gone-theme&', $html, 'nothing to activate');
+		$this->assertStringNotContainsString('togglePlugin=gone-plugin&', $html, 'nothing to enable or disable');
+		$this->assertStringContainsString('<h4>sky</h4>', $html, 'a dangling sky link is listed');
+		$this->assertStringNotContainsString('deleteModule=sky&', $html, 'and keeps the Sky refusal');
+		$this->assertStringNotContainsString('no-entry-file', $html, 'a folder without its entry file is still not listed');
+
+		foreach (['themes' => 'gone-theme', 'plugins' => 'gone-plugin'] as $type => $name) {
+			$_REQUEST = ['deleteModule' => $name, 'type' => $type, 'token' => $this->wcms->getToken()];
+			$this->wcms->deleteFileModuleAction();
+			$this->assertFalse(is_link($this->root . '/' . $type . '/' . $name), $type);
+		}
+		$_REQUEST = [];
+		unset($_SESSION['alert']);
+		$this->assertSame(['.git', 'my.theme', 'no-entry-file', 'sky'], array_values(array_diff(scandir($this->root . '/themes'), ['.', '..'])));
+		$this->assertTrue(is_link($this->root . '/themes/sky'));
+		$this->assertFileExists($this->root . '/themes/my.theme/theme.php');
+		$this->assertFileExists($this->root . '/plugins/hello/hello.php');
+		$this->assertFileDoesNotExist($this->root . '/no-such-target');
+	}
+
+	public function testADanglingSymlinkOnTheOfficialListOffersInstallAndRemove(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		symlink($this->root . '/no-such-target', $this->root . '/themes/clean');
+		mkdir($this->root . '/themes/parallax', 0777, true); // no theme.php
+		$wcms = $this->getMockBuilder(Wcms::class)
+			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+			->onlyMethods(['redirect', 'getModulesCachedData'])
+			->getMock();
+		$official = ['summary' => 's', 'repo' => 'https://github.com/robiso/x', 'zip' => 'z', 'group' => null, 'version' => '1.0.0', 'image' => null];
+		$wcms->method('getModulesCachedData')->willReturn(['clean' => $official + ['name' => 'Clean'], 'parallax' => $official + ['name' => 'Parallax'], 'other' => $official + ['name' => 'Other']]);
+		$wcms->loggedIn = true;
+		$listed = $wcms->listAllModules('themes');
+		$this->assertTrue($listed['install']['clean']['install'], 'Install replaces the link');
+		$this->assertArrayNotHasKey('clean', $listed['exist']);
+		$this->assertTrue($listed['install']['parallax']['install'], 'a folder without theme.php still gets Install');
+		$html = $wcms->settings();
+		$this->assertStringContainsString('installModule=clean&type=themes', $html);
+		$this->assertStringContainsString('deleteModule=clean&type=themes', $html);
+		$this->assertStringContainsString('installModule=parallax&type=themes', $html);
+		$this->assertStringNotContainsString('deleteModule=other&', $html, 'an official theme with nothing on disk offers Install only');
+	}
+
+	public function testAHostThatDisablesIsLinkListsModulesAsBefore(): void
+	{
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		symlink($this->root . '/no-such-target', $this->root . '/themes/gone-theme');
+		$list = $this->probe('module-list', realpath($this->root), 'themes')['list'];
+		$this->assertSame(['my.theme'], array_keys($list['exist']), 'without is_link() a dangling link is skipped, as 3.7.0 did');
+	}
+
 	public function testAThemeFolderNamedSkyInAnyCaseHasNoRemoveButton(): void
 	{
 		mkdir($this->root . '/themes/Sky', 0777, true); // a distinct folder on a case-sensitive disk, the sky folder on Windows and macOS
 		file_put_contents($this->root . '/themes/Sky/theme.php', '<?php');
+		if (@mkdir($this->root . '/themes/ſky', 0777, true)) { // folds to sky under Unicode case folding; a byte-wise compare lets it through. macOS and Windows resolve the name to sky/ (mkdir fails), so this part bites on a case-sensitive disk, which is what CI runs
+			file_put_contents($this->root . '/themes/ſky/theme.php', '<?php');
+		}
 		$html = $this->wcms->settings();
 		$this->assertStringContainsString('<h4>Sky</h4>', $html, 'listed');
 		$this->assertStringNotContainsString('deleteModule=Sky&', $html);
+		$this->assertStringNotContainsString('deleteModule=' . rawurlencode('ſky') . '&', $html, 'a folder that folds to sky has no Remove button either');
 		$this->assertStringContainsString('deleteModule=my.theme&', $html, 'another hand-uploaded theme keeps its Remove button');
 	}
 

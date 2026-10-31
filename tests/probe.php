@@ -14,6 +14,7 @@
  * php tests/probe.php locked-zip <root>             zipBackup() of <root> into <root>/data/files; prints the archive paths
  * php tests/probe.php module-delete <root> <type> <name>          deleteFileModuleAction() as the admin; prints the alerts
  * php tests/probe.php module-install <root> <type> <name> <zip>  installUpdateModuleAction() as the admin, the module's ZIP at the URL <zip>; prints the alerts
+ * php tests/probe.php module-list <root> <type>    listAllModules() as the admin, the official list empty; prints it
  * php tests/probe.php render <root> <theme> [plugin-ob]  loadThemeAndFunctions() as an admin with <theme> active and "Wrong password." queued; prints the page (plugin-ob: inside a plugin's own buffer, then its level)
  */
 PHP_SAPI === 'cli' || exit; // never over HTTP (a git-clone install has tests/ public)
@@ -44,6 +45,11 @@ final class ProbeWcms extends Wcms
 		return self::$download;
 	}
 
+	public function getModulesCachedData(string $type = self::THEMES_DIR): array
+	{
+		return $GLOBALS['argv'][1] === 'module-list' ? [] : parent::getModulesCachedData($type);
+	}
+
 	public function getSingleModuleCachedData(string $moduleKey, string $type = self::THEMES_DIR): array
 	{
 		return self::$moduleZip === '' ? parent::getSingleModuleCachedData($moduleKey, $type) : ['zip' => self::$moduleZip];
@@ -58,7 +64,7 @@ final class ProbeWcms extends Wcms
 $_SERVER['SERVER_NAME'] = 'wondercms.doc';
 $_SERVER['SERVER_PORT'] = '80';
 $_SERVER['SCRIPT_NAME'] = '/index.php';
-$wcms = $mode === 'update-run' ? new ProbeWcms() : (in_array($mode, ['render', 'locked-zip', 'module-delete', 'module-install'], true) ? new ProbeWcms('data_test', 'files_test', 'database_probe.js', $argv[2]) : new ProbeWcms('data_test', 'files_test', 'database_probe.js'));
+$wcms = $mode === 'update-run' ? new ProbeWcms() : (in_array($mode, ['render', 'locked-zip', 'module-delete', 'module-install', 'module-list'], true) ? new ProbeWcms('data_test', 'files_test', 'database_probe.js', $argv[2]) : new ProbeWcms('data_test', 'files_test', 'database_probe.js'));
 if ($mode !== 'update-run' && strpos($mode, 'locked-') !== 0) { // the lock probes work on a database the test owns and inspects afterwards
 	register_shutdown_function(static function () { @unlink(__DIR__ . '/../data_test/database_probe.js'); }); // also after exit() inside an action
 }
@@ -126,6 +132,10 @@ switch ($mode) {
 		$_REQUEST = $_GET = [($mode === 'module-delete' ? 'deleteModule' : 'installModule') => $argv[4], 'type' => $argv[3], 'token' => $wcms->getToken()];
 		$mode === 'module-delete' ? $wcms->deleteFileModuleAction() : $wcms->installUpdateModuleAction();
 		echo json_encode(['alert' => $_SESSION['alert'] ?? []]);
+		break;
+	case 'module-list':
+		$wcms->loggedIn = true;
+		echo json_encode(['list' => $wcms->listAllModules($argv[3])]);
 		break;
 	case 'update-run':
 		ProbeWcms::$download = file_get_contents($argv[3]);

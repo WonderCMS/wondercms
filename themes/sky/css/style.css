@@ -12,14 +12,6 @@
 	font-display: swap;
 	src: url('fonts/catamaran-v7-latin-ext_latin-700.woff2') format('woff2')
 }
-@font-face {
-	font-family: 'Catamaran';
-	font-style: normal;
-	font-weight: 900;
-	font-display: swap;
-	src: url('fonts/catamaran-v7-latin-ext_latin-900.woff2') format('woff2')
-}
-
 html, body, div, span, applet, object,
 iframe, h1, h2, h3, h4, h5, h6, p, blockquote,
 pre, a, abbr, acronym, address, big, cite,
@@ -456,6 +448,49 @@ input::-moz-focus-inner {
 				float: left;
 				margin: 0 1em 0 2em
 			}
+			/* A closed submenu takes no space; a tapped-open one stacks under its parent, so it never lies under a top item on the next row, and long names wrap inside the screen (a hover-opened one stays beside: in the flow it would move under the mouse). Inside a tapped-open list the next level opens by tap or focus only: opening reflows the bar, and the item that slides under a still mouse must not open beside it */
+			#topMenu nav ul.subPageDropdown,
+			#topMenu nav li.open li:not(.open):not(:focus-within) > ul {
+				display: none
+			}
+			#topMenu nav > ul > li > ul {
+				margin-top: 0;
+				padding-top: 10px
+			}
+			/* A tapped-open top item keeps its place (nothing in the bar moves, so the second tap in place follows the link); its list opens as a full-width panel under the whole bar, and deeper tapped-open lists stack inside that panel, so long names wrap inside the screen */
+			#topMenu nav {
+				position: relative;
+				display: flow-root
+			}
+			#topMenu nav > ul > li.open {
+				position: static
+			}
+			#topMenu nav > ul > li.open > ul {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: 100%;
+				margin: 0;
+				float: none;
+				z-index: 5;
+				background-color: rgba(0, 0, 0, 0.85)
+			}
+			#topMenu nav li.open li.open > ul {
+				position: static;
+				float: none
+			}
+			#topMenu nav li.open > ul,
+			#topMenu nav li.open > ul > li {
+				display: block;
+				float: none;
+				width: auto
+			}
+			#topMenu nav li.open > ul > li {
+				white-space: normal;
+				line-height: 1.4em;
+				padding-top: 1.05em;
+				padding-bottom: 1.05em
+			}
 			#topMenu nav .active a {
 				border-bottom: 1px solid #fff
 			}
@@ -548,6 +583,72 @@ input::-moz-focus-inner {
 		text-align: left;
 		background-color: rgba(0, 0, 0, 0.30);
 		white-space: nowrap
+	}
+
+	/* Third level and deeper: beside their parent, above a wider next item; closed, it takes no space at any width */
+	#topMenu ul li ul ul {
+		display: none;
+		left: 100%;
+		top: 0;
+		margin-top: 0;
+		z-index: 1
+	}
+	@supports (inset-inline-start: 0) {
+		#topMenu ul li ul ul {
+			left: auto;
+			inset-inline-start: 100%
+		}
+	}
+
+	/* Above phone width: a closed second level is one column wide and long names wrap at a quarter of the viewport. Every item past the middle (up to 12 items) opens both levels inward, so two levels always fit beside a centered menu, closed or open. Physical sides first: Safari before 14.1 drops the logical ones */
+	@media screen and (min-width: 737px) {
+		#topMenu nav > ul > li > ul {
+			display: block
+		}
+		#topMenu ul li ul {
+			width: max-content;
+			max-width: 25vw
+		}
+		#topMenu ul li ul li {
+			white-space: normal;
+			line-height: 1.4em;
+			padding-top: 1.05em;
+			padding-bottom: 1.05em
+		}
+		#topMenu nav > ul > li:nth-last-child(-n+2) > ul,
+		#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) > ul,
+		#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) > ul,
+		#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) > ul,
+		#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) > ul {
+			right: 0
+		}
+		#topMenu nav > ul > li:nth-last-child(-n+2) ul ul,
+		#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) ul ul,
+		#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) ul ul,
+		#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) ul ul,
+		#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) ul ul {
+			left: auto;
+			right: 100%
+		}
+		@supports (inset-inline-start: 0) {
+			#topMenu nav > ul > li:nth-last-child(-n+2) > ul,
+			#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) > ul,
+			#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) > ul,
+			#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) > ul,
+			#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) > ul {
+				right: auto;
+				inset-inline-end: 0
+			}
+			#topMenu nav > ul > li:nth-last-child(-n+2) ul ul,
+			#topMenu nav > ul > li:nth-child(n+3):nth-last-child(3) ul ul,
+			#topMenu nav > ul > li:nth-child(n+4):nth-last-child(4) ul ul,
+			#topMenu nav > ul > li:nth-child(n+5):nth-last-child(5) ul ul,
+			#topMenu nav > ul > li:nth-child(n+6):nth-last-child(6) ul ul {
+				left: auto;
+				right: auto;
+				inset-inline-end: 100%
+			}
+		}
 	}
 
 	/* Submenus dropdown arrow */

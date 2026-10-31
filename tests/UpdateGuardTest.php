@@ -94,6 +94,14 @@ final class UpdateGuardTest extends TestCase
 		$this->assertFalse($this->wcms->isValidCoreUpdate(substr($real, 0, 50000)), 'the same file cut at 50 KB is refused');
 	}
 
+	public function testABodyCutInsideACommentIsRefusedWithoutAWarning(): void
+	{
+		$cut = tempnam(sys_get_temp_dir(), 'wcms');
+		file_put_contents($cut, "<?php\ndefine('VERSION', '" . $this->newer() . "');\nclass Wcms\n{\n\t/**\n\t * cut"); // PHP 7 warns 'Unterminated comment' onto the page
+		$this->assertFalse($this->probe('', 'update', $cut)['valid']);
+		unlink($cut);
+	}
+
 	/** Runs tests/probe.php in a separate PHP process so an extension's functions can be disabled. */
 	private function probe(string $iniFlags, string $mode, string ...$args): array
 	{
@@ -329,6 +337,42 @@ final class UpdateGuardTest extends TestCase
 		$this->removeDir($site);
 		unlink($newCore);
 		unlink($truncated);
+	}
+
+	public function testACoreThatNeedsANewerPhpIsRefusedBeforeTheWrite(): void
+	{
+		$real = str_replace("'" . VERSION . "'", "'" . $this->newer() . "'", file_get_contents(__DIR__ . '/../index.php'));
+		$this->assertStringContainsString('if (PHP_VERSION_ID < 70400) {', $real, 'the gate the updater reads');
+		$newCore = tempnam(sys_get_temp_dir(), 'wcms');
+		$this->assertStringContainsString("\t\t\$extensions = ['curl',", $real);
+		$body = str_replace('PHP_VERSION_ID < 70400', 'PHP_VERSION_ID < ' . (PHP_VERSION_ID + 1), $real);
+		file_put_contents($newCore, str_replace("\t\t\$extensions = ['curl',", "\t\t\$extensions = ['curl' 'zip',", $body)); // a syntax this host cannot parse, after the gate line
+		if (function_exists('token_get_all')) {
+			$this->assertFalse($this->wcms->isValidCoreUpdate(file_get_contents($newCore)), 'the body fails the parse');
+		}
+		$site = $this->siteCopy();
+		$before = hash_file('sha256', $site . '/index.php');
+		$result = $this->probe('', 'update-run', $site, $newCore);
+		$this->assertSame($before, $result['sha'], 'index.php unchanged');
+		$this->assertSame(['danger'], $result['alerts']);
+		$this->assertStringContainsString('needs a newer PHP version than this server runs (PHP ' . PHP_VERSION . ')', $result['message']);
+		$this->removeDir($site);
+		unlink($newCore);
+	}
+
+	public function testACoreWhosePhpFloorEqualsThisHostIsAccepted(): void
+	{
+		$real = str_replace("'" . VERSION . "'", "'" . $this->newer() . "'", file_get_contents(__DIR__ . '/../index.php'));
+		$this->assertStringContainsString('if (PHP_VERSION_ID < 70400) {', $real, 'the gate the updater reads');
+		$body = str_replace('PHP_VERSION_ID < 70400', 'PHP_VERSION_ID < ' . PHP_VERSION_ID, $real);
+		$newCore = tempnam(sys_get_temp_dir(), 'wcms');
+		file_put_contents($newCore, $body);
+		$site = $this->siteCopy();
+		$result = $this->probe('', 'update-run', $site, $newCore);
+		$this->assertSame(hash('sha256', $body), $result['sha'], 'a floor equal to this host\'s PHP is met: index.php is the downloaded core');
+		$this->assertSame(['success'], $result['alerts']);
+		$this->removeDir($site);
+		unlink($newCore);
 	}
 
 	public function testDailyCoreUpdateNoticeIsShownOnceADayToTheAdminOnly(): void

@@ -80,6 +80,17 @@ final class RequestParamsTest extends TestCase
 		$this->assertSame($before, file_get_contents(__DIR__ . '/../data_test/database_test.js'));
 	}
 
+	public function testAnArrayModuleToDeleteOrTypeChangesNothing(): void
+	{
+		$this->wcms->loggedIn = true;
+		foreach ([['deleteModule' => ['sky'], 'type' => 'themes'], ['deleteModule' => 'sky', 'type' => ['themes']]] as $request) {
+			$_GET = $_REQUEST = $request + ['token' => $this->wcms->getToken()];
+			$this->wcms->deleteFileModuleAction(); // no TypeError
+			$this->assertArrayNotHasKey('alert', $_SESSION, json_encode($request));
+		}
+		$this->assertDirectoryExists(__DIR__ . '/../themes/sky');
+	}
+
 	public function testArraySearchQueryIsIgnored(): void
 	{
 		$_POST['query'] = ['x'];

@@ -174,19 +174,30 @@ final class DatabaseLockTest extends TestCase
 	{
 		// An interrupted save leaves a full copy of database.js (the password hash too) next to it; a fresh one may be
 		// another request's save in progress.
-		$old = self::DB . '.0ld0ld00.tmp';
+		// Only the names tempPath() makes are swept: an old hand-made backup that also ends in .tmp stays.
+		$old = self::DB . '.0123abcd.tmp';
+		$oldHigh = self::DB . '.89abcdef.tmp'; // the other half of the hex range
 		$fresh = self::DB . '.f4e5f4e5.tmp';
+		$backup = self::DB . '.bak.tmp';
 		file_put_contents($old, 'old copy');
 		touch($old, time() - 7200);
+		file_put_contents($oldHigh, 'old copy');
+		touch($oldHigh, time() - 7200);
 		file_put_contents($fresh, 'in progress');
+		file_put_contents($backup, 'hand-made');
+		touch($backup, time() - 7200);
 		try {
 			(new Wcms('data_test', 'files_test', 'database_probe.js'))->set('config', 'siteTitle', 'swept');
 			clearstatcache();
 			$this->assertFileDoesNotExist($old);
+			$this->assertFileDoesNotExist($oldHigh);
 			$this->assertFileExists($fresh);
+			$this->assertFileExists($backup);
 		} finally {
 			@unlink($old);
+			@unlink($oldHigh);
 			@unlink($fresh);
+			@unlink($backup);
 		}
 	}
 
@@ -266,12 +277,11 @@ final class DatabaseLockTest extends TestCase
 			mkdir($dir);
 		} elseif (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/hdiutil') && function_exists('exec')) {
 			[$code, $out] = $this->runWithin(['/usr/bin/hdiutil', 'attach', '-nomount', 'ram://4096']);
-			$dev = strtok($out, " \t\n");
-			if (preg_match('#^/dev/disk\d+$#', (string)$dev)) {
-				$this->detach[] = $dev; // also when the deadline passed after the device appeared
-			}
+			preg_match_all('#^/dev/disk\d+(?=\s|$)#m', $out, $devs);
+			array_push($this->detach, ...$devs[0]); // also when the deadline passed after the device appeared: tearDown() detaches what the partial output names
+			$dev = $devs[0][0] ?? '';
 			if ($code === null) {
-				$this->markTestSkipped('hdiutil attach did not finish within 60 seconds (a loaded machine, #375)');
+				$this->markTestSkipped('hdiutil attach did not finish within 60 seconds (a loaded machine, #375); a ramdisk it attached after the kill is not detached: find it with `hdiutil info` (image-path ram://4096) and run `hdiutil detach /dev/diskN -force`');
 			}
 			if (!preg_match('#^/dev/disk\d+$#', (string)$dev)) {
 				$this->markTestSkipped('hdiutil could not attach a ramdisk');
@@ -330,8 +340,8 @@ final class DatabaseLockTest extends TestCase
 			$this->markTestSkipped('the ramdisk commands are POSIX-only');
 		}
 		$start = microtime(true);
-		$this->assertSame([null, "started\n"], $this->runWithin(['/bin/sh', '-c', 'echo started; exec sleep 30'], 1));
-		$this->assertLessThan(5, microtime(true) - $start, 'killed at the deadline');
+		$this->assertSame([null, "started\n"], $this->runWithin(['/bin/sh', '-c', 'echo started; exec sleep 30'], 3)); // 3 seconds for the shell to start and echo, even under a full suite's load
+		$this->assertLessThan(15, microtime(true) - $start, 'killed at the deadline, long before the sleep ends');
 		$this->assertSame([0, "done\n"], $this->runWithin(['/bin/echo', 'done'], 5), 'a command that finishes gives its exit code and output');
 	}
 
@@ -523,7 +533,30 @@ final class DatabaseLockTest extends TestCase
 		if (PHP_VERSION_ID < 80100) {
 			$read->setAccessible(true);
 		}
-		$this->assertSame('', @$read->invoke($wcms, self::DB . '.gone'));
+		$reporting = error_reporting(E_ALL); // PHPUnit runs a test with warnings left out of error_reporting()
+		$logged = [];
+		set_error_handler(function (int $level, string $message) use (&$logged): bool {
+			if (error_reporting() & $level) { // what PHP would log; an @ lowers error_reporting() for its call
+				$logged[] = $message;
+			}
+			return true;
+		});
+		try {
+			$this->assertSame('', $read->invoke($wcms, self::DB . '.gone'));
+			$this->assertSame([], $logged, 'no warning reaches the log for a vanished file');
+			if (DIRECTORY_SEPARATOR === '/' && !(function_exists('posix_getuid') && posix_getuid() === 0)) { // root reads a 000 file
+				chmod(self::DB, 0000);
+				try {
+					$read->invoke($wcms, self::DB);
+				} finally {
+					chmod(self::DB, 0644);
+				}
+				$this->assertStringContainsString('Permission denied', implode("\n", $logged), 'a file that exists but cannot be opened still logs why (gate on #385)');
+			}
+		} finally {
+			restore_error_handler();
+			error_reporting($reporting);
+		}
 		$this->assertStringContainsString('"siteTitle": "before"', $read->invoke($wcms, self::DB), 'and the real file reads whole');
 	}
 

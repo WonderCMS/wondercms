@@ -229,11 +229,11 @@ final class UploadAndConfigGuardTest extends TestCase
 		$this->assertFileExists(__DIR__ . '/../themes/sky/theme.php');
 
 		// The active theme is guarded the same way, in any letter case.
-		$mine = 'mine-' . bin2hex(random_bytes(2));
+		$mine = 'mine-ſ' . bin2hex(random_bytes(2)); // 'ſ' folds to 's': a byte-wise or ASCII-only compare would not match the spelling below
 		mkdir(__DIR__ . '/../themes/' . $mine);
 		file_put_contents(__DIR__ . '/../themes/' . $mine . '/theme.php', '<?php');
 		$this->wcms->set('config', 'theme', $mine);
-		foreach ([$mine, strtoupper($mine)] as $spelling) {
+		foreach ([$mine, strtoupper($mine), str_replace('ſ', 'S', $mine)] as $spelling) {
 			unset($_SESSION['alert']);
 			$_REQUEST = ['deleteModule' => $spelling, 'type' => 'themes', 'token' => $this->wcms->getToken()];
 			try {
@@ -324,7 +324,7 @@ final class UploadAndConfigGuardTest extends TestCase
 			}
 			return false;
 		};
-		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
+		foreach (['data/database.js', 'data/DATABASE.JS', 'data/database.js.1a2b3c4d.tmp', 'data/database.js.89abcdef.tmp', 'data/cache.json', 'data/Cache.Json.0f0f0f0f.tmp', 'tests/probe.php', 'data/logs/x.log'] as $path) {
 			$this->assertTrue($denied($path), $path);
 		}
 		foreach (['data/files/Database_JS_Tutorial.pdf', 'data/files/cache_json-notes.pdf', 'data/files/photo.jpg'] as $path) {

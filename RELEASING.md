@@ -68,7 +68,15 @@ tag, rule 3 above; every push is read back through the API and recorded).
    the last greenlight names; otherwise stop (a change made after the gate ships unreviewed). Then set the PR title to `WonderCMS X.Y.Z` first (GitHub puts the PR title in the merge commit's body under the
    subject "Merge pull request #N from WonderCMS/<branch>"; a review marker such as ✅ would live in `main`'s
    history). Check that the PR's head sha is the one the gate greenlit (`gh pr view N --json headRefOid`) and
-   that `gh pr view N --json closingIssuesReferences` is empty (nothing auto-closes at the merge), mark the draft
+   that `gh pr view N --json closingIssuesReferences` is empty (nothing auto-closes at the merge). The release PR's
+   body names the issues it fixes as plain references, never with a closing keyword (`Fixes`, `Closes`, `Resolves`,
+   nor in a commit message on the branch): a merge must not close an issue before the canary proves the release, so
+   the issues are closed by hand in step 11 with their close-out texts once both canaries pass. The PR check sees only
+   the body: also run `git log origin/main..<branch> --format=%B | grep -iE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+'`, since
+   GitHub closes an issue named that way in ANY commit that reaches `main`. A branch that already carries such commits
+   is not rewritten (it is shared and reviewed): right after the merge, reopen the issues it closed (`gh issue reopen N`
+   for each, one comment: "reopened until the canaries pass, see RELEASING step 4"), so step 11 closes them by hand with
+   their texts as for any release. (3.7.1 ships with eight such commit messages, written before this rule.) Then mark the draft
    ready (`gh pr ready N`), then merge the release branch into `main` (merge commit). Write the merge sha into the
    release record at once; every later compare and the tag use that value, and a final PR comment names it (the
    earlier review comments name heads that the rebases left behind). A CI run that went red on a network error
@@ -87,12 +95,18 @@ tag, rule 3 above; every push is read back through the API and recorded).
    and 2 hours after the merge (GitHub's raw cache is per edge; a stale edge serves the old file long after the
    first one matched). The later comparisons confirm the cache stayed right, they do not delay the canary. Check https://www.githubstatus.com
    before the news post: a GitHub incident during the first hours means sites download nothing, not a bad file.
-6. Canary: two sites with the maintainer's login, one after the other: www.wondercms.com first, then robert.si
+6. Canary: two sites, each clicked by the maintainer himself while logged in as that site's admin (the agent
+   prepares, watches and verifies; it never holds the admin passwords), one after the other: www.wondercms.com first, then robert.si
    (a custom theme, `skyPersonal`, so a theme that is not shipped with the release meets the new core too). Start
    robert.si only once wondercms.com has passed. On each site: confirm the live `index.php` is the stock previous
    release (compare its SHA-256; if it is not, stop and do not click: find out why the file differs first, since a
    hand-edited or unexpected core is not the canary this step relies on), back up `index.php` and `data/` before its click
-   (commands below), click **Update**, check the site, the login, a save, and the `VERSION` in the file on disk. After each
+   (commands below), click **Download backup** (in the update notice, above Update), then **Update**, check the site, the login, a save,
+   and the `VERSION` in the file on disk. A save means two real saves: open the home page editor, add one character, click
+   outside (the page saves and reloads), then remove that character and click outside again; the content ends as it
+   was and `data/database.js`'s mtime moved (add-then-remove in one go sends nothing: the stock editor saves only
+   when the content differs). The backup click leaves a zip in `data/files/` and a "Backup files detected" alert:
+   delete that zip from the Files tab once the site has passed. After each
    Update click wait at least 2 seconds (opcache's `revalidate_freq` default) before the first check: within that window a
    request can still run the old code and report the old version. "Check the site" means reading the page body, not
    the status code: a boot fatal comes back as HTTP 200 with the error in the body on some servers, so `curl -s -w '%{http_code}'` the
@@ -106,8 +120,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
    `/data/database.js` and `/data/cache.json` answer 403 (not 200) from the public side; a site that predates the
    shipped `.htaccess` carries its own and must add the four deny lines the release notes tell every existing site
    to add, the maintainer's own site first. Hold the news post and any announcement
-   until both canary sites have passed; sites on the previous release have no update notice, so publicity is what
-   drives the fleet's updates.
+   until both canary sites have passed; an admin who is not logged in sees no update notice (a logged-in admin sees the
+   alert within a day), so publicity is what drives the fleet's updates.
    **If the canary fails:** restore the backed-up `index.php` and `data/` on the site that failed, and fix forward.
    If wondercms.com fails, robert.si is not updated. If wondercms.com passes and robert.si fails, wondercms.com
    stays on the new core, robert.si is restored, and a patch release follows (as below). `main` cannot be

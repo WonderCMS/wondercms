@@ -7,7 +7,7 @@
  */
 
 session_start();
-define('VERSION', '3.7.0');
+define('VERSION', '3.7.1');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -240,6 +240,8 @@ class Wcms
 
 	/**
 	 * Add alert message for admin
+	 * A plugin replaces the text (a translation) by returning it from an 'alert' listener: the returned text is what is
+	 * queued, shown and compared by the duplicate check, so no listener needs $_SESSION['alert'] (not part of the API)
 	 *
 	 * @param string $class see bootstrap alerts classes
 	 * @param string $message the message to display
@@ -504,10 +506,10 @@ class Wcms
 	public function checkFolder(string $folder): void
 	{
 		if (!is_dir($folder) && !mkdir($folder, 0755) && !is_dir($folder)) {
-			throw new Exception('Could not create data folder.');
+			throw new Exception('Could not create the ' . $folder . ' folder.');
 		}
 		if (!is_writable($folder)) {
-			throw new Exception('Could write to data folder.');
+			throw new Exception('Could not write to the ' . $folder . ' folder.');
 		}
 	}
 
@@ -1048,7 +1050,10 @@ EOT;
 		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('stream_get_contents') || !function_exists('fclose')) {
 			return (string)@file_get_contents($path); // a host that disables one of these reads exactly as 3.6.0 did (file_put_contents() locks inside PHP, so saving still works there)
 		}
-		$handle = fopen($path, 'rb');
+		$handle = @fopen($path, 'rb'); // a file that vanished after the caller's existence check stays quiet
+		if ($handle === false && file_exists($path)) {
+			$handle = fopen($path, 'rb'); // opened again without @ on purpose: a file that exists but cannot be opened still logs why
+		}
 		if ($handle === false) {
 			return '';
 		}
@@ -1083,7 +1088,7 @@ EOT;
 		if (!$this->loggedIn) {
 			return;
 		}
-		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && $this->verifyFormActions(true)) {
+		if (isset($_REQUEST['deleteModule'], $_REQUEST['type']) && is_string($_REQUEST['deleteModule']) && is_string($_REQUEST['type']) && $this->verifyFormActions(true)) {
 			$allowedDeleteTypes = ['files', 'plugins', 'themes'];
 			$filename = str_ireplace(
 				['/', './', '../', '..', '~', '~/', '\\'],
@@ -1104,16 +1109,17 @@ EOT;
 					'Wrong delete folder path.');
 				$this->redirect();
 			}
-			$folderName = DIRECTORY_SEPARATOR === '\\' ? rtrim($filename, '. ') : $filename; // Windows drops trailing dots and spaces from a name, so 'sky.' would reach the sky folder there
-			if ($type === 'themes' && (strcasecmp($folderName, (string)$this->get('config', 'theme')) === 0 || strcasecmp($folderName, 'sky') === 0)) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
+			$folderName = mb_convert_case(DIRECTORY_SEPARATOR === '\\' ? rtrim($filename, '. ') : $filename, MB_CASE_FOLD); // Windows drops trailing dots and spaces from a name, so 'sky.' would reach the sky folder there; Unicode case folding, since macOS also resolves 'ſky' and 'SKY' with a Kelvin sign to sky/
+			if ($type === 'themes' && ($folderName === mb_convert_case((string)$this->get('config', 'theme'), MB_CASE_FOLD) || $folderName === 'sky')) { // the theme in use; Sky always, it is the fallback when another theme is missing or broken; case-insensitive because Windows and macOS resolve Sky/ to sky/
 				$this->alert('danger',
-					(strcasecmp($folderName, 'sky') === 0 ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
+					($folderName === 'sky' ? 'Sky is the fallback theme and stays installed (remove it over FTP if you must). ' : 'Cannot delete currently active theme. ') . '<a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#themes"><b>Re-open theme settings</b></a>');
 				$this->redirect();
 			}
 			$folder = $type === 'files' ? $this->filesPath : sprintf('%s/%s', $this->rootDir, $type);
 			$path = realpath("{$folder}/{$filename}");
-			if (file_exists($path)) {
-				function_exists('is_link') && is_link("{$folder}/{$filename}") ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
+			$isLink = function_exists('is_link') && is_link("{$folder}/{$filename}"); // a link whose target is gone has no realpath() and is removed too
+			if ($isLink || file_exists($path)) {
+				$isLink ? unlink("{$folder}/{$filename}") : $this->recursiveDelete($path); // never follow a link out of the folder (a host that disables is_link() deletes as 3.6.0 did)
 				// If a plugin was deleted, also remove it from the disabled list (if present).
 				if ($type === self::PLUGINS_DIR) {
 					$disabled = $this->getDisabledPlugins();
@@ -1496,21 +1502,32 @@ EOT;
 			}
 
 			// Themes and plugins uploaded by hand: present on disk, not in the official list (#345, Almorca)
-			foreach (glob($this->rootDir . '/' . $type . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+			foreach (glob($this->rootDir . '/' . $type . '/*') ?: [] as $dir) {
 				$dirName = basename($dir);
 				$entryFile = $type === self::THEMES_DIR ? 'theme.php' : $dirName . '.php';
-				if (isset($data[$dirName]) || !is_file($dir . '/' . $entryFile)) {
+				$gone = $this->isDanglingLink($dir); // listed so its Remove button is shown (#373)
+				if (isset($data[$dirName]) || (!$gone && !is_file($dir . '/' . $entryFile))) {
 					continue;
 				}
 				$newData[self::THEME_PLUGINS_TYPES['exists']][$dirName] = [
-					'name' => $dirName, 'summary' => 'Found in the ' . $type . ' folder (' . ($data ? 'not in the official list' : 'the official list could not be loaded') . ').', // escaped where it is printed, like the official entries
+					'name' => $dirName, 'summary' => $gone ? 'A link whose target is gone (found in the ' . $type . ' folder).' : 'Found in the ' . $type . ' folder (' . ($data ? 'not in the official list' : 'the official list could not be loaded') . ').', // escaped where it is printed, like the official entries
 					'repo' => '', 'zip' => '', 'group' => null, 'version' => null, 'image' => null,
-					'update' => false, 'install' => false, 'currentVersion' => $this->getModuleVersion($type, $dirName),
+					'update' => false, 'install' => false, 'currentVersion' => $gone ? null : $this->getModuleVersion($type, $dirName),
 				];
 			}
 		}
 
 		return $newData;
+	}
+
+	/**
+	 * A symlink whose target is gone (false on a host that disables is_link(), which lists modules as before)
+	 * @param string $path
+	 * @return bool
+	 */
+	private function isDanglingLink(string $path): bool
+	{
+		return function_exists('is_link') && is_link($path) && !file_exists($path);
 	}
 
 	/**
@@ -2971,7 +2988,8 @@ EOT;
 		}
 		$currentPageData = $this->getCurrentPageData();
 		$fileList = array_diff(scandir($this->filesPath) ?: [], ['.', '..']); // scandir() sorts byte-wise, so a name that sorts before '..' is not the third entry
-		natcasesort($fileList); // photo2 before photo10, upper and lower case together
+		$collator = extension_loaded('intl') && mb_check_encoding(implode("\n", $fileList), 'UTF-8') ? new Collator('root') : null; // intl, where loaded, sorts Édith.jpg among the e's; natcasesort() compares bytes past ASCII and puts it after z; not a polyfill Collator (throws on 'root'), and not on a name that is not UTF-8 (the sort fails to byte order)
+		$collator && $collator->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON) ? $collator->asort($fileList) : natcasesort($fileList); // photo2 before photo10, upper and lower case together
 		$logoutTo = $this->logoutToUrl();
 		$isHttpsForced = $this->isHttpsForced();
 		$isSaveChangesPopupEnabled = $this->isSaveChangesPopupEnabled();
@@ -3399,8 +3417,9 @@ EOT;
 				$currentVersion = $addon['currentVersion'] ? sprintf('Installed version: %s',
 					htmlspecialchars((string)$addon['currentVersion'], ENT_QUOTES)) : ''; // from the installed module's own version file or wcms-modules.json
 				$isThemeSelected = $this->get('config', 'theme') === $directoryName;
+				$gone = $this->isDanglingLink($this->rootDir . '/' . $type . '/' . $directoryName); // offers Remove only, or Install and Remove for an official name
 				$isPlugin = $type === self::PLUGINS_DIR;
-				$isInstalledPlugin = $isPlugin && !$addon['install'];
+				$isInstalledPlugin = $isPlugin && !$addon['install'] && !$gone;
 				$isDisabledPlugin = $isInstalledPlugin && in_array($directoryName, $disabledPlugins, true);
 				$pluginGroup = $isPlugin ? $this->getPluginGroup($directoryName, $addon) : null;
 				$conflictingEnabled = ($isPlugin && $this->isExclusivePluginGroup($pluginGroup))
@@ -3435,8 +3454,8 @@ EOT;
 					? '<a class="wbtn wbtn-info wbtn-sm wbtn-block marginTop5" href="' . self::url('?installModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '"' . $updateConfirmAttr . ' title="Update"><i class="refreshIcon"></i> Update to ' . htmlspecialchars((string)$addon['version'], ENT_QUOTES) . '</a>'
 					: '';
 
-				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName)) && !($type === 'themes' && strcasecmp($directoryName, 'sky') === 0) ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
-				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
+				$removeButton = (!$addon['install'] || is_dir($this->rootDir . '/' . $type . '/' . $directoryName) || $gone) && !($type === 'themes' && mb_convert_case($directoryName, MB_CASE_FOLD) === 'sky') ? '<a class="wbtn wbtn-danger wbtn-sm marginTop5" href="' . self::url('?deleteModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Remove ' . $name . '?" onclick="return confirm(this.dataset.confirm)" title="Remove"><i class="deleteIcon"></i></a>' : '';
+				$inactiveThemeButton = $type === 'themes' && !$addon['install'] && !$isThemeSelected && !$gone ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" href="' . self::url('?selectModule=' . rawurlencode($directoryName) . '&type=' . $type . '&token=' . $this->getToken()) . '" data-confirm="Activate ' . $name . ' theme?" onclick="return confirm(this.dataset.confirm)"><i class="checkmarkIcon"></i> Activate</a>' : '';
 				$activeThemeButton = $type === 'themes' && !$addon['install'] && $isThemeSelected ? '<a class="wbtn wbtn-primary wbtn-sm wbtn-block" disabled>Active</a>' : '';
 
 				$pluginToggleButton = '';
@@ -3570,7 +3589,9 @@ EOT;
 			return;
 		}
 		$contents = $this->getFileFromRepo('index.php');
-		if (!$this->isValidCoreUpdate($contents)) {
+		if (preg_match('/PHP_VERSION_ID < (\d+)\) \{\s*die\(/', $contents, $floor) && PHP_VERSION_ID < (int)$floor[1]) { // the new core's own PHP floor: written, it would run on a PHP it was not written for (checkMinimumRequirements() runs only at the first install) and die at the first missing function; checked before the parse, which fails on a newer PHP's syntax
+			$this->alert('danger', 'The new WonderCMS needs a newer PHP version than this server runs (PHP ' . PHP_VERSION . '); nothing was changed. Ask your host to upgrade PHP, then update again.');
+		} elseif (!$this->isValidCoreUpdate($contents)) {
 			$this->alert('danger', 'The downloaded file was not a complete, newer WonderCMS core; nothing was changed. Try again in a few minutes.');
 		} elseif ($this->writeFile(__FILE__, $contents)) {
 			if (function_exists('opcache_invalidate')) {
@@ -3608,7 +3629,7 @@ EOT;
 		if (!is_file($path) || !is_writable(dirname($path))) {
 			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, or a folder not writable (no temp possible): write directly as 3.6.0 did
 		}
-		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.*.tmp') ?: []) : [] as $old) {
+		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $old) { // only the names tempPath() makes
 			if (@filemtime($old) < time() - 3600) {
 				@unlink($old); // a temp an interrupted save left behind is a full copy of the file (database.js holds the password hash)
 			}
@@ -3659,7 +3680,7 @@ EOT;
 			return substr(rtrim($contents), -2) === "\n}"; // no tokenizer extension: the class's closing brace is the only column-0 brace after the class opens
 		}
 		try {
-			token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
+			@token_get_all($contents, TOKEN_PARSE); // a truncated or corrupted download must never replace a working core
 		} catch (ParseError $e) {
 			return false;
 		}

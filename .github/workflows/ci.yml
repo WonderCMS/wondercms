@@ -27,8 +27,9 @@ jobs:
           coverage: none
       - name: Install PHPUnit through Composer
         # phar.phpunit.de serves a stub instead of the phar; installed globally, the repository stays Composer-free.
+        # Pinned to the versions of the last green run; bumped by hand.
         run: |
-          composer global require --no-interaction --no-progress "phpunit/phpunit:^${{ matrix.php < '8.2' && '9.6' || '11.5' }}"
+          composer global require --no-interaction --no-progress "phpunit/phpunit:${{ matrix.php < '8.2' && '9.6.38' || '11.5.57' }}"
           echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
 
@@ -85,7 +86,7 @@ jobs:
 
       - name: PHPUnit
         # To a file, not through tee: DownloadTest's php -S servers outlive the run and keep PHPUnit's stdout open, so a pipe never closes.
-        run: phpunit --no-coverage > phpunit.log || { cat phpunit.log; exit 1; }; cat phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
+        run: phpunit --no-coverage > "$RUNNER_TEMP/phpunit.log" || { cat "$RUNNER_TEMP/phpunit.log"; exit 1; }; cat "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"
         env:
           LC_ALL: ${{ matrix.php == '7.4' && 'C.UTF-8' || '' }}  # on 7.4 the Cyrillic search test needs a UTF-8 locale; an empty LC_ALL is unset to setlocale()
 
@@ -107,17 +108,18 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: curl, mbstring, zip, :fileinfo
+          extensions: curl, mbstring, zip, :fileinfo, :intl
           coverage: none
       - name: Install PHPUnit through Composer
+        # Pinned; bumped by hand with the matrix job's.
         run: |
-          composer global require --no-interaction --no-progress "phpunit/phpunit:^11.5"
+          composer global require --no-interaction --no-progress "phpunit/phpunit:11.5.57"
           echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
-      - name: fileinfo really is absent
-        run: "php -r 'exit((int) extension_loaded(\"fileinfo\"));'"
-      - name: PHPUnit (the no-fileinfo test runs for real here, skips elsewhere)
-        run: set -o pipefail; phpunit --no-coverage --filter testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
+      - name: fileinfo and intl really are absent
+        run: "php -r 'exit((int) (extension_loaded(\"fileinfo\") || extension_loaded(\"intl\")));'"
+      - name: PHPUnit (the no-fileinfo and the no-intl tests run for real here, skip elsewhere)
+        run: set -o pipefail; phpunit --no-coverage --fail-on-skipped --filter 'testUploadIsAcceptedByExtensionWhenMimeDetectionIsUnavailable|testAPolyfillCollatorWithoutIntlIsNotUsed|testAFileNameThatIsNotUtf8SortsTheListAsNatcasesort' | tee "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"
 
       - name: Updater as another user than the file owner writes in place and keeps the owner
         run: |
@@ -157,7 +159,7 @@ jobs:
       - name: Saves on a full tmpfs refuse a linked or other-group database instead of truncating it
         run: |
           DISK=$(mktemp -d) && sudo mount -t tmpfs -o size=2m,mode=0777 tmpfs "$DISK"
-          set -o pipefail; WCMS_FULL_DISK_DIR="$DISK" phpunit --no-coverage --filter 'testOnAFullDisk|testOnANearlyFullDisk' --fail-on-skipped | tee phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log
+          set -o pipefail; WCMS_FULL_DISK_DIR="$DISK" phpunit --no-coverage --filter 'testOnAFullDisk|testOnANearlyFullDisk' --fail-on-skipped | tee "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"
           sudo umount "$DISK"
 
   no-tokenizer:
@@ -172,14 +174,15 @@ jobs:
           ini-values: disable_functions=token_get_all  # php.ini, so the probe subprocesses run without it too
           coverage: none
       - name: Install PHPUnit through Composer
+        # Pinned; bumped by hand with the matrix job's.
         run: |
-          composer global require --no-interaction --no-progress "phpunit/phpunit:^11.5"
+          composer global require --no-interaction --no-progress "phpunit/phpunit:11.5.57"
           echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
       - run: phpunit --version | grep -q 'PHPUnit [0-9]'
       - name: token_get_all really is disabled
         run: "php -r 'exit((int) function_exists(\"token_get_all\"));'"
       - name: PHPUnit (the updater validates a new core structurally here)
-        run: phpunit --no-coverage > phpunit.log || { cat phpunit.log; exit 1; }; cat phpunit.log; grep -qE '^(OK|Tests:)' phpunit.log  # a file, not tee: see the PHPUnit step above
+        run: phpunit --no-coverage > "$RUNNER_TEMP/phpunit.log" || { cat "$RUNNER_TEMP/phpunit.log"; exit 1; }; cat "$RUNNER_TEMP/phpunit.log"; grep -qE '^(OK|Tests:)' "$RUNNER_TEMP/phpunit.log"  # a file, not tee: see the PHPUnit step above
 
   windows-url:
     name: url() on Windows
@@ -192,9 +195,9 @@ jobs:
           extensions: curl, mbstring, zip
           coverage: none
       - name: Install PHPUnit through Composer
-        # ~11.5, not ^11.5: composer is a .bat shim here and cmd eats the caret.
+        # An exact version, no caret: composer is a .bat shim here and cmd eats a caret. Pinned; bumped by hand.
         run: |
-          composer global require --no-interaction --no-progress "phpunit/phpunit:~11.5"
+          composer global require --no-interaction --no-progress "phpunit/phpunit:11.5.57"
           composer global config bin-dir --absolute | Out-File -Append $env:GITHUB_PATH
       - run: if (-not (phpunit --version | Select-String -Quiet 'PHPUnit [0-9]')) { exit 1 }
       # url() shapes, and the updater's temp-file + rename write (rename over an existing file differs on Windows).
