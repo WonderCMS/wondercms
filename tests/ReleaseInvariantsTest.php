@@ -37,4 +37,15 @@ final class ReleaseInvariantsTest extends TestCase
 		$this->assertCount(2, $m[1], 'both admin assets need an integrity hash');
 		$this->assertSame($m[1][0], $m[1][1], 'CSS and JS must use the same CDN tag');
 	}
+
+	public function testAdminDocsLinksPointAtTheDocsSite(): void
+	{
+		// #405: wondercms.com/docs only redirects to docs.wondercms.com, two hops per click
+		$source = file_get_contents(__DIR__ . '/../index.php');
+		$this->assertStringNotContainsString('wondercms.com/docs', $source);
+		foreach (['#backup-and-restore', '#security-settings', '#custom-modules'] as $anchor) {
+			$this->assertStringContainsString('href="https://docs.wondercms.com/' . $anchor . '"', $source);
+		}
+		$this->assertStringContainsString('<a href="https://docs.wondercms.com/" target="_blank">Docs</a>', $source);
+	}
 }
