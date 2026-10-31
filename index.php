@@ -2451,35 +2451,61 @@ EOT;
 
 	/**
 	 * Remove the password paragraph createDb() writes into the public home page, at the admin's first login (and at the
-	 * next login of a site installed before this check existed). Only the untouched paragraph matches: a home page whose
-	 * paragraph was edited by hand is not written.
-	 * Before 3.2.0 the password sat in an <h4> that was also the login link (with a stray </a>): it is replaced by the
-	 * current login paragraph when no other login link remains, unless the login URL was changed (a public link would
-	 * give the new one away; the old link was already dead).
+	 * next login of a site installed before this check existed). The page is the one defaultPage names (renaming Home in
+	 * the menu moves the page and repoints defaultPage) and 'home' while it exists. Only the untouched paragraph matches:
+	 * a page whose paragraph was edited by hand is not written.
 	 * @return void
 	 * @throws Exception
 	 */
 	private function removeInstallPasswordParagraph(): void
 	{
-		$pages = $this->get('pages');
-		if (!isset($pages->home->content) || !is_string($pages->home->content)) { // not get('pages', 'home'): get() would create a deleted home page
-			return;
-		}
-		$content = preg_replace('~<p>Your password for editing everything is: <b>[^<]*</b></p>(?:\r?\n){0,2}~', '', $pages->home->content, 1, $count);
-		if ($content !== null && $count === 0
-			&& preg_match('~<h4><a href="[^"]*">[^<]*</a> Your password is: <b>[^<]*</b></a></h4>((?:\r?\n){0,2})~', $content, $m, PREG_OFFSET_CAPTURE)) {
-			$content = substr_replace($content, '', $m[0][1], strlen($m[0][0]));
-			if (strpos($content, 'Click here to login') === false && $this->get('config', 'login') === 'loginURL') {
-				$content = substr_replace($content, '<p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>' . $m[1][0], $m[0][1], 0);
+		$removed = false;
+		foreach (array_unique([(string)$this->get('config', 'defaultPage'), 'home']) as $slugTree) {
+			$page = $this->get(self::DB_PAGES_KEY); // walked with ??, not get(): get() would create a missing page
+			foreach (explode('/', $slugTree) as $depth => $slug) {
+				$page = $depth === 0 ? $page->{$slug} ?? null : $page->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
 			}
-			$count = 1;
+			if (!isset($page->content) || !is_string($page->content)) {
+				continue;
+			}
+			$content = $this->withoutInstallPassword($page->content);
+			if ($content !== null) {
+				$page->content = $content;
+				$removed = true;
+			}
 		}
-		if ($content === null || $count !== 1) {
+		if (!$removed) {
 			return;
 		}
-		$this->set('pages', 'home', 'content', $content);
+		$this->save();
 		$this->alert('info',
 			'Your password is no longer shown on the home page; to change it, open <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
+	}
+
+	/**
+	 * The content without any copy of the install password paragraph, or null when it carries none
+	 * Before 3.2.0 the password sat in an <h4> that was also the login link (with a stray </a>): it is replaced by the
+	 * current login paragraph when no other login link remains, unless the login URL was changed (a public link would
+	 * give the new one away; the old link was already dead).
+	 * @param string $content
+	 * @return string|null
+	 */
+	private function withoutInstallPassword(string $content): ?string
+	{
+		$content = preg_replace('~<p>Your password for editing everything is: <b>[^<]*</b></p>(?:\r?\n){0,2}~', '', $content, -1, $count);
+		if ($content === null) {
+			return null;
+		}
+		if (preg_match_all('~<h4><a href="[^"]*">[^<]*</a> Your password is: <b>[^<]*</b></a></h4>((?:\r?\n){0,2})~', $content, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+			foreach (array_reverse($matches) as $m) { // from the end, so the first one's offset still holds for the login paragraph
+				$content = substr_replace($content, '', $m[0][1], strlen($m[0][0]));
+			}
+			if (strpos($content, 'Click here to login') === false && $this->get('config', 'login') === 'loginURL') {
+				$content = substr_replace($content, '<p><a href="' . self::url('loginURL') . '" class="button">Click here to login</a></p>' . $matches[0][1][0], $matches[0][0][1], 0);
+			}
+			$count += count($matches);
+		}
+		return $count > 0 ? $content : null;
 	}
 
 	/**
