@@ -1452,13 +1452,17 @@ EOT;
 	}
 
 	/**
-	 * Generate random password
+	 * Generate random password, each character drawn with random_int() (a CSPRNG, not str_shuffle's Mersenne Twister)
 	 * @return string
 	 */
 	public function generatePassword(): string
 	{
 		$characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-		return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
+		$password = '';
+		for ($i = 0; $i < self::MIN_PASSWORD_LENGTH; $i++) {
+			$password .= $characters[random_int(0, strlen($characters) - 1)];
+		}
+		return $password;
 	}
 
 	/**
