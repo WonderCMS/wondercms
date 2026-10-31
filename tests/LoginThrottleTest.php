@@ -190,6 +190,31 @@ final class LoginThrottleTest extends TestCase
 		$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
 	}
 
+	public function testARefusedAttemptIsNotCounted(): void
+	{
+		$this->failTimes('203.0.113.9', 10);
+		$attempts = $this->attempts();
+		$this->assertCount(1, $attempts, 'one address, one key');
+		$key = (string)array_keys($attempts)[0];
+		$this->assertCount(10, $attempts[$key]);
+		$now = time();
+		$times = array_fill(0, 9, $now - 600);
+		array_unshift($times, $now - 800); // spread, so counting a refusal would move the oldest and the wait
+		file_put_contents(self::ATTEMPTS_PATH, json_encode([$key => $times]));
+		$before = file_get_contents(self::ATTEMPTS_PATH);
+		$waitBefore = $now - 800 + 900 - time();
+
+		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
+
+		$this->assertSame($before, file_get_contents(self::ATTEMPTS_PATH), 'a refused attempt is not counted');
+		$this->assertCount(10, $this->attempts()[$key]);
+		$method = new ReflectionMethod(Wcms::class, 'countLoginAttempt');
+		if (PHP_VERSION_ID < 80100) {
+			$method->setAccessible(true);
+		}
+		$this->assertLessThanOrEqual($waitBefore, $method->invoke($this->wcms(), $key), 'Retry-After did not grow');
+	}
+
 	public function testTheWindowSlides(): void
 	{
 		$now = time();
