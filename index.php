@@ -12,7 +12,7 @@ session_start([
 	'cookie_secure' => Wcms::isCurrentlyOnSSL(), // the class is declared below at the top level, so it is bound before this line runs (as new Wcms() below relies on)
 	'use_strict_mode' => true, // a session id the server never issued is replaced, not adopted
 ]);
-define('VERSION', '3.7.1');
+define('VERSION', '3.7.2');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
