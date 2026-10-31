@@ -527,33 +527,97 @@ final class PagesAndUrlTest extends TestCase
 
 	public function testAddingAMenuPageNamedLikeATopLevelPageWithoutAMenuEntryOverwritesNothing(): void
 	{
-		// createPage() had no clash check for a one-segment slug, and createMenuItem() saved the menu entry before createPage() ran.
+		// createPage() had no clash check for a one-segment slug, and the slug was checked against menu entries only: a menu page named 404 replaced the 404 page.
 		$this->wcms->loggedIn = true;
-		$before = json_encode($this->wcms->get('config', 'menuItems'));
 		$page404 = json_encode($this->reload()->pages->{'404'});
-		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
 
 		$this->wcms->createMenuItem('404', '', 'show', true);
 
 		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}), 'the existing page is untouched');
-		$this->assertSame($before, json_encode($this->wcms->get('config', 'menuItems')), 'no menu entry for a refused page');
-		$this->assertSame($before, json_encode($this->reload()->config->menuItems), 'nor in the saved database');
-		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
-		$this->assertArrayNotHasKey('redirect_to', $_SESSION, 'no "page created" redirect');
+		$this->assertContains('404-2', array_column((array)$this->reload()->config->menuItems, 'slug'));
+		$this->assertNotContains('404', array_column((array)$this->reload()->config->menuItems, 'slug'), 'no menu entry takes the unlisted page');
+		$this->assertTrue(isset($this->reload()->pages->{'404-2'}), 'the new page has its own slug');
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+		$this->assertSame('404-2', $_SESSION['redirect_to'] ?? null);
 	}
 
-	public function testAddingASubpageNamedLikeAnUnlistedSubpageSavesNoMenuEntry(): void
+	public function testAddingASubpageNamedLikeAnUnlistedSubpageGetsAFreeSlug(): void
 	{
 		$this->wcms->loggedIn = true;
 		$this->wcms->createPage(['home', 'unlisted']);
 		$this->wcms->set('pages', 'home', 'subpages', 'unlisted', 'content', 'kept');
-		$before = json_encode($this->wcms->get('config', 'menuItems'));
 
 		$this->wcms->createMenuItem('Unlisted', '0', 'show', true);
 
 		$this->assertSame('kept', $this->reload()->pages->home->subpages->unlisted->content ?? null);
-		$this->assertSame($before, json_encode($this->reload()->config->menuItems), 'no menu entry for a refused page');
+		$this->assertSame(['unlisted-2'], array_column((array)$this->reload()->config->menuItems->{'0'}->subpages, 'slug'));
+		$this->assertTrue(isset($this->reload()->pages->home->subpages->{'unlisted-2'}));
+		$this->assertArrayNotHasKey('danger', $_SESSION['alert'] ?? []);
+	}
+
+	public function testRenamingAPageToTheNameOfAPageWithoutAMenuEntryOverwritesNothing(): void
+	{
+		$this->wcms->loggedIn = true;
+		$this->wcms->createMenuItem('Beta', '', 'show', true);
+		$this->wcms->set('pages', 'beta', 'content', 'beta content');
+		$betaKey = (string)max(array_keys((array)$this->wcms->get('config', 'menuItems')));
+		$page404 = json_encode($this->reload()->pages->{'404'});
+
+		$this->wcms->updateMenuItem('404', $betaKey, 'show');
+
+		$pages = $this->reload()->pages;
+		$this->assertSame($page404, json_encode($pages->{'404'}), 'the unlisted page is untouched');
+		$this->assertSame('404-2', $this->wcms->get('config', 'menuItems')->{$betaKey}->slug);
+		$this->assertSame('beta content', $pages->{'404-2'}->content ?? null, 'the renamed page moved to the free slug');
+	}
+
+	public function testCreatePageRefusesAnExistingTopLevelPage(): void
+	{
+		$this->wcms->loggedIn = true;
+		$page404 = json_encode($this->reload()->pages->{'404'});
+
+		$this->wcms->createPage(['404']);
+
+		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}));
 		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
+	}
+
+	public function testACreateThatIsRefusedSavesNoMenuEntry(): void
+	{
+		// The page is validated before the menu entry is saved; the slug is forced onto an existing page to reach the refusal.
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'createUniqueSlug'])->getMock();
+		$wcms->method('createUniqueSlug')->willReturn('404');
+		$wcms->loggedIn = true;
+		$before = json_encode($this->reload()->config->menuItems);
+		$page404 = json_encode($this->reload()->pages->{'404'});
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+
+		$wcms->createMenuItem('Anything', '', 'show', true);
+
+		$this->assertSame($before, json_encode($this->reload()->config->menuItems), 'no menu entry for a refused page');
+		$this->assertSame($page404, json_encode($this->reload()->pages->{'404'}));
+		$this->assertStringContainsString('Cannot create page with existing slug.', json_encode($_SESSION['alert']['danger'] ?? []));
+		$this->assertArrayNotHasKey('redirect_to', $_SESSION, 'no "page created" redirect');
+	}
+
+	public function testSavingAMissingPageLinksAMenuEntryWithTheSameSlug(): void
+	{
+		// createPage(..., true) writes the page, then links its menu entry: the page it just wrote must not push the entry to -2.
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['rootDir'] = $this->wcms->rootDir;
+		$this->wcms->loginStatus();
+		$this->wcms->currentPage = 'fresh';
+		$this->wcms->currentPageTree = ['fresh'];
+		$this->wcms->currentPageExists = false;
+		unset($_SESSION['redirect_to'], $_SESSION['redirect_to_name']);
+		$_POST = ['fieldname' => 'content', 'content' => 'x', 'target' => 'pages', 'token' => $this->wcms->getToken()];
+
+		$this->wcms->saveAction();
+
+		$db = $this->reload();
+		$this->assertSame('x', $db->pages->fresh->content ?? null);
+		$this->assertSame(['fresh'], array_values(preg_grep('/^fresh/', array_column((array)$db->config->menuItems, 'slug'))));
+		$this->assertFalse(isset($db->pages->{'fresh-2'}));
 	}
 
 	public function testRemoveRefusesANameThatTheCleaningWouldChange(): void

@@ -655,7 +655,8 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// Without $createPage the entry links a page that already exists (createPage() writes the page first)
+		$slug = $this->createUniqueSlug($name, $menu, null, $createPage);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
@@ -719,10 +720,10 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		// The renamed item is checked against its siblings, not its children, and is not its own sibling
+		// The renamed item is checked against its siblings and the pages at its level, not its children, and is not its own sibling
 		$parentTree = explode('-', $menu);
 		$ownKey = array_pop($parentTree);
-		$slug = $this->createUniqueSlug($name, implode('-', $parentTree), $ownKey);
+		$slug = $this->createUniqueSlug($name, implode('-', $parentTree), $ownKey, true);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -770,30 +771,45 @@ class Wcms
 	 * @param string $slug
 	 * @param string|null $menu key tree of the parent item, empty for the top level
 	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
+	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
 	 * @return string
 	 */
-	public function createUniqueSlug(string $slug, ?string $menu = null, ?string $excludeKey = null): string
-	{
+	public function createUniqueSlug(
+		string $slug,
+		?string $menu = null,
+		?string $excludeKey = null,
+		bool $againstPages = false
+	): string {
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
+		$pages = $this->get(self::DB_PAGES_KEY);
 
 		// Check if it is subpage ('0', the first top-level item, is a parent too)
 		$menuTree = $menu !== null && $menu !== '' ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
-				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages ?? [];
+				$parentItem = $allMenuItems->{$childMenuKey} ?? null;
+				$allMenuItems = $parentItem->subpages ?? [];
+				$pages = $pages->{$parentItem->slug ?? ''}->subpages ?? null;
 			}
 		}
 
 		// Recheck every candidate: a generated '-N' can itself be a sibling's slug
 		$siblings = (array)$allMenuItems;
+		$ownSlug = null;
 		if ($excludeKey !== null) {
+			$ownSlug = $siblings[$excludeKey]->slug ?? null;
 			unset($siblings[$excludeKey]);
 		}
-		$siblingSlugs = array_column($siblings, 'slug');
+		$takenSlugs = array_column($siblings, 'slug');
+		if ($againstPages && is_object($pages)) {
+			// A page without a menu entry (the 404 page, for one) is taken too; the renamed item's own page is not
+			$pageSlugs = array_map('strval', array_keys(get_object_vars($pages)));
+			$takenSlugs = array_merge($takenSlugs, array_diff($pageSlugs, [(string)$ownSlug]));
+		}
 		$base = $slug;
 		$n = 2;
-		while (in_array($slug, $siblingSlugs, true)) {
+		while (in_array($slug, $takenSlugs, true)) {
 			$slug = $base . '-' . $n++;
 		}
 
