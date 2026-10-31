@@ -186,6 +186,26 @@ final class BackupTest extends TestCase
 		$this->assertNothingLeftOnDisk();
 	}
 
+	public function testANonRemovableOutputBufferDoesNotHangTheBackup(): void
+	{
+		// A plugin (or auto_prepend_file) opened a buffer that ob_end_clean() cannot remove: each failed call returned false and
+		// appended a notice to that very buffer, so the loop ran until the memory limit, a fatal, and the archive stayed on disk.
+		$this->writeRouter('ob_start(null, 0, PHP_OUTPUT_HANDLER_STDFLAGS ^ PHP_OUTPUT_HANDLER_REMOVABLE);');
+		[$headers, $body] = $this->download(['memory_limit' => '32M']);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertContains('data/database.js', $this->entries($body), 'the body is the archive, nothing in front of it');
+		$this->assertNothingLeftOnDisk();
+	}
+
+	public function testTheBackupDownloadsWhereTheOutputBufferFunctionsAreDisabled(): void
+	{
+		// The hardened-host configuration the CI boot check treats as supported
+		[$headers, $body] = $this->download(['disable_functions' => 'ob_start,ob_get_level,ob_end_clean,ob_end_flush']);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertContains('data/database.js', $this->entries($body));
+		$this->assertNothingLeftOnDisk();
+	}
+
 	public function testACancelledDownloadLeavesNoArchiveBehind(): void
 	{
 		// The admin closes the tab or cancels the save dialog partway: PHP sees the dead socket on the next write and, unless told

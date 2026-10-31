@@ -3951,8 +3951,9 @@ EOT;
 			if (function_exists('ignore_user_abort')) {
 				ignore_user_abort(true); // the admin who cancels the download must not stop the script before the finally below removes the archive
 			}
-			while (ob_get_level()) {
-				ob_end_clean(); // a buffer left open by a plugin would hold the whole archive in memory
+			if (function_exists('ob_get_level') && function_exists('ob_end_clean')) { // a host that disables the ob_* functions has no buffer to close
+				while (ob_get_level() > 0 && @ob_end_clean()) { // a buffer left open by a plugin would hold the whole archive in memory; stops on one that cannot be removed, as loadThemeAndFunctions() does (its notice must not land in front of the archive)
+				}
 			}
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
