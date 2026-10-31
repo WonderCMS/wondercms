@@ -2922,20 +2922,50 @@ EOT;
 			);
 			return;
 		}
-		if ($path === $this->dbPath && !$this->replacingPassword) {
-			// Every save writes the whole snapshot this request read; one read before a password change (a login spends ~100 ms
-			// in bcrypt) would write the old hash back and revive every session stamped with it. Only changePasswordAction() replaces it.
-			$onDisk = json_decode($this->lockedRead($path));
-			$diskHash = is_object($onDisk) && isset($onDisk->{self::DB_CONFIG}) && is_object($onDisk->{self::DB_CONFIG}) ? ($onDisk->{self::DB_CONFIG}->password ?? null) : null;
-			$config = $content->{self::DB_CONFIG} ?? null;
-			if (is_string($diskHash) && $diskHash !== '' && is_object($config) && ($config->password ?? null) !== $diskHash) { // no readable hash on disk (the first install, a vanished file): saved as it is
-				$config->password = $diskHash; // $content is $this->db: the request's own copy is corrected too
-				$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+		$lock = $path === $this->dbPath ? $this->lockDatabase() : null; // the password change saves through here too, so it waits for the same lock
+		try {
+			if ($path === $this->dbPath && !$this->replacingPassword) {
+				// Every save writes the whole snapshot this request read; one read before a password change (a login spends ~100 ms
+				// in bcrypt) would write the old hash back and revive every session stamped with it. Only changePasswordAction() replaces it.
+				$onDisk = json_decode($this->lockedRead($path));
+				$diskHash = is_object($onDisk) && isset($onDisk->{self::DB_CONFIG}) && is_object($onDisk->{self::DB_CONFIG}) ? ($onDisk->{self::DB_CONFIG}->password ?? null) : null;
+				$config = $content->{self::DB_CONFIG} ?? null;
+				if (is_string($diskHash) && $diskHash !== '' && is_object($config) && ($config->password ?? null) !== $diskHash) { // no readable hash on disk (the first install, a vanished file): saved as it is
+					$config->password = $diskHash; // $content is $this->db: the request's own copy is corrected too
+					$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+				}
+			}
+			if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
+				$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+			}
+		} finally {
+			if ($lock !== null) {
+				flock($lock, LOCK_UN);
+				fclose($lock);
 			}
 		}
-		if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
-			$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+	}
+
+	/**
+	 * An exclusive lock on database.js.lock (denied over HTTP by the database\.js rule in .htaccess), held by save() from the
+	 * re-read of the password hash on disk until the new file is renamed into place: without it a save from a snapshot read
+	 * before a password change could re-read the old hash, the change rename its file, and this save rename the old hash back
+	 * @return resource|null null where flock() or fopen() is disabled or the lock file cannot be opened: the save goes ahead unlocked
+	 */
+	private function lockDatabase()
+	{
+		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('fclose')) {
+			return null;
 		}
+		$handle = @fopen($this->dbPath . '.lock', 'c'); // created empty, never truncated or written
+		if ($handle === false) {
+			return null;
+		}
+		if (!flock($handle, LOCK_EX)) { // a filesystem without locking saves as before
+			fclose($handle);
+			return null;
+		}
+		return $handle;
 	}
 
 	/**
