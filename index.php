@@ -2373,12 +2373,13 @@ EOT;
 		} catch (UnexpectedValueException $e) { // a folder it may not read
 			return false;
 		}
-		return is_writable($dir);
+		return function_exists('is_writable') && is_writable($dir); // disabled: it cannot tell, so no
 	}
 
 	/**
 	 * Moves everything in one folder into another, without a warning: a file replaces what has its name, a folder merges into a
-	 * folder of its name. What cannot be moved stays behind. Links are moved, never followed.
+	 * folder of its name; a folder rename() cannot move (across a mount point) is made there and filled. What cannot be moved
+	 * stays behind. Links are moved, never followed.
 	 * @param string $from
 	 * @param string $to
 	 * @return bool whether everything was moved
@@ -2399,10 +2400,10 @@ EOT;
 					$all = $this->mergeInto($source, $target) && $all;
 					continue;
 				}
-				if ($sourceDir || $targetDir) { // a folder over a file or a file over a folder: rename() replaces neither
+				if ($sourceDir || $targetDir || (function_exists('is_link') && is_link($target))) { // a folder over a file or a file over a folder: rename() replaces neither; a link goes first, as rename() across a mount point copies through it
 					$this->removeQuietly($target);
 				}
-				$all = @rename($source, $target) && $all;
+				$all = (@rename($source, $target) || $sourceDir && @mkdir($target, 0755) && $this->mergeInto($source, $target)) && $all; // mkdir() fails on a link left there, so it is never entered
 			}
 		} catch (UnexpectedValueException $e) { // a folder it may not read
 			return false;

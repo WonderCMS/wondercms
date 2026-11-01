@@ -699,6 +699,74 @@ final class LocalModulesTest extends TestCase
 		}
 	}
 
+	public function testAFolderOfTheUpdateThatCannotBeRenamedAcrossAMountPointIsMadeThereAndFilled(): void
+	{
+		// A volume or bind mount on a module subfolder (themes/sky/css) survives the cross-device delete, and rename() moves a file
+		// across it (PHP copies, then unlinks) but never a folder: a folder the archive carries under it (css/fonts/) was dropped
+		// with the partial alert. A read-only css/ in the new copy refuses the rename of its fonts/ the same way while the files in
+		// fonts/ can still move; a stuck subfolder keeps themes/foo/css in place as the mount does.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo/css/locked', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		file_put_contents($this->root . '/themes/foo/css/style.css', 'oldcss');
+		file_put_contents($this->root . '/themes/foo/css/locked/keep.txt', 'cannot be removed');
+		chmod($this->root . '/themes/foo/css/locked', 0666);
+		$newCss = $this->root . '/themes/foo-master/css';
+		try {
+			if (@file_get_contents($this->root . '/themes/foo/css/locked/keep.txt') !== false) {
+				$this->markTestSkipped('this user reads through a folder without search permission (root)');
+			}
+			$alerts = $this->install('foo', $this->moduleZip(['foo-master/theme.php' => 'new', 'foo-master/css/fonts/a.woff2' => 'newfont']), static function (string $path) use ($newCss): string {
+				chmod($newCss, 0555); // runs once the new copy is extracted, before the delete and the merge
+				return '/dev/' . basename($path) . '.tmp';
+			});
+			chmod($this->root . '/themes/foo/css/locked', 0755);
+
+			$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+			$this->assertArrayNotHasKey('danger', $alerts, 'nothing of the update was left out');
+			$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])));
+			$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
+			$this->assertSame(['fonts', 'locked'], array_values(array_diff(scandir($this->root . '/themes/foo/css'), ['.', '..'])), 'the folder made beside the part that stayed');
+			$this->assertSame('newfont', file_get_contents($this->root . '/themes/foo/css/fonts/a.woff2'));
+			$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/themes/foo/css/locked'), ['.', '..'])));
+		} finally {
+			foreach ([$newCss, $this->root . '/themes/foo/css/locked'] as $folder) {
+				if (is_dir($folder)) {
+					chmod($folder, 0755);
+				}
+			}
+			exec('rm -rf ' . escapeshellarg($this->root . '/themes/foo') . ' ' . escapeshellarg($this->root . '/themes/foo-master'));
+		}
+	}
+
+	public function testAMergeReplacesALinkAtItsDestinationAndNeverWritesThroughIt(): void
+	{
+		// What the cross-device delete left in the installed folder can be a link to a folder outside the module: the merge
+		// replaces it with the new folder and never merges into it, so nothing of the update lands outside the module.
+		if (DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('symlinks need privileges on Windows');
+		}
+		mkdir($this->root . '/outside');
+		file_put_contents($this->root . '/outside/keep.txt', 'not part of any module');
+		mkdir($this->root . '/themes/foo');
+		symlink($this->root . '/outside', $this->root . '/themes/foo/css');
+		mkdir($this->root . '/themes/foo-master/css', 0777, true);
+		file_put_contents($this->root . '/themes/foo-master/css/style.css', 'newcss');
+		$merge = new ReflectionMethod(Wcms::class, 'mergeInto');
+		if (PHP_VERSION_ID < 80100) {
+			$merge->setAccessible(true);
+		}
+
+		$this->assertTrue($merge->invoke($this->wcms, $this->root . '/themes/foo-master', $this->root . '/themes/foo'));
+
+		$this->assertFalse(is_link($this->root . '/themes/foo/css'), 'the link is replaced by the folder');
+		$this->assertSame('newcss', file_get_contents($this->root . '/themes/foo/css/style.css'));
+		$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/outside'), ['.', '..'])), 'nothing written through the link');
+		$this->assertSame('not part of any module', file_get_contents($this->root . '/outside/keep.txt'));
+	}
+
 	public function testASitePathWithGlobCharactersSweepsOnlyItsOwnLeftovers(): void
 	{
 		// The sweeps of an update's aside copies and of a save's temp files build their glob() pattern on the site's path:
