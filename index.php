@@ -83,8 +83,8 @@ class Wcms
 	/** @var bool $replacingPassword - set by changePasswordAction() for the one save that may replace the password hash */
 	private $replacingPassword = false;
 
-	/** @var array{excludeKey: ?string, againstPages: bool} $slugContext what createMenuItem() and updateMenuItem() give createUniqueSlug() for the one call they make (its public signature is 3.7.1 API and cannot carry it) */
-	protected $slugContext = ['excludeKey' => null, 'againstPages' => false];
+	/** @var array{excludeKey: ?string, againstPages: bool} $slugContext what createMenuItem() and updateMenuItem() give createUniqueSlug() for the one call they make (its public signature is 3.7.1 API and cannot carry it); private, so it adds no name a subclass could collide with */
+	private $slugContext = ['excludeKey' => null, 'againstPages' => false];
 
 	/** @var array $listeners for hooks */
 	public $listeners = [];
@@ -863,7 +863,8 @@ class Wcms
 	 * so it stays as it was, and createMenuItem() and updateMenuItem() call it for every create and rename, as in 3.7.1,
 	 * so an override is applied there too. The context those two callers need (the renamed item's own key, the pages at
 	 * that level) cannot travel through this signature; they set $slugContext around the call instead. Called directly,
-	 * with no context set, it checks the menu items at that level only.
+	 * with no context set, it checks the menu items at that level only. An override that calls createUniqueSlug() again
+	 * while handling a create or rename sees that call's context too (it is cleared when the outer call returns).
 	 *
 	 * @param string $slug
 	 * @param string|null $menu key tree of the parent item, empty for the top level
