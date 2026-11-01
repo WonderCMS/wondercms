@@ -2171,6 +2171,8 @@ EOT;
 		}
 
 		// Basic zip-slip protection: reject any absolute paths or parent traversal.
+		// Also note the one top folder every entry sits under ('' once two differ or an entry sits at the root).
+		$top = null;
 		for ($i = 0; $i < $zip->numFiles; $i++) {
 			$name = $zip->getNameIndex($i);
 			if ($name === false) {
@@ -2186,15 +2188,40 @@ EOT;
 				$this->alert('danger', 'ZIP file contains invalid paths.');
 				$this->redirect();
 			}
+			$entryTop = (string)strstr($name, '/', true);
+			$top = $top === null || $top === $entryTop ? $entryTop : '';
 		}
 
-		// First delete old plugin/theme folder (a link is removed, never followed, as in deleteFileModuleAction())
-		function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+		// A GitHub archive (everything under <name>-master/ or <name>-main/) unpacks beside the installed folder, which goes only
+		// once the new one is complete. Any other ZIP (its top folder already <name>/) would merge into the live folder, so it
+		// keeps the old order: delete, extract, rename. A link is removed, never followed, as in deleteFileModuleAction().
+		$newFolder = in_array($top, [$folderName . '-master', $folderName . '-main'], true) ? $path . $top : null;
+		$stale = $newFolder ?? $path . $folderName; // for a GitHub archive: a leftover of an earlier attempt that was cut short
+		function_exists('is_link') && is_link($stale) ? unlink($stale) : $this->recursiveDelete($stale);
 
-		// Then extract new one
-		$zip->extractTo($path);
+		$extracted = @$zip->extractTo($path);
+		// extractTo() returns true when a full disk cuts a write short (the file lands truncated), so every file is measured
+		// against the archive; where the host disables filesize() only the return value can be checked.
+		for ($i = 0; $newFolder !== null && $extracted && function_exists('filesize') && $i < $zip->numFiles; $i++) {
+			$stat = $zip->statIndex($i);
+			if ($stat !== false && substr($stat['name'], -1) !== '/') {
+				$extracted = @filesize($path . $stat['name']) === $stat['size'];
+			}
+		}
 		$zip->close();
 		$this->recursiveDelete($zipFile);
+
+		if ($newFolder !== null && !$extracted) {
+			function_exists('is_link') && is_link($newFolder) ? unlink($newFolder) : $this->recursiveDelete($newFolder);
+			$this->alert('danger', $wasInstalled
+				? 'Could not extract the update. The installed version was left in place.'
+				: 'Could not extract the download. Nothing was installed.');
+			$this->redirect();
+		}
+		if ($newFolder !== null) {
+			// The whole archive is on disk: now the installed folder goes
+			function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+		}
 
 		$moduleFolder = $path . $folderName . '-master';
 		if (!is_dir($moduleFolder)) {
