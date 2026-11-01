@@ -220,16 +220,20 @@ final class LocalModulesTest extends TestCase
 
 	/**
 	 * Runs installUpdateModuleAction() for the theme $name with the module ZIP at $zipPath; returns the alerts it left.
-	 * redirect() throws as the real one exits, so a failure branch does not run on into the next one.
+	 * redirect() throws as the real one exits, so a failure branch does not run on into the next one. $tempPath, when
+	 * given, stands in for tempPath().
 	 */
-	private function install(string $name, string $zipPath): array
+	private function install(string $name, string $zipPath, ?callable $tempPath = null): array
 	{
 		$wcms = $this->getMockBuilder(Wcms::class)
 			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
-			->onlyMethods(['redirect', 'getSingleModuleCachedData'])
+			->onlyMethods($tempPath === null ? ['redirect', 'getSingleModuleCachedData'] : ['redirect', 'getSingleModuleCachedData', 'tempPath'])
 			->getMock();
 		$wcms->method('getSingleModuleCachedData')->willReturn(['zip' => 'file://' . $zipPath]);
 		$wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		if ($tempPath !== null) {
+			$wcms->method('tempPath')->willReturnCallback($tempPath);
+		}
 		$wcms->loggedIn = true;
 		unset($_SESSION['alert']);
 		$_REQUEST = $_GET = ['installModule' => $name, 'type' => 'themes', 'token' => $wcms->getToken()];
@@ -545,6 +549,78 @@ final class LocalModulesTest extends TestCase
 			}
 			exec('rm -rf ' . escapeshellarg($folder));
 		}
+	}
+
+	public function testAnInstalledFolderThatCannotBeRenamedAsideIsLeftExactlyAsItWas(): void
+	{
+		// A locked or immutable folder (chflags uchg, chattr +i), a mount point or a file held open in it on Windows refuses
+		// the rename aside; deleting the folder first instead emptied its subfolders before the same refusal stopped the rename
+		// in. An aside path in a folder that does not exist is refused on every platform, root included; a tempPath() that
+		// throws is random_bytes() with no source of randomness.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$refusals = [
+			'refused rename' => function (string $path): string {
+				return $this->root . '/no-such-folder/' . basename($path) . '.tmp';
+			},
+			'no aside name' => static function (): string {
+				throw new Exception('Could not gather sufficient random data');
+			},
+		];
+		foreach (['foo/', 'foo-master/'] as $top) {
+			foreach ($refusals as $refusal => $tempPath) {
+				$case = $top . ' ' . $refusal . ': ';
+				mkdir($this->root . '/themes/foo/css', 0777, true);
+				file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+				file_put_contents($this->root . '/themes/foo/css/style.css', 'oldcss');
+
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'js/app.js' => 'newjs']), $tempPath);
+
+				$this->assertSame('Could not move the installed version aside. Nothing was changed.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
+				$this->assertArrayNotHasKey('success', $alerts, $case);
+				$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'nothing removed or merged in');
+				$this->assertSame(['style.css'], array_values(array_diff(scandir($this->root . '/themes/foo/css'), ['.', '..'])), $case);
+				$this->assertSame('old', file_get_contents($this->root . '/themes/foo/theme.php'), $case);
+				$this->assertSame('oldcss', file_get_contents($this->root . '/themes/foo/css/style.css'), $case);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $case . 'no staging, extracted or aside folder is left');
+				exec('rm -rf ' . escapeshellarg($this->root . '/themes/foo'));
+			}
+		}
+	}
+
+	public function testASitePathWithGlobCharactersSweepsOnlyItsOwnLeftovers(): void
+	{
+		// The sweeps of an update's aside copies and of a save's temp files build their glob() pattern on the site's path:
+		// read as a pattern, site[1] missed its own leftovers and matched site1's.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$root = realpath($this->root);
+		$site = $root . '/site[1]';
+		mkdir($site . '/themes/foo', 0777, true);
+		file_put_contents($site . '/themes/foo/theme.php', 'old');
+		mkdir($site . '/themes/foo.old.11111111.tmp');
+		mkdir($root . '/site1/themes/foo.old.22222222.tmp', 0777, true);
+
+		$result = $this->probeDisabling('', 'module-install', $site, 'themes', 'foo', 'file://' . $this->moduleZip(['foo/theme.php' => 'new']));
+
+		$this->assertSame('Successfully installed/updated foo.', $result['alert']['success'][0]['message'] ?? '', json_encode($result));
+		$this->assertSame('new', file_get_contents($site . '/themes/foo/theme.php'));
+		$this->assertDirectoryDoesNotExist($site . '/themes/foo.old.11111111.tmp', 'its own remnant is swept');
+		$this->assertDirectoryExists($root . '/site1/themes/foo.old.22222222.tmp', 'another site\'s is not matched');
+
+		$own = $site . '/data_test/database_probe.js.0123abcd.tmp';
+		$other = $root . '/site1/data_test/database_probe.js.0123abcd.tmp';
+		mkdir(dirname($other));
+		foreach ([$own, $other] as $temp) {
+			file_put_contents($temp, 'old copy');
+			touch($temp, time() - 7200);
+		}
+		(new Wcms('data_test', 'files_test', 'database_probe.js', $site))->set('config', 'siteTitle', 'swept');
+		clearstatcache();
+		$this->assertFileDoesNotExist($own, 'its own leftover temp file is swept');
+		$this->assertFileExists($other, 'another site\'s is not matched');
 	}
 
 	public function testAFreshInstallWhoseArchiveCannotBeExtractedInstallsNothingAndSaysSo(): void

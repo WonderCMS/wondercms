@@ -2234,22 +2234,31 @@ EOT;
 				: 'Could not extract the download. Nothing was installed.');
 			$this->redirect();
 		}
-		$old = $this->tempPath($path . $folderName . '.old');
 		$aside = false;
 		if ($newFolder !== null) {
 			// The whole archive is on disk: the installed folder is renamed aside to <name>.old.<8 hex>.tmp (a rename needs write
 			// on the parent only, so a subfolder that cannot be emptied moves with it), the new one is renamed in, and the aside
 			// copy is removed where it can be. A remnant stays until a later update can clear it (loadPlugins() and the Plugins
 			// tab never pick it up, the Themes tab lists it only while its theme.php is left); the aside name is new for every
-			// request, so a remnant never blocks the rename aside. That rename then fails only where the parent folder refuses to
-			// move the installed one (permissions, or a file in it held open on Windows), and there the installed folder is
-			// deleted first, as before, an order the same refusal stops too. If the rename in fails, the aside copy is renamed
+			// request, so a remnant never blocks the rename aside. Where the installed folder cannot be moved (permissions, a
+			// locked or immutable folder, a mount point, a file in it held open on Windows) or no aside name can be made, the new
+			// copy is removed and the installed one is left exactly as it was. If the rename in fails, the aside copy is renamed
 			// back. A link is removed, not renamed.
-			foreach (function_exists('glob') ? (glob($path . $folderName . '.old.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $remnant) { // only the names tempPath() makes
+			foreach (function_exists('glob') ? (glob(strtr($path, ['[' => '[[]', '*' => '[*]', '?' => '[?]']) . $folderName . '.old.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $remnant) { // only the names tempPath() makes; a [, * or ? in the site's path matches itself
 				$this->removeQuietly($remnant);
 			}
-			$aside = $wasInstalled && !(function_exists('is_link') && is_link($path . $folderName)) && @rename($path . $folderName, $old);
-			if (!$aside) {
+			$installed = $wasInstalled && !(function_exists('is_link') && is_link($path . $folderName));
+			try {
+				$aside = $installed && @rename($path . $folderName, $old = $this->tempPath($path . $folderName . '.old'));
+			} catch (Exception $e) { // random_bytes() on a host with no source of randomness
+			}
+			if ($installed && !$aside) {
+				$partial = $staging ?? $newFolder;
+				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
+				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed.');
+				$this->redirect();
+			}
+			if (!$installed) {
 				function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
 			}
 		}
@@ -4233,7 +4242,7 @@ EOT;
 		if (!is_file($path) || !is_writable(dirname($path))) {
 			return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents); // a new file, or a folder not writable (no temp possible): write directly as 3.6.0 did
 		}
-		foreach (function_exists('glob') && function_exists('filemtime') ? (glob($path . '.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $old) { // only the names tempPath() makes
+		foreach (function_exists('glob') && function_exists('filemtime') ? (glob(strtr($path, ['[' => '[[]', '*' => '[*]', '?' => '[?]']) . '.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $old) { // only the names tempPath() makes; a [, * or ? in the path matches itself
 			if (@filemtime($old) < time() - 3600) {
 				@unlink($old); // a temp an interrupted save left behind is a full copy of the file (database.js holds the password hash)
 			}
