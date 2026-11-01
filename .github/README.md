@@ -51,7 +51,7 @@
 <br>
 
 ## Requirements
-- PHP 7.4 or greater
+- PHP 7.4 or greater (7.4 no longer receives security fixes from PHP; use 8.1 or newer where your host offers it; tested on 7.4, 8.1, 8.3, 8.4 and 8.5)
   - cURL extension
   - mbstring extension
   - Zip extension
@@ -84,6 +84,9 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 - The admin password is hashed using PHP's `password_hash` and `password_verify`.
   - Choosing a strong password will prevent malicious actors from gaining any further admin access (if they would have guessed your login URL).
 - WonderCMS includes CSRF verification tokens for each user action and additionally uses the hash_equals function to prevent CSRF token timing attacks.
+- Login attempts are throttled: 10 wrong passwords from one address pause further attempts from it for 15 minutes (since 3.7.2).
+- Sessions are bound to the password; changing it ends every other session (since 3.7.2).
+- Found a security issue? Email report@wondercms.com or open a private GitHub security advisory; see [SECURITY.md](SECURITY.md).
 - No known vulnerabilities.
    - Special thanks to yassineaddi, hypnito, Ramon Dunker and other security researchers.
 - 3.7.2 contributors: thanks to the people who reported privately and waited for the fix: Nguyễn Hữu Dũng (sessions bound to the password), pyuysig, cybertron1337 and EQSTLab (the install password on the home page), konukgorkem and Zachariah Mithani of AploSec (login throttling; Zachariah also for the install password drawn from a cryptographic source), HuzaifaDal (backups), archnexus707 (the login address), manop55555 and Brandon Tarr of VulnCheck (config writes, fixed in 3.7.0), Saudadeeee and aliyevmursal (hardening credits) and Aurora Rogers of Perch Scan (the theme and plugin updater).
