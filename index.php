@@ -3488,7 +3488,7 @@ EOT;
 				continue; // an unfinished backup a killed request left (before 3.7.2): never offered as a file, removed by the next backup once stale
 			}
 			$fileLink = '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>'
-				. ($this->isBackupArchiveName($file) ? ' (old backup: download it if you need it, then delete it)' : ''); // made before 3.7.2, which keeps no backup on the server; the owner keeps the link
+				. ($this->isBackupArchiveName($file) ? ' (old backup: download it if you need it, then delete it)' : ''); // made before 3.7.2: a sent archive is now deleted, emptied where unlink is disabled, or kept under data/ where file_put_contents is disabled too; the owner keeps the link
 			$output .= '
 									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
@@ -4298,6 +4298,7 @@ EOT;
 
 	/**
 	 * Build the backup archive under data/ and return its path; the caller sends and removes it
+	 * The files of PHP's session folder are left out where that folder is inside the site (its entry stays): they hold live session ids
 	 * @return string
 	 * @throws Exception
 	 */
@@ -4310,6 +4311,11 @@ EOT;
 		}
 		$source = realpath($this->rootDir);
 		$filesPath = realpath($this->filesPath);
+		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
+		$sessionDir = $savePath !== '' ? realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'
+		if ($sessionDir === false || strpos($sessionDir, $source . DIRECTORY_SEPARATOR) !== 0 || $sessionDir === realpath($this->dataPath)) {
+			$sessionDir = false; // outside the site nothing is skipped; nor in data/ itself, which holds database.js
+		}
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
@@ -4318,7 +4324,7 @@ EOT;
 			$name = str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			if (is_dir($file)) {
 				$zip->addEmptyDir($name . '/');
-			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)) { // not the archive itself, not the old backups (each one used to nest all earlier ones), and not another build's file in progress
+			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file) && dirname($file) !== $sessionDir) { // not the archive itself, not the old backups (each one used to nest all earlier ones), and not another build's file in progress
 				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
 					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
 				} else {

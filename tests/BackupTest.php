@@ -170,6 +170,16 @@ final class BackupTest extends TestCase
 		$this->assertNothingLeftOnDisk();
 	}
 
+	public function testASessionFolderSetToDataItselfStillArchivesTheDatabase(): void
+	{
+		[$headers, $body] = $this->download(['session.save_path' => $this->site . '/data']);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), $body);
+		$entries = $this->entries($body);
+		foreach (['index.php', 'data/database.js', 'data/files/photo.jpg'] as $name) {
+			$this->assertContains($name, $entries, 'the session folder is skipped only below data/, never data/ itself');
+		}
+	}
+
 	public function testALargeUploadIsBackedUpWithoutReadingItIntoMemory(): void
 	{
 		$big = fopen($this->site . '/data/files/video.mp4', 'wb');
