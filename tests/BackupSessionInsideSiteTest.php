@@ -91,6 +91,8 @@ final class BackupSessionInsideSiteTest extends TestCase
 		$this->assertStringContainsString('id="settingsModal"', $page, 'the session is the admin');
 		$this->assertSame(1, preg_match('~name="backup".*?name="token" value="([0-9a-f]+)"~s', $page, $token));
 		$this->assertNotEmpty(glob($this->root . '/data/sessions/sess_*'), 'the sessions are stored inside the site');
+		@mkdir($this->root . '/data/files');
+		file_put_contents($this->root . '/data/files/sess_0123456789abcdef', 'an upload with a session-like name');
 
 		$download = $this->handle('/', $admin[1], ['backup' => '', 'token' => $token[1]]);
 		curl_setopt($download, CURLOPT_HEADER, false);
@@ -111,7 +113,9 @@ final class BackupSessionInsideSiteTest extends TestCase
 		$zip->close();
 		$this->assertContains('index.php', $names);
 		$this->assertContains('data/database.js', $names);
-		$this->assertNotEmpty(preg_grep('~^data/sessions/sess_~', $names), 'the session files are the owner\'s data and are archived like the rest');
+		$this->assertSame([], array_values(preg_grep('~^data/sessions/.~', $names)), 'no session file is archived: each holds a live session id');
+		$this->assertContains('data/sessions/', $names, 'the session folder itself is kept');
+		$this->assertContains('data/files/sess_0123456789abcdef', $names, 'the skip is by folder, not by name: an upload so named is archived');
 		exec('unzip -tq ' . escapeshellarg($zipPath) . ' 2>&1', $output, $status);
 		$this->assertTrue($status === 0 || $status === 127, 'unzip -t: ' . implode(' ', $output)); // 127: no unzip on this machine, CHECKCONS above stands
 	}
