@@ -263,6 +263,27 @@ final class LoginThrottleTest extends TestCase
 		$this->assertLoggedIn($this->post(self::PASSWORD, '::ffff:198.51.100.20'));
 	}
 
+	/**
+	 * An IPv6-only server behind a NAT64 translator sees every IPv4 client as 64:ff9b::<ipv4>, all in one /64
+	 */
+	public function testANat64AddressCountsAsItsEmbeddedIpv4(): void
+	{
+		$this->failTimes('64:ff9b::203.0.113.9', 10);
+
+		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
+		$this->assertRefused($this->post(self::PASSWORD, '64:ff9b::cb00:7109'));
+		$this->assertLoggedIn($this->post(self::PASSWORD, '64:ff9b::198.51.100.20'));
+	}
+
+	public function testANat64PrivateAddressIsNeverThrottled(): void
+	{
+		for ($i = 0; $i < 12; $i++) {
+			$this->post('wrongPass', '64:ff9b::10.0.0.5');
+		}
+		$this->assertLoggedIn($this->post(self::PASSWORD, '64:ff9b::10.0.0.5'));
+		$this->assertFileDoesNotExist(self::ATTEMPTS_PATH, 'a private address is not counted either');
+	}
+
 	public function testAMissingAddressIsNeverOneSharedBucket(): void
 	{
 		for ($i = 0; $i < 12; $i++) {

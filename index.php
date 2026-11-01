@@ -2587,7 +2587,9 @@ EOT;
 	/**
 	 * The key a login attempt is counted under: REMOTE_ADDR only (Client-IP and X-Forwarded-For are the client's to
 	 * choose), an IPv6 address by its /64 (one client holds a whole /64), an IPv4-mapped IPv6 address as the IPv4 one
-	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). The file stores an HMAC of
+	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same), and so is a NAT64
+	 * well-known-prefix address 64:ff9b::/96 (an IPv6-only server behind a translator sees every IPv4 client in that
+	 * one /64). The file stores an HMAC of
 	 * that, never the address: its salt comes from this install's folder and password hash, neither readable from the
 	 * public side, so the file alone (public on a site whose .htaccess predates 3.7.0) identifies nobody; a password
 	 * change starts the counts afresh. No valid address and a local, private or shared-space one (isLocalOrSharedAddress)
@@ -2602,7 +2604,8 @@ EOT;
 		if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false || ($packed = inet_pton($address)) === false) {
 			return null;
 		}
-		if (strlen($packed) === 16 && strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
+		if (strlen($packed) === 16 && (strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0
+				|| strncmp($packed, "\x00\x64\xff\x9b" . str_repeat("\0", 8), 12) === 0)) {
 			$packed = substr($packed, 12);
 		}
 		if ($this->isLocalOrSharedAddress($packed)) {
