@@ -589,6 +589,31 @@ final class LocalModulesTest extends TestCase
 		}
 	}
 
+	public function testAnInstalledFolderThatCannotBeRenamedAcrossDevicesIsDeletedAndReplaced(): void
+	{
+		// A folder from a lower layer of an overlay filesystem (a Docker image's content) refuses the rename aside with EXDEV, and a
+		// delete always works there. /dev is a filesystem of its own on Linux and macOS, so an aside path there gets the same EXDEV.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		foreach (['foo/', 'foo-master/'] as $top) {
+			mkdir($this->root . '/themes/foo/css', 0777, true);
+			file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+			file_put_contents($this->root . '/themes/foo/css/style.css', 'oldcss');
+
+			$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'js/app.js' => 'newjs']), static function (string $path): string {
+				return '/dev/' . basename($path) . '.tmp';
+			});
+
+			$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $top . ' ' . json_encode($alerts));
+			$this->assertArrayNotHasKey('danger', $alerts, $top);
+			$this->assertSame(['js', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $top . ' the old copy is gone, the new one in place');
+			$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $top);
+			$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no staging, extracted or aside folder is left');
+			exec('rm -rf ' . escapeshellarg($this->root . '/themes/foo'));
+		}
+	}
+
 	public function testASitePathWithGlobCharactersSweepsOnlyItsOwnLeftovers(): void
 	{
 		// The sweeps of an update's aside copies and of a save's temp files build their glob() pattern on the site's path:

@@ -2248,17 +2248,20 @@ EOT;
 				$this->removeQuietly($remnant);
 			}
 			$installed = $wasInstalled && !(function_exists('is_link') && is_link($path . $folderName));
+			error_clear_last();
 			try {
 				$aside = $installed && @rename($path . $folderName, $old = $this->tempPath($path . $folderName . '.old'));
 			} catch (Exception $e) { // random_bytes() on a host with no source of randomness
 			}
-			if ($installed && !$aside) {
+			// A folder from a lower layer of an overlay filesystem (a Docker image's content) refuses a rename with EXDEV, yet it can be
+			// deleted and the new copy renamed in: only that refusal goes on, deleting first, with no aside copy to go back to.
+			if ($installed && !$aside && !preg_match('/cross-device link$/i', error_get_last()['message'] ?? '')) {
 				$partial = $staging ?? $newFolder;
 				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
 				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed.');
 				$this->redirect();
 			}
-			if (!$installed) {
+			if (!$aside) {
 				function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
 			}
 		}
