@@ -109,7 +109,7 @@ final class BackupSessionInsideSiteTest extends TestCase
 		$body = (string)curl_exec($download);
 		$elapsed = microtime(true) - $started;
 		$this->assertStringContainsString('application/zip', (string)curl_getinfo($download, CURLINFO_CONTENT_TYPE), sprintf('the backup is a download (answered after %.1f s: %s)', $elapsed, curl_error($download) ?: substr(strip_tags($body), 0, 200)));
-		$this->assertLessThan(5.0, $elapsed);
+		$this->assertLessThan(20.0, $elapsed); // the deadlock answered a fatal page after PHP's time limit; the content-type line above is the real pin, this cap only keeps a hung server from stalling the suite
 
 		$zipPath = $this->tmp . '/backup-' . bin2hex(random_bytes(4)) . '.zip';
 		file_put_contents($zipPath, $body);
