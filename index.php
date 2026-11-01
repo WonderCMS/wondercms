@@ -503,7 +503,9 @@ class Wcms
 	{
 		$content = ['forceHttps' => $this->isHttpsForced()];
 		$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-		file_put_contents($this->securityCachePath, $json, LOCK_EX);
+		if (function_exists('file_put_contents')) { // a host that disables it cannot write any cache: url() then follows the request's own scheme instead of this fataling (3.7.1 fataled)
+			file_put_contents($this->securityCachePath, $json, LOCK_EX);
+		}
 	}
 
 	/**
