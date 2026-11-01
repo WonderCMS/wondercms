@@ -176,7 +176,7 @@ final class BackupTest extends TestCase
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), $body);
 		$entries = $this->entries($body);
 		foreach (['index.php', 'data/database.js', 'data/files/photo.jpg'] as $name) {
-			$this->assertContains($name, $entries, 'the session folder is skipped only below data/, never data/ itself');
+			$this->assertContains($name, $entries, 'only session files (sess_<id>) below the save path are skipped, never database.js or an upload, even when the save path is data/ itself');
 		}
 	}
 
