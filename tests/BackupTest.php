@@ -595,6 +595,60 @@ final class BackupTest extends TestCase
 		$this->assertNothingLeftOnDisk();
 	}
 
+	public function testWhereFilesizeIsDisabledTheBackupDownloadsWithoutAContentLengthAndTheSweepStillRemovesALeftover(): void
+	{
+		// sendBackup() read the archive's size for Content-Length with filesize(): with it in disable_functions every backup was
+		// a fatal page. The size comes from stat() now, and where that is disabled too the header is left out.
+		$left = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('cd', 16) . '.zip';
+		foreach (['filesize', 'filesize,stat'] as $disabled) {
+			file_put_contents($left, 'left behind by a killed request');
+			touch($left, time() - 3600);
+			[$headers, $body] = $this->download(['disable_functions' => $disabled, 'display_errors' => '1']);
+			$this->assertStringNotContainsString('Fatal error', $body, $disabled);
+			$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), $disabled . ': ' . substr($body, 0, 300));
+			if ($disabled === 'filesize') {
+				$this->assertSame((string)strlen($body), $this->header($headers, 'Content-Length'), 'stat() gives the size');
+			} else {
+				$this->assertNull($this->header($headers, 'Content-Length'), 'no function can read the size, so no header');
+			}
+			$this->assertContains('data/database.js', $this->entries($body));
+			$this->assertFileDoesNotExist($left, $disabled . ': an aged leftover is removed as everywhere else');
+			$this->assertNothingLeftOnDisk();
+			proc_terminate($this->server);
+			proc_close($this->server);
+			$this->server = null;
+		}
+	}
+
+	public function testWhereFilesizeAndUnlinkAreDisabledTheSweepStillEmptiesALeftover(): void
+	{
+		// The emptying branch of the sweep (unlink disabled) asked filesize() whether a leftover still holds anything: a fatal
+		// page on a host that also disables filesize(). With stat() gone too the size is unknown and the leftover is emptied anyway.
+		if (!function_exists('flock')) {
+			$this->markTestSkipped('needs flock() in the test process');
+		}
+		foreach (['filesize,unlink', 'filesize,stat,unlink'] as $disabled) {
+			$left = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('cd', 16) . '.zip';
+			file_put_contents($left, 'left behind by a killed request');
+			touch($left, time() - 3600);
+			[$headers, $body] = $this->download(['disable_functions' => $disabled, 'display_errors' => '1']);
+			$this->assertStringNotContainsString('Fatal error', $body, $disabled);
+			$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), $disabled . ': ' . substr($body, 0, 300));
+			$this->assertContains('data/database.js', $this->entries($body));
+			clearstatcache();
+			$this->assertSame(0, filesize($left), $disabled . ': an aged unlocked leftover is emptied, as with filesize() there');
+			$sent = array_values(array_diff(glob($this->site . '/data/*.zip'), [$left]));
+			$this->assertCount(1, $sent, 'without unlink the sent archive\'s name stays');
+			$this->assertSame(0, filesize($sent[0]), 'and it is emptied after the send');
+			unlink($left);
+			unlink($sent[0]);
+			proc_terminate($this->server);
+			proc_close($this->server);
+			$this->server = null;
+		}
+		$this->assertNothingLeftOnDisk();
+	}
+
 	public function testWhereNoAgeCanBeReadTheSweepRemovesNothing(): void
 	{
 		// filemtime() and stat() both disabled: no age can be read, so an archive another request is still building cannot be

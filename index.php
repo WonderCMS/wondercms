@@ -427,7 +427,7 @@ class Wcms
 			}
 			if (function_exists('unlink')) {
 				@unlink($file);
-			} elseif (function_exists('file_put_contents') && filesize($file) > 0 && ($lock || $age < time() - 86400)) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+			} elseif (function_exists('file_put_contents') && ($this->fileSize($file) ?? 1) > 0 && ($lock || $age < time() - 86400)) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works); a size no function can read counts as not empty
 				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; without the lock (flock() or fopen() disabled, or the lock refused) the age is the only protection, so a leftover waits a day before it is emptied. An age is always known here: a candidate without one was skipped above.
 				@file_put_contents($file, '');
 			}
@@ -3300,6 +3300,24 @@ EOT;
 	}
 
 	/**
+	 * Size of a file, read with filesize() or, where the host disables it, stat(); null when neither can read it
+	 * @param string $file
+	 * @return int|null
+	 */
+	private function fileSize(string $file): ?int
+	{
+		if (function_exists('filesize')) {
+			$size = @filesize($file);
+		} elseif (function_exists('stat')) {
+			$stat = @stat($file);
+			$size = $stat === false ? false : $stat['size'];
+		} else {
+			$size = false;
+		}
+		return $size === false ? null : $size;
+	}
+
+	/**
 	 * Recursive delete - used for deleting files, themes, plugins
 	 *
 	 * @param string $file
@@ -4536,8 +4554,9 @@ EOT;
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
 			header('Cache-Control: no-store');
-			if (!ini_get('zlib.output_compression')) {
-				header('Content-Length: ' . filesize($zipPath)); // the compressed body would be shorter than the file
+			$size = ini_get('zlib.output_compression') ? null : $this->fileSize($zipPath); // the compressed body would be shorter than the file
+			if ($size !== null) { // where no function can read the size (filesize() and stat() disabled) the header is left out: a streamed download does not need it
+				header('Content-Length: ' . $size);
 			}
 			if ($handle === null) {
 				readfile($zipPath);
