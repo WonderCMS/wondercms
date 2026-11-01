@@ -2215,11 +2215,12 @@ EOT;
 
 		$extracted = @$zip->extractTo($extractBase);
 		// extractTo() returns true when a full disk cuts a write short (the file lands truncated), so every file is measured
-		// against the archive; where the host disables filesize() only the return value can be checked.
-		for ($i = 0; $newFolder !== null && $extracted && function_exists('filesize') && $i < $zip->numFiles; $i++) {
+		// against the archive, with stat() or file_get_contents() where the host disables filesize(); a file no reader can
+		// measure counts as missing.
+		for ($i = 0; $newFolder !== null && $extracted && $i < $zip->numFiles; $i++) {
 			$stat = $zip->statIndex($i);
 			if ($stat !== false && substr($stat['name'], -1) !== '/') {
-				$extracted = @filesize($extractBase . $stat['name']) === $stat['size'];
+				$extracted = $this->extractedSize($extractBase . $stat['name']) === $stat['size'];
 			}
 		}
 		$zip->close();
@@ -2288,6 +2289,25 @@ EOT;
 
 		$this->alert('success', 'Successfully installed/updated ' . $folderName . '.');
 		$this->redirect();
+	}
+
+	/**
+	 * Size of an extracted file, read with the first function the host leaves enabled; null when none can read it.
+	 * @param string $file
+	 * @return int|null
+	 */
+	private function extractedSize(string $file): ?int
+	{
+		if (function_exists('filesize')) {
+			$size = @filesize($file);
+		} elseif (function_exists('stat')) {
+			$stat = @stat($file);
+			$size = $stat === false ? false : $stat['size'];
+		} else {
+			$content = @file_get_contents($file); // the core reads every file with it, so it is never the disabled one
+			$size = $content === false ? false : strlen($content);
+		}
+		return $size === false ? null : $size;
 	}
 
 	/**

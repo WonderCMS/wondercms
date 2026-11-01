@@ -41,6 +41,11 @@ final class ProbeWcms extends Wcms
 
 	public function redirect(string $location = ''): void
 	{
+		global $mode;
+		if (in_array($mode, ['module-delete', 'module-install'], true)) { // the real one exits: a failure branch must not run on into the success one
+			echo json_encode(['alert' => $_SESSION['alert'] ?? []]);
+			exit;
+		}
 	}
 
 	public function getFileFromRepo(string $file, string $repo = self::WCMS_REPO): string

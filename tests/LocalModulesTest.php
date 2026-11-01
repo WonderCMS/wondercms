@@ -157,7 +157,13 @@ final class LocalModulesTest extends TestCase
 
 	private function probe(string ...$args): array
 	{
-		$cmd = escapeshellarg(PHP_BINARY) . ' -d disable_functions=is_link ' . escapeshellarg(__DIR__ . '/probe.php') . ' ' . implode(' ', array_map('escapeshellarg', $args));
+		return $this->probeDisabling('is_link', ...$args);
+	}
+
+	/** Runs tests/probe.php with the functions in $disabled (a comma list) disabled; returns its JSON */
+	private function probeDisabling(string $disabled, string ...$args): array
+	{
+		$cmd = escapeshellarg(PHP_BINARY) . ' -d disable_functions=' . $disabled . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' ' . implode(' ', array_map('escapeshellarg', $args));
 		$process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__));
 		$out = stream_get_contents($pipes[1]);
 		$err = stream_get_contents($pipes[2]);
@@ -386,6 +392,39 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), 'only the archive\'s files');
 		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp');
+	}
+
+	public function testAHostThatDisablesFilesizeStillMeasuresAnExtractedFileAgainstTheArchive(): void
+	{
+		// With filesize() in disable_functions every entry used to pass unmeasured, so a truncated archive installed under a
+		// success alert. stat() takes over, and file_get_contents() where stat() is disabled too.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$root = realpath($this->root);
+		mkdir($root . '/themes/foo', 0777, true);
+		file_put_contents($root . '/themes/foo/theme.php', 'old');
+		$zipPath = $this->moduleZip(['foo-master/theme.php' => '0123456789'], static function (string $bytes): string {
+			$central = strpos($bytes, "PK\x01\x02");
+			return substr_replace($bytes, pack('V', 20), $central + 24, 4); // the uncompressed size field of the one entry
+		});
+		$zip = new ZipArchive();
+		$this->assertTrue($zip->open($zipPath));
+		$scratch = $root . '/scratch';
+		mkdir($scratch);
+		if (@$zip->extractTo($scratch) !== true || filesize($scratch . '/foo-master/theme.php') !== 10) {
+			$this->markTestSkipped('this libzip refuses the doctored size itself, so the return value already covers it');
+		}
+		$zip->close();
+
+		foreach (['filesize', 'filesize,stat'] as $disabled) {
+			$result = $this->probeDisabling($disabled, 'module-install', $root, 'themes', 'foo', 'file://' . $zipPath);
+
+			$this->assertSame('Could not extract the update. The installed version was left in place.', $result['alert']['danger'][0]['message'] ?? '', $disabled . ': ' . json_encode($result));
+			$this->assertArrayNotHasKey('success', $result['alert'], $disabled);
+			$this->assertSame('old', file_get_contents($root . '/themes/foo/theme.php'), $disabled . ': the installed version is intact');
+			$this->assertDirectoryDoesNotExist($root . '/themes/foo-master', $disabled . ': the truncated copy is removed');
+		}
 	}
 
 	public function testAFreshInstallWhoseArchiveCannotBeExtractedInstallsNothingAndSaysSo(): void
