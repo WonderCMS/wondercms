@@ -138,6 +138,79 @@ final class SessionRevocationTest extends TestCase
 		$this->assertTrue($this->isAdmin($a), 'logging in again with the new password works');
 	}
 
+	public function testTheLoginPageShowsPasswordChangedOnceAfterTheChange(): void
+	{
+		// The real redirect() ends the request: an alert queued after logoutAction(true) was never queued (3.7.1, 372 at 9ff7fad).
+		$_SESSION = $this->login('old-secret');
+		$wcms = $this->newWcms();
+		$wcms->currentPage = 'home';
+		$wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$wcms->loginStatus();
+		$_POST = ['old_password' => 'old-secret', 'new_password' => 'new-secret-123', 'repeat_password' => 'new-secret-123', 'token' => $wcms->getToken()];
+		try {
+			$wcms->changePasswordAction();
+			$this->fail('the change redirects');
+		} catch (RuntimeException $e) {
+			$this->assertSame('redirected', $e->getMessage());
+		}
+		$_POST = [];
+		$a = $_SESSION;
+		$this->assertArrayNotHasKey('loggedIn', $a);
+		$this->assertArrayNotHasKey('token', $a);
+
+		// The redirect lands the same session, a visitor now, on the login page.
+		$wcms = $this->newWcms();
+		$wcms->loginStatus();
+		$this->assertFalse($wcms->loggedIn);
+		$page = $wcms->alerts();
+		$this->assertSame(1, substr_count($page, 'Password changed. Log in again.'), 'shown once');
+		$this->assertStringContainsString('<div class="alert alert-success"><center><b>Password changed. Log in again.</b></center></div>', $page, 'sticky as before, and closed without the admin hide link');
+		$this->assertStringNotContainsString('Password changed. Log in again.', $wcms->alerts(), 'a second render of the same request does not repeat it');
+
+		$a = $_SESSION;
+		$wcms = $this->newWcms();
+		$wcms->loginStatus();
+		$this->assertStringNotContainsString('Password changed. Log in again.', $wcms->alerts(), 'the reload shows it no more');
+		$this->assertArrayNotHasKey('alert', $_SESSION);
+		$this->assertFalse($this->isAdmin($a));
+	}
+
+	public function testAFailedSaveNeitherClaimsTheChangeNorLogsOut(): void
+	{
+		// A full disk or a read-only data folder: save() queues "Could not write" and the old hash stays on disk.
+		if (DIRECTORY_SEPARATOR !== '/' || (function_exists('posix_getuid') && posix_getuid() === 0)) {
+			$this->markTestSkipped('needs a POSIX permission check (not Windows, not root)');
+		}
+		$_SESSION = $this->login('old-secret');
+		$before = $this->diskHash();
+		$wcms = $this->newWcms();
+		$wcms->currentPage = 'home';
+		$wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
+		$wcms->loginStatus();
+		$_POST = ['old_password' => 'old-secret', 'new_password' => 'new-secret-123', 'repeat_password' => 'new-secret-123', 'token' => $wcms->getToken()];
+		chmod(self::DB_PATH, 0444);
+		chmod(dirname(self::DB_PATH), 0555);
+		try {
+			$wcms->changePasswordAction();
+			$this->fail('the change redirects');
+		} catch (RuntimeException $e) {
+			$this->assertSame('redirected', $e->getMessage());
+		} finally {
+			chmod(dirname(self::DB_PATH), 0755);
+			chmod(self::DB_PATH, 0644);
+		}
+		$_POST = [];
+		$alerts = json_encode($_SESSION['alert'] ?? []);
+		$this->assertStringContainsString('Could not write database_test.js', $alerts);
+		$this->assertStringNotContainsString('Password changed', $alerts);
+		$this->assertArrayHasKey('loggedIn', $_SESSION, 'the admin stays logged in');
+		$this->assertSame($before, $this->diskHash(), 'the hash on disk is unchanged');
+		$this->assertTrue(password_verify('old-secret', $this->diskHash()), 'the old password still works');
+		unset($_SESSION['alert']);
+		$a = $_SESSION;
+		$this->assertTrue($this->isAdmin($a), 'the next page load is still an admin');
+	}
+
 	public function testAHandEditedHashLogsEverySessionOut(): void
 	{
 		// The documented recovery after a compromise: replace the hash in database.js by hand.

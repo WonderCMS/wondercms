@@ -502,6 +502,8 @@ class Wcms
 
 	/**
 	 * Change password
+	 * On success the changing session is logged out and the login page shows "Password changed. Log in again." once
+	 * Success is the new hash read back from database.js: a failed save keeps the admin logged in with the old password
 	 * @return void
 	 * @throws Exception
 	 */
@@ -536,8 +538,14 @@ class Wcms
 			} finally {
 				$this->replacingPassword = false;
 			}
+			$onDisk = json_decode($this->lockedRead($this->dbPath));
+			$diskHash = $onDisk->{self::DB_CONFIG}->password ?? null;
+			if (!is_string($diskHash) || !password_verify($_POST['new_password'], $diskHash)) { // a failed save left the new hash in this request's copy only: save() queued its danger alert, the admin stays in
+				$this->redirect();
+				return;
+			}
+			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1); // before the logout: redirect() ends the request
 			$this->logoutAction(true);
-			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
 	}
 
@@ -2795,7 +2803,7 @@ EOT;
 
 	/**
 	 * Logout action
-	 * @param bool $forceLogout
+	 * @param bool $forceLogout a logout the code decided (a password change): the queued alerts stay for the login page
 	 * @return void
 	 */
 	public function logoutAction(bool $forceLogout = false): void
@@ -2807,7 +2815,10 @@ EOT;
 			$to = isset($_GET['to']) && is_string($_GET['to']) && $_GET['to'] !== '' && !$this->isLogoutToLoginScreenEnabled()
 				? $_GET['to']
 				: $this->get('config', 'login');
-			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token'], $_SESSION['alert']);
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']);
+			if (!$forceLogout) { // the admin's own logout click drops what was queued, as before
+				unset($_SESSION['alert']);
+			}
 			$this->redirect($to);
 		}
 	}
