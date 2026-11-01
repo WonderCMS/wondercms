@@ -558,9 +558,13 @@ final class LoginThrottleTest extends TestCase
 	 * A host that disables file_put_contents() (disable_functions) must still let the owner log in: writeFile() needs that
 	 * function in every path, so the throttle has no way to write its counts file. It fails open, as on an unwritable logs
 	 * folder, instead of fataling before the password check. On 8177d69 the throttle's write happens first and fatals, so
-	 * no admin session is ever created; here the throttle writes nothing, the password is checked, and the session is set
-	 * (the later saveAdminLoginIP save still fatals on such a host, as it did on 3.7.1, so a follow-up GET is the admin
-	 * page). A wrong password is simply refused. Over HTTP against php -S, the install seeded first with the function on.
+	 * no admin session is ever created; here the throttle writes nothing, the password is checked, and the session is set.
+	 * Then writeFile() returns false instead of fataling (on 74a15d9 the saveAdminLoginIP save fataled after the session
+	 * was set, as on 3.7.1, and the admin home fataled again in the modules cache save): the login answers with no fatal
+	 * (its IP list save fails quietly, since save() alerts only a request that is already logged in), the admin page
+	 * renders, a content save answers with no fatal and leaves database.js untouched, and the reload carries the
+	 * "Could not write" alert. A wrong password is simply refused. Over HTTP against php -S, the install seeded first
+	 * with the function on; cache.json and today's stamp are seeded so the admin page fetches nothing.
 	 */
 	public function testALoginWorksWhereFilePutContentsIsDisabled(): void
 	{
@@ -591,18 +595,39 @@ final class LoginThrottleTest extends TestCase
 			$this->assertFileExists($root . '/data/database.js', 'the first request installed the site');
 			$site = new Wcms('data', 'files', 'database.js', $root);
 			wcmsSetPasswordOnDisk($site, self::PASSWORD);
+			file_put_contents($root . '/data/cache.json', '{"themes":{},"plugins":{}}'); // with today's stamp: no module or core check on the admin page (no network)
+			$site->set('config', 'lastModulesSync', date('Y/m/d'));
 		} finally {
 			proc_terminate($server['proc']);
 			proc_close($server['proc']);
 		}
+		$database = file_get_contents($root . '/data/database.js');
 
 		$server = $this->startDisabledServer($root, 'file_put_contents'); // the login requests: no way to write the counts file
 		try {
 			$good = $this->fpcRequest($server['base'], 'POST', self::PASSWORD, null);
 			$this->assertNotSame('', $good['cookie'], 'the login set a session cookie');
+			$this->assertStringNotContainsString('Fatal error', $good['body'], 'the login IP save failed cleanly (on 74a15d9 writeFile() fataled after the session was set)');
+			$this->assertStringNotContainsString('file_put_contents', $good['body']);
 			$this->assertFileDoesNotExist($attempts, 'the throttle wrote no counts file');
 			$admin = $this->fpcRequest($server['base'], 'GET', null, $good['cookie']);
 			$this->assertStringContainsString(' 302 ', $admin['status'], 'logged in: the login slug redirects (on 8177d69 the throttle fataled and no session was set)');
+
+			$home = $this->fpcRequest($server['base'], 'GET', null, $good['cookie'], '/');
+			$this->assertStringContainsString(' 200 ', $home['status'], 'the admin home answers');
+			$this->assertStringNotContainsString('Fatal error', $home['body'], 'the admin home renders (on 74a15d9 the modules cache save fataled)');
+			$this->assertStringContainsString('id="settingsModal"', $home['body'], 'logged in: the settings modal is on the page');
+			$this->assertStringNotContainsString('Could not write', $home['body'], 'the login IP save failed quietly: save() alerts only once the request is logged in, and the login request is not yet');
+			$this->assertTrue((bool)preg_match('/name="token" value="([^"]+)"/', $home['body'], $token), 'the page carries the session token');
+
+			$saved = $this->fpcRequest($server['base'], 'POST', null, $good['cookie'], '/', ['fieldname' => 'subside', 'content' => 'unsaved words', 'target' => 'blocks', 'token' => $token[1]]);
+			$this->assertStringContainsString(' 200 ', $saved['status'], 'a content save answers');
+			$this->assertStringNotContainsString('Fatal error', $saved['body'], 'the content save failed cleanly');
+			$this->assertStringNotContainsString('file_put_contents', $saved['body']);
+			$this->assertStringEqualsFile($root . '/data/database.js', $database, 'nothing was written');
+			$reload = $this->fpcRequest($server['base'], 'GET', null, $good['cookie'], '/');
+			$this->assertStringContainsString('Could not write database.js', $reload['body'], 'the reload after the editor save carries the alert');
+			$this->assertStringNotContainsString('unsaved words', $reload['body'], 'the content did not land');
 
 			$bad = $this->fpcRequest($server['base'], 'POST', 'wrongPass', null);
 			$this->assertStringContainsString(' 302 ', $bad['status'], 'a wrong password is refused with a clean redirect, not a fatal');
@@ -644,13 +669,16 @@ final class LoginThrottleTest extends TestCase
 		return ['proc' => $proc, 'base' => 'http://127.0.0.1:' . $port];
 	}
 
-	/** One request to the login slug; POST sends the password, an optional Cookie carries the session; returns status line, body and any PHPSESSID */
-	private function fpcRequest(string $base, string $method, ?string $password, ?string $cookie): array
+	/** One request to the login slug (or $path); POST sends the password or $fields, an optional Cookie carries the session; returns status line, body and any PHPSESSID */
+	private function fpcRequest(string $base, string $method, ?string $password, ?string $cookie, string $path = '/?page=loginURL', array $fields = []): array
 	{
 		$header = '';
 		$options = ['method' => $method, 'follow_location' => 0, 'ignore_errors' => true, 'timeout' => 10];
 		if ($password !== null) {
-			$options['content'] = http_build_query(['password' => $password]);
+			$fields['password'] = $password;
+		}
+		if ($fields !== []) {
+			$options['content'] = http_build_query($fields);
 			$header .= "Content-Type: application/x-www-form-urlencoded\r\n";
 		}
 		if ($cookie !== null && $cookie !== '') {
@@ -660,7 +688,7 @@ final class LoginThrottleTest extends TestCase
 			$options['header'] = $header;
 		}
 		$context = stream_context_create(['http' => $options]);
-		$body = (string)@file_get_contents($base . '/?page=loginURL', false, $context);
+		$body = (string)@file_get_contents($base . $path, false, $context);
 		$headers = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : ($http_response_header ?? []); // the variable is deprecated in PHP 8.5
 		$found = '';
 		foreach ($headers as $line) {

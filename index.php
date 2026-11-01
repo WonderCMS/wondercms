@@ -398,7 +398,7 @@ class Wcms
 	public function removeStaleBackupArchives(): void
 	{
 		$maxAge = max(300, (int)ini_get('max_execution_time'));
-		$canLock = function_exists('flock') && function_exists('fopen') && function_exists('fclose');
+		$canLock = function_exists('flock') && function_exists('fopen'); // not fclose(): a handle PHP cannot close is released at request end, so a host that disables only fclose() keeps the lock protection
 		$candidates = array_merge(glob($this->dataPath . '/*-backup-*.zip*') ?: [], glob($this->filesPath . '/*-backup-*.zip.*') ?: []);
 		foreach ($candidates as $file) {
 			$isLeftover = $this->isBackupTempName($file) || (dirname($file) === $this->dataPath && $this->isBackupArchiveName($file)); // a finished archive in data/files is an old backup, the admin's to delete in Files
@@ -413,12 +413,14 @@ class Wcms
 			if (function_exists('unlink')) {
 				@unlink($file);
 			} elseif (function_exists('file_put_contents') && filesize($file) > 0 && ($lock || filemtime($file) < time() - 86400)) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
-				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; where flock() or fopen() is disabled the age is all there is, so a leftover waits a day there before it is emptied.
+				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; where flock() or fopen() is disabled the age is the only protection, so a leftover waits a day there before it is emptied.
 				@file_put_contents($file, '');
 			}
 			if ($lock) {
 				flock($lock, LOCK_UN);
-				fclose($lock);
+				if (function_exists('fclose')) {
+					fclose($lock);
+				}
 			}
 		}
 	}
@@ -4050,6 +4052,9 @@ EOT;
 	 */
 	private function writeFile(string $path, string $contents): bool
 	{
+		if (!function_exists('file_put_contents')) {
+			return false; // every path below ends in file_put_contents(): a host that disables it gets a clean false (save() tells the admin "Could not write"), never a fatal in a login or an admin page
+		}
 		foreach (['is_writable', 'is_link', 'stat', 'fileowner', 'filegroup', 'fileperms', 'chmod', 'rename', 'unlink'] as $function) {
 			if (!function_exists($function)) { // a host that disables one of these (disable_functions): write in place as 3.6.0 did
 				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
@@ -4351,7 +4356,7 @@ EOT;
 		$source = realpath($this->rootDir);
 		$filesPath = realpath($this->filesPath);
 		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
-		$sessionDir = @realpath($savePath !== '' ? substr(strrchr(';' . $savePath, ';'), 1) : sys_get_temp_dir()); // "N;/path" and "N;MODE;/path": the folder is after the last ';'; an empty save path means PHP's files handler writes to the system temp dir; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
+		$sessionDir = $savePath !== '' ? @realpath(substr(strrchr(';' . $savePath, ';'), 1)) : (function_exists('sys_get_temp_dir') ? @realpath(sys_get_temp_dir()) : false); // "N;/path" and "N;MODE;/path": the folder is after the last ';'; an empty save path means PHP's files handler writes to the system temp dir; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
 		$sessionPrefix = $sessionDir !== false ? $sessionDir . DIRECTORY_SEPARATOR : ''; // compared case-insensitively: on macOS and Windows realpath() keeps the spelling the save path was typed in (Data/Sessions for data/sessions)
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
