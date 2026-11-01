@@ -329,6 +329,28 @@ final class LocalModulesTest extends TestCase
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
 	}
 
+	public function testAStaleMasterFolderBesideAMainArchiveIsClearedAndTheExtractedFolderIsTheOneRenamedIn(): void
+	{
+		// A leftover of an earlier attempt under the other suffix (the module's default branch was renamed since) must not be
+		// the folder that ends up live.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		mkdir($this->root . '/themes/foo-master', 0777, true);
+		file_put_contents($this->root . '/themes/foo-master/theme.php', 'stale');
+		$zipPath = $this->moduleZip(['foo-main/theme.php' => 'new']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('danger', $alerts);
+		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), 'the extracted folder is the one renamed in');
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master', 'the stale leftover is cleared');
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-main');
+	}
+
 	public function testTheFilesTabSortsNaturallyAndIgnoresCase(): void
 	{
 		foreach (['photo10.png', 'Photo2.png', 'photo1.png', 'apple.png'] as $name) {
