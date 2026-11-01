@@ -146,8 +146,9 @@ jobs:
           test -z "$(ls "$SITE" | grep '\.tmp$')"
           grep -q 'Could not write the new index.php' /tmp/probe.json
           grep -q '"success"' /tmp/probe.json && exit 1 || true
-          # the same site with the blocks exhausted instead of the inodes
-          sudo umount "$SITE" && sudo mount -t tmpfs -o size=192k,nr_inodes=100,mode=0777 tmpfs "$SITE"
+          # the same site with the blocks exhausted instead of the inodes: room for the site (the core, the database and a few pages) but less than a second core,
+          # so the temp copy cannot land; 192k ran out of pages for the database once index.php passed 188 KiB (tmpfs counts in 4 KiB pages)
+          sudo umount "$SITE" && sudo mount -t tmpfs -o size=256k,nr_inodes=100,mode=0777 tmpfs "$SITE"
           cp index.php "$SITE/" && php tests/probe.php update-run "$SITE" /tmp/truncated.php > /dev/null
           php tests/probe.php update-run "$SITE" /tmp/newcore.php > /tmp/probe.json; cat /tmp/probe.json; echo
           test "$(sha256sum "$SITE/index.php" | cut -d' ' -f1)" = "$BEFORE"   # untouched, not truncated (with no block free 3.6.0 left 0 bytes; with fewer than one core free it overwrote in place, so here 3.7.0 refuses where 3.6.0 succeeded)
