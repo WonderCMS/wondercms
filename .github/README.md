@@ -3,7 +3,7 @@
     <img src="https://github.com/WonderCMS/wondercms-cdn-files/blob/main/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
  <br>WonderCMS - small flat file CMS<br>
-    <sup>5 files • ∼50KB zip - 1 step install</sup>
+    <sup>7 files • ∼80KB zip - 1 step install</sup>
 </h1>
 
 <p align="center">
@@ -86,6 +86,7 @@ Note: Some plugins also include other libraries such as jQuery, default WonderCM
 - WonderCMS includes CSRF verification tokens for each user action and additionally uses the hash_equals function to prevent CSRF token timing attacks.
 - No known vulnerabilities.
    - Special thanks to yassineaddi, hypnito, Ramon Dunker and other security researchers.
+- 3.7.2 contributors: thanks to the people who reported privately and waited for the fix: Nguyễn Hữu Dũng (sessions bound to the password), pyuysig, cybertron1337 and EQSTLab (the install password on the home page), konukgorkem and Zachariah Mithani of AploSec (login throttling; Zachariah also for the install password drawn from a cryptographic source), HuzaifaDal (backups), archnexus707 (the login address), manop55555 and Brandon Tarr of VulnCheck (config writes, fixed in 3.7.0), Saudadeeee and aliyevmursal (hardening credits) and Aurora Rogers of Perch Scan (the theme and plugin updater).
 - 3.7.0 contributors: thanks to Slaven Stančič (security review), Almorca (hand-uploaded themes and plugins listed in Settings), NorfolkGreg (search and menu reports; his GregCustom theme's menu showed the touch recipe), andre5x (reports and requests #346 to #357), hightowe (legacy subpage report and a proposed fix, #336 and #337), Joe90 (search report on the forum), James1949 (#343 report), Edward205 (Romanian translation plugin), Joaquim Homrighausen (joho1968, the wcms-bs5 theme) and Marco Antonio Blanco (mablanco, the Docker image). Full list: [wondercms.com/contributors](https://www.wondercms.com/contributors).
 
 <br>
