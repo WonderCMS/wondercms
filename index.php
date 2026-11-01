@@ -2251,14 +2251,15 @@ EOT;
 			error_clear_last();
 			try {
 				$aside = $installed && @rename($path . $folderName, $old = $this->tempPath($path . $folderName . '.old'));
-			} catch (Exception $e) { // random_bytes() on a host with no source of randomness
+			} catch (Exception $e) { // random_bytes() with no source of randomness, or a plugin's error handler that throws on the warning
 			}
 			// A folder from a lower layer of an overlay filesystem (a Docker image's content) refuses a rename with EXDEV, yet it can be
-			// deleted and the new copy renamed in: only that refusal goes on, deleting first, with no aside copy to go back to.
-			if ($installed && !$aside && !preg_match('/cross-device link$/i', error_get_last()['message'] ?? '')) {
+			// deleted and the new copy renamed in: only that refusal goes on, deleting first, and only when every part of the folder can
+			// be deleted, since a part that cannot would stop the delete halfway with no aside copy to go back to.
+			if ($installed && !$aside && (!preg_match('/cross-device link$/i', error_get_last()['message'] ?? '') || !$this->canEmpty($path . $folderName))) {
 				$partial = $staging ?? $newFolder;
 				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
-				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed.');
+				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed. Check that ' . $type . '/' . $folderName . ' is not locked or in use and that the web server can delete everything in it, then try again.');
 				$this->redirect();
 			}
 			if (!$aside) {
@@ -2344,6 +2345,25 @@ EOT;
 			$size = $content === false ? false : strlen($content);
 		}
 		return $size === false ? null : $size;
+	}
+
+	/**
+	 * Whether this process can delete everything in a folder: it and every folder under it readable and writable; links are not followed.
+	 * @param string $dir
+	 * @return bool
+	 */
+	private function canEmpty(string $dir): bool
+	{
+		try {
+			foreach (new DirectoryIterator($dir) as $entry) {
+				if (!$entry->isDot() && $entry->isDir() && !$entry->isLink() && !$this->canEmpty($entry->getPathname())) {
+					return false;
+				}
+			}
+		} catch (UnexpectedValueException $e) { // a folder it may not read
+			return false;
+		}
+		return is_writable($dir);
 	}
 
 	/**
@@ -4269,7 +4289,7 @@ EOT;
 
 	/**
 	 * The temp file writeFile() renames into place: one name per call, so two requests saving at once (or two threads of
-	 * one process, where a pid would be shared) never rename each other's half-written file
+	 * one process, where a pid would be shared) never rename each other's half-written file; also a module update's aside folder
 	 * @param string $path
 	 * @return string
 	 * @throws Exception

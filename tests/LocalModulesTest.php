@@ -577,7 +577,7 @@ final class LocalModulesTest extends TestCase
 
 				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'js/app.js' => 'newjs']), $tempPath);
 
-				$this->assertSame('Could not move the installed version aside. Nothing was changed.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
+				$this->assertSame('Could not move the installed version aside. Nothing was changed. Check that themes/foo is not locked or in use and that the web server can delete everything in it, then try again.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
 				$this->assertArrayNotHasKey('success', $alerts, $case);
 				$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'nothing removed or merged in');
 				$this->assertSame(['style.css'], array_values(array_diff(scandir($this->root . '/themes/foo/css'), ['.', '..'])), $case);
@@ -611,6 +611,42 @@ final class LocalModulesTest extends TestCase
 			$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $top);
 			$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no staging, extracted or aside folder is left');
 			exec('rm -rf ' . escapeshellarg($this->root . '/themes/foo'));
+		}
+	}
+
+	public function testAnInstalledFolderThatCannotBeRenamedAcrossDevicesOrEmptiedIsLeftExactlyAsItWas(): void
+	{
+		// On the cross-device path nothing is moved aside first, so a subfolder this user cannot empty (a Docker image's content
+		// owned by root) stopped the delete halfway: the rename in then met it and threw, with theme.php gone. 0000: one it cannot
+		// even open, where the delete threw at once.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		foreach ([['foo/', 0555], ['foo-master/', 0555], ['foo/', 0000]] as [$top, $mode]) {
+			$case = $top . ' ' . decoct($mode) . ': ';
+			mkdir($this->root . '/themes/foo/locked', 0777, true);
+			file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+			file_put_contents($this->root . '/themes/foo/locked/keep.txt', 'cannot be removed');
+			chmod($this->root . '/themes/foo/locked', $mode);
+			try {
+				if (is_writable($this->root . '/themes/foo/locked')) {
+					$this->markTestSkipped('this user writes into a read-only folder (root)');
+				}
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss']), static function (string $path): string {
+					return '/dev/' . basename($path) . '.tmp';
+				});
+				chmod($this->root . '/themes/foo/locked', 0755);
+
+				$this->assertSame('Could not move the installed version aside. Nothing was changed. Check that themes/foo is not locked or in use and that the web server can delete everything in it, then try again.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
+				$this->assertArrayNotHasKey('success', $alerts, $case);
+				$this->assertSame(['locked', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'nothing removed or merged in');
+				$this->assertSame('old', file_get_contents($this->root . '/themes/foo/theme.php'), $case);
+				$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/themes/foo/locked'), ['.', '..'])), $case);
+				$this->assertSame('cannot be removed', file_get_contents($this->root . '/themes/foo/locked/keep.txt'), $case);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $case . 'no staging, extracted or aside folder is left');
+			} finally {
+				$this->removeLockedModule();
+			}
 		}
 	}
 
