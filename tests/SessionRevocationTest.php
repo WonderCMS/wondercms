@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 final class SessionRevocationTest extends TestCase
 {
 	private const DB_PATH = __DIR__ . '/../data_test/database_test.js';
+	private const LOGGED_OUT = 'You were logged out: the password changed or WonderCMS was updated. Please log in again.';
 
 	protected function setUp(): void
 	{
@@ -239,10 +240,40 @@ final class SessionRevocationTest extends TestCase
 
 			$this->assertFalse($this->isAdmin($legacy), 'forceLogout ' . var_export($forceLogout, true) . ': a session without a stamp is a visitor');
 			$this->assertSame(['alert'], array_keys($legacy), 'its admin keys are gone; the update alert stays for the page it lands on');
+			$this->assertSame('WonderCMS successfully updated. Wohoo!', $legacy['alert']['success'][0]['message']);
+			$this->assertSame([['class' => 'danger', 'message' => self::LOGGED_OUT, 'sticky' => true]], $legacy['alert']['danger'] ?? null, 'and it is told why, once');
+			$this->assertFalse($this->isAdmin($legacy));
+			$this->assertCount(1, $legacy['alert']['danger'], 'the next request does not add it again');
 			$this->assertSame($before, file_get_contents(self::DB_PATH), 'nothing was written to the database');
 
 			$fresh = $this->login('old-secret');
 			$this->assertTrue($this->isAdmin($fresh), 'one login and the admin is back');
+		}
+	}
+
+	public function testASessionEndedByTheStampIsToldSoOnceAndAVisitorIsNot(): void
+	{
+		$a = $this->login('old-secret');
+		$b = $this->login('old-secret');
+		$a = $this->changePassword($a, 'old-secret', 'new-secret-123');
+		$this->assertStringNotContainsString(self::LOGGED_OUT, json_encode($a), 'the changing session gets only "Password changed. Log in again."');
+		$this->assertFalse($this->isAdmin($a));
+		$this->assertStringNotContainsString(self::LOGGED_OUT, json_encode($a), 'nor on its next request');
+
+		$this->assertFalse($this->isAdmin($b));
+		$_SESSION = $b;
+		$wcms = $this->newWcms();
+		$wcms->loginStatus();
+		$page = $wcms->alerts();
+		$this->assertSame(1, substr_count($page, self::LOGGED_OUT), 'the other session is told on the page it lands on');
+		$this->assertStringContainsString('<div class="alert alert-danger">' . self::LOGGED_OUT . '</div>', $page, 'sticky, a class the visitor alert CSS styles');
+		$b = $_SESSION;
+		$this->assertFalse($this->isAdmin($b));
+		$this->assertArrayNotHasKey('alert', $b, 'the reload does not tell it again');
+
+		foreach ([[], ['loggedIn' => true, 'rootDir' => '/somewhere/else', 'token' => 'other']] as $visitor) {
+			$this->assertFalse($this->isAdmin($visitor));
+			$this->assertStringNotContainsString(self::LOGGED_OUT, json_encode($visitor), 'a visitor with no session of this install is told nothing');
 		}
 	}
 

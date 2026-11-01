@@ -2742,6 +2742,7 @@ EOT;
 	 * Check if admin is logged in: the session must belong to this install and carry the stamp of the password hash on
 	 * disk, so a password change (or a hash edited by hand in database.js) logs out every session from before it.
 	 * A session from 3.7.1 or older has no stamp and logs in once more. config.forceLogout is no longer read.
+	 * A session ended here is told so once, on the page it lands on (the next request is no longer this install's).
 	 * @return void
 	 */
 	public function loginStatus(): void
@@ -2752,6 +2753,7 @@ EOT;
 		$this->loggedIn = $thisInstall && $expected !== '' && is_string($given) && hash_equals($expected, $given);
 		if ($thisInstall && !$this->loggedIn) {
 			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']); // emptied, so nothing reading $_SESSION directly (a hand-uploaded plugin) sees it as an admin session
+			$this->alert('danger', 'You were logged out: the password changed or WonderCMS was updated. Please log in again.', 1); // danger: the visitor alert CSS styles only danger and success
 		}
 	}
 
