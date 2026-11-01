@@ -405,8 +405,8 @@ class Wcms
 			if (!$isLeftover || !is_file($file)) {
 				continue;
 			}
-			$age = function_exists('filemtime') ? (int)@filemtime($file) : null; // a host that disables filemtime(): the age is unknown, so the lock alone decides (a locked archive is skipped, an unlocked one is old enough) and emptying needs the lock, never the age
-			if ($age !== null && $age >= time() - $maxAge) {
+			$age = function_exists('filemtime') ? (int)@filemtime($file) : (function_exists('stat') ? (int)(@stat($file)['mtime'] ?? 0) : null); // a host that disables filemtime(): stat() gives the same mtime; with both disabled no age can be read and nothing is removed or emptied (an archive another request is still building is not told apart from a leftover; a leftover staying is what 3.7.1 did, it never swept)
+			if ($age === null || $age >= time() - $maxAge) {
 				continue;
 			}
 			$lock = $canLock ? (@fopen($file, 'r+b') ?: @fopen($file, 'rb')) : null; // read-write when it can be: NFSv4 (AWS EFS and the like) refuses an exclusive lock on a read-only handle, and a refusal must not read as "being sent"; nothing is written through it. Pinned by reading the kernel source only: no NFS in the test suite
@@ -424,8 +424,8 @@ class Wcms
 			}
 			if (function_exists('unlink')) {
 				@unlink($file);
-			} elseif (function_exists('file_put_contents') && filesize($file) > 0 && ($lock || ($age !== null && $age < time() - 86400))) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
-				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; where flock() or fopen() is disabled the age is the only protection, so a leftover waits a day there before it is emptied.
+			} elseif (function_exists('file_put_contents') && filesize($file) > 0 && ($lock || $age < time() - 86400)) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; without the lock (flock() or fopen() disabled, or the lock refused) the age is the only protection, so a leftover waits a day before it is emptied. An age is always known here: a candidate without one was skipped above.
 				@file_put_contents($file, '');
 			}
 			if ($lock) {
