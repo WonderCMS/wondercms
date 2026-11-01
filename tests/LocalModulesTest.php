@@ -427,6 +427,79 @@ final class LocalModulesTest extends TestCase
 		}
 	}
 
+	public function testLinksAtTheStagingAndAsidePathsAreRemovedAndTheirTargetNeverTouched(): void
+	{
+		// The staging and aside paths have no trailing slash, so is_link() sees the link itself; with one it would follow it and
+		// empty the target.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		mkdir($this->root . '/outside', 0777, true);
+		file_put_contents($this->root . '/outside/keep.txt', 'not part of any module');
+		foreach (['foo.update.tmp', 'foo.old.tmp'] as $link) {
+			symlink($this->root . '/outside', $this->root . '/themes/' . $link);
+			$this->assertTrue(is_link($this->root . '/themes/' . $link));
+		}
+		$zipPath = $this->moduleZip(['foo/theme.php' => 'new']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertFileExists($this->root . '/outside/keep.txt', 'the link target is never followed');
+		$this->assertSame('not part of any module', file_get_contents($this->root . '/outside/keep.txt'));
+		$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/outside'), ['.', '..'])), 'nothing extracted into the target');
+		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
+		foreach (['foo.update.tmp', 'foo.old.tmp'] as $link) {
+			$this->assertFalse(is_link($this->root . '/themes/' . $link), $link . ': the link is removed');
+			$this->assertFileDoesNotExist($this->root . '/themes/' . $link);
+		}
+	}
+
+	public function testAnInstalledFolderThatCannotBeEmptiedIsRenamedAsideAndTheUpdateLands(): void
+	{
+		// A subfolder the PHP user cannot empty (uploaded by FTP as another user, or made read-only) stopped the delete halfway,
+		// and rename() then met a non-empty folder and threw, leaving a half-deleted module. Renaming the installed folder aside
+		// needs write on themes/ only, so the subfolder moves with it and stays behind in foo.old.tmp. 0000: a folder it cannot
+		// even open, where the removal of the aside copy stops early and the update still lands.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		foreach ([['foo/', 0555], ['foo-master/', 0555], ['foo/', 0000]] as [$top, $mode]) {
+			$case = $top . ' ' . decoct($mode) . ': ';
+			mkdir($this->root . '/themes/foo/locked', 0777, true);
+			file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+			file_put_contents($this->root . '/themes/foo/locked/keep.txt', 'cannot be removed');
+			chmod($this->root . '/themes/foo/locked', $mode);
+			try {
+				if (is_writable($this->root . '/themes/foo/locked')) {
+					$this->markTestSkipped('this user writes into a read-only folder (root)');
+				}
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss']));
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $case . json_encode($alerts));
+				$this->assertArrayNotHasKey('danger', $alerts, $case);
+				$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'the new copy only');
+				$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $case);
+				$this->assertDirectoryExists($this->root . '/themes/foo.old.tmp/locked', $case . 'the remnant stays aside');
+				if ($mode === 0555) {
+					$this->assertSame(['locked'], array_values(array_diff(scandir($this->root . '/themes/foo.old.tmp'), ['.', '..'])), $case . 'the rest of the old copy is gone');
+					$this->assertSame('cannot be removed', file_get_contents($this->root . '/themes/foo.old.tmp/locked/keep.txt'), $case);
+				}
+				$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp', $case);
+				$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master', $case);
+			} finally {
+				foreach (['/themes/foo/locked', '/themes/foo.old.tmp/locked'] as $locked) {
+					if (is_dir($this->root . $locked)) {
+						chmod($this->root . $locked, 0755);
+					}
+				}
+				exec('rm -rf ' . escapeshellarg($this->root . '/themes/foo') . ' ' . escapeshellarg($this->root . '/themes/foo.old.tmp'));
+			}
+		}
+	}
+
 	public function testAFreshInstallWhoseArchiveCannotBeExtractedInstallsNothingAndSaysSo(): void
 	{
 		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {

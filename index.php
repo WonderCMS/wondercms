@@ -2234,20 +2234,40 @@ EOT;
 				: 'Could not extract the download. Nothing was installed.');
 			$this->redirect();
 		}
+		$old = $path . $folderName . '.old.tmp';
+		$aside = false;
 		if ($newFolder !== null) {
-			// The whole archive is on disk: now the installed folder goes
-			function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+			// The whole archive is on disk: the installed folder is renamed aside to <name>.old.tmp (a rename needs write on the
+			// parent only, so a subfolder that cannot be emptied moves with it), the new one is renamed in, and the aside copy is
+			// removed where it can be. A remnant stays as <name>.old.tmp until an update can clear it: loadPlugins() and the
+			// Plugins tab never pick it up (they look for <name>.old.tmp.php), and the Themes tab lists it only while its
+			// theme.php is left. If the rename aside fails, the installed folder is deleted first, as before; if the rename in
+			// fails, the aside copy is renamed back. A link is removed, not renamed.
+			$this->removeQuietly($old);
+			$aside = $wasInstalled && !(function_exists('is_link') && is_link($path . $folderName)) && @rename($path . $folderName, $old);
+			if (!$aside) {
+				function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+			}
 		}
 
 		$moduleFolder = $newFolder ?? $path . $folderName . '-master'; // the folder this archive extracted to; any other ZIP is probed as before
-		if (!is_dir($moduleFolder)) {
+		if ($newFolder === null && !is_dir($moduleFolder)) {
 			$moduleFolder = $path . $folderName . '-main';
 		}
-		if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
+		if (($newFolder !== null || is_dir($moduleFolder)) && !rename($moduleFolder, $path . $folderName)) {
+			if ($aside && @rename($old, $path . $folderName)) {
+				$partial = $staging ?? $newFolder;
+				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
+				$this->alert('danger', 'Could not move the update into place. The installed version was left in place.');
+				$this->redirect();
+			}
 			throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
 		}
+		if ($aside) {
+			$this->removeQuietly($old);
+		}
 		if ($staging !== null && !@rmdir($staging)) {
-			$this->recursiveDelete($staging); // empty after the rename; anything odd left in it goes too
+			function_exists('is_link') && is_link($staging) ? unlink($staging) : $this->recursiveDelete($staging); // empty after the rename; anything odd left in it goes too
 		}
 
 		// If this plugin belongs to an exclusive group (e.g. editor/translation), disable other enabled plugins in the same group.
@@ -2308,6 +2328,19 @@ EOT;
 			$size = $content === false ? false : strlen($content);
 		}
 		return $size === false ? null : $size;
+	}
+
+	/**
+	 * Removes a file, folder or link where it can, without a warning; what cannot be removed, or a folder it cannot open, stays.
+	 * @param string $path
+	 * @return void
+	 */
+	private function removeQuietly(string $path): void
+	{
+		try {
+			function_exists('is_link') && is_link($path) ? @unlink($path) : @$this->recursiveDelete($path);
+		} catch (UnexpectedValueException $e) { // DirectoryIterator on a folder it may not read
+		}
 	}
 
 	/**
