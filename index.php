@@ -395,15 +395,16 @@ class Wcms
 	 */
 	public function removeStaleBackupArchives(): void
 	{
-		if (!function_exists('unlink')) {
-			return; // a host that disables unlink keeps the leftovers; the walk skips them, so the next backup still works
-		}
 		$maxAge = max(300, (int)ini_get('max_execution_time'));
 		$candidates = array_merge(glob($this->dataPath . '/*-backup-*.zip*') ?: [], glob($this->filesPath . '/*-backup-*.zip.*') ?: []);
 		foreach ($candidates as $file) {
 			$isLeftover = $this->isBackupTempName($file) || (dirname($file) === $this->dataPath && $this->isBackupArchiveName($file)); // a finished archive in data/files is an old backup, the admin's to delete in Files
 			if ($isLeftover && is_file($file) && filemtime($file) < time() - $maxAge) {
-				@unlink($file);
+				if (function_exists('unlink')) {
+					@unlink($file);
+				} elseif (function_exists('file_put_contents') && filesize($file) > 0) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+					@file_put_contents($file, '');
+				}
 			}
 		}
 	}
@@ -4398,9 +4399,11 @@ EOT;
 				}
 			}
 		} finally {
-			if (function_exists('unlink')) { // disabled on some hardened hosts: the archive stays under data/ (a 128-bit random name, listed nowhere) and is skipped by the next backup's walk
+			if (function_exists('unlink')) {
 				@unlink($zipPath);
-			}
+			} elseif (function_exists('file_put_contents')) { // disabled on some hardened hosts: the archive is emptied instead (file_put_contents() is what every save needs), so the 0-byte file left under data/ holds nothing and the next backup's walk skips its name
+				@file_put_contents($zipPath, '');
+			} // where both are disabled the archive stays complete under data/ (a 128-bit random name, listed nowhere), as in 3.7.1
 		}
 		die();
 	}

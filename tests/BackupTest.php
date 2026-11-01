@@ -339,8 +339,11 @@ final class BackupTest extends TestCase
 		$this->assertNothingLeftOnDisk();
 	}
 
-	/** Two backups on one server with $ini, the first one's leftover aged past the sweep's threshold in between */
-	private function assertTwoBackupsDownloadWithUnlinkDisabled(array $ini): void
+	/**
+	 * Two backups on one server with $ini, the first one's leftover aged past the sweep's threshold in between; $emptied
+	 * says whether file_put_contents() is there to empty the leftovers (else they stay complete, as in 3.7.1)
+	 */
+	private function assertTwoBackupsDownloadWithUnlinkDisabled(array $ini, bool $emptied = true): void
 	{
 		$port = $this->startServer($ini);
 		[$headers, $body] = $this->request($port);
@@ -348,15 +351,34 @@ final class BackupTest extends TestCase
 		$this->assertSame((string)strlen($body), $this->header($headers, 'Content-Length'));
 		$this->assertContains('data/database.js', $this->entries($body));
 		$this->assertStringNotContainsString('Fatal error', $body);
+		$sizes = [strlen($body)];
 		$left = glob($this->site . '/data/*.zip');
-		$this->assertCount(1, $left, 'without unlink the archive stays under data/');
+		$this->assertCount(1, $left, 'without unlink the archive name stays under data/');
+		clearstatcache();
+		if ($emptied) {
+			$this->assertSame(0, filesize($left[0]), 'the sent archive is emptied: a full-site copy never stays on the server');
+		} else {
+			$this->assertSame($sizes[0], filesize($left[0]), 'without file_put_contents the sent archive stays complete');
+		}
 		touch($left[0], time() - 3600);
 		[$headers, $body] = $this->request($port);
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), 'the second backup still works: ' . substr($body, 0, 300));
+		$this->assertStringNotContainsString('Fatal error', $body);
 		$entries = $this->entries($body);
 		$this->assertContains('data/database.js', $entries);
 		$this->assertNotContains('data/' . basename($left[0]), $entries, 'the first archive is not nested in the second');
-		$this->assertCount(2, glob($this->site . '/data/*.zip'), 'both stay: nothing can remove them on this host');
+		$sizes[] = strlen($body);
+		$left = glob($this->site . '/data/*.zip');
+		$this->assertCount(2, $left, 'both names stay: nothing can remove them on this host');
+		clearstatcache();
+		if ($emptied) {
+			$this->assertSame([0, 0], array_map('filesize', $left), 'both are empty: the sweep and the send leave nothing inside');
+		} else {
+			$left = array_map('filesize', $left);
+			sort($left);
+			sort($sizes);
+			$this->assertSame($sizes, $left, 'both stay complete: nothing can empty them on this host');
+		}
 		$this->assertSame([self::LEGACY, self::UPLOAD, 'photo.jpg'], array_values(array_diff(scandir($this->site . '/data/files'), ['.', '..'])), 'nothing new in data/files');
 	}
 
@@ -365,6 +387,19 @@ final class BackupTest extends TestCase
 		// On PHP 8 a disabled function is undefined, so @unlink() threw: the first backup died after its body, and from the
 		// second on the stale-archive sweep made every backup a fatal page until the leftover was deleted over FTP.
 		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'unlink', 'display_errors' => '1']);
+	}
+
+	public function testWithUnlinkAndFilePutContentsDisabledEveryBackupDownloads(): void
+	{
+		// Neither can remove nor empty the archive: on PHP 8 an unguarded @file_put_contents() threw, so the first backup
+		// died after its body and the sweep made every later one a fatal page. A fresh install needs file_put_contents()
+		// to write database.js, so one backup with nothing disabled seeds it first.
+		$this->download();
+		$this->assertSame([], $this->zipsLeftUnderData(10), 'the seeding backup removed its archive');
+		proc_terminate($this->server);
+		proc_close($this->server);
+		$this->server = null;
+		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'unlink,file_put_contents', 'display_errors' => '1'], false);
 	}
 
 	public function testTheBackupDownloadsTwiceOnTheCiHardenedHostList(): void
