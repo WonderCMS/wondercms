@@ -2193,29 +2193,41 @@ EOT;
 		}
 
 		// A GitHub archive (everything under <name>-master/ or <name>-main/) unpacks beside the installed folder, which goes only
-		// once the new one is complete. Any other ZIP (its top folder already <name>/) would merge into the live folder, so it
-		// keeps the old order: delete, extract, rename. A link is removed, never followed, as in deleteFileModuleAction().
-		$newFolder = in_array($top, [$folderName . '-master', $folderName . '-main'], true) ? $path . $top : null;
+		// once the new one is complete. An archive whose one top folder is <name>/ itself (a custom repository can serve one)
+		// would merge into the live folder, so it unpacks into a staging folder beside the module, <name>.update.tmp/, with the
+		// same guarantees; the name is fixed so a leftover of a killed request is cleared by the next update of that module, and
+		// no module can carry it (the installer's name charset has no dot). Any other shape (files at the root, or mixed) keeps
+		// the old order: delete, extract, rename. A link is removed, never followed, as in deleteFileModuleAction().
+		$staging = $top === $folderName ? $path . $folderName . '.update.tmp' : null;
+		$extractBase = $staging !== null ? $staging . '/' : $path;
+		$newFolder = in_array($top, [$folderName . '-master', $folderName . '-main'], true) ? $path . $top : ($staging !== null ? $extractBase . $folderName : null);
 		// A GitHub archive first clears its own folder, a leftover of an earlier attempt that was cut short; a folder under the
-		// other suffix is left alone, as before (uploaded by hand, it is a module in its own right). Any other ZIP clears the
-		// installed folder here, as before.
-		$stale = $newFolder ?? $path . $folderName;
+		// other suffix is left alone, as before (uploaded by hand, it is a module in its own right). An own-name archive clears
+		// its staging folder the same way. Any other ZIP clears the installed folder here, as before.
+		$stale = $staging ?? $newFolder ?? $path . $folderName;
 		function_exists('is_link') && is_link($stale) ? unlink($stale) : $this->recursiveDelete($stale);
+		if ($staging !== null && !@mkdir($staging, 0755)) {
+			$zip->close();
+			$this->recursiveDelete($zipFile);
+			$this->alert('danger', 'Could not create a folder for the download. Nothing was changed.');
+			$this->redirect();
+		}
 
-		$extracted = @$zip->extractTo($path);
+		$extracted = @$zip->extractTo($extractBase);
 		// extractTo() returns true when a full disk cuts a write short (the file lands truncated), so every file is measured
 		// against the archive; where the host disables filesize() only the return value can be checked.
 		for ($i = 0; $newFolder !== null && $extracted && function_exists('filesize') && $i < $zip->numFiles; $i++) {
 			$stat = $zip->statIndex($i);
 			if ($stat !== false && substr($stat['name'], -1) !== '/') {
-				$extracted = @filesize($path . $stat['name']) === $stat['size'];
+				$extracted = @filesize($extractBase . $stat['name']) === $stat['size'];
 			}
 		}
 		$zip->close();
 		$this->recursiveDelete($zipFile);
 
 		if ($newFolder !== null && !$extracted) {
-			function_exists('is_link') && is_link($newFolder) ? unlink($newFolder) : $this->recursiveDelete($newFolder);
+			$partial = $staging ?? $newFolder;
+			function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
 			$this->alert('danger', $wasInstalled
 				? 'Could not extract the update. The installed version was left in place.'
 				: 'Could not extract the download. Nothing was installed.');
@@ -2232,6 +2244,9 @@ EOT;
 		}
 		if (is_dir($moduleFolder) && !rename($moduleFolder, $path . $folderName)) {
 			throw new Exception('Theme or plugin not installed. Possible cause: themes or plugins folder is not writable.');
+		}
+		if ($staging !== null && !@rmdir($staging)) {
+			$this->recursiveDelete($staging); // empty after the rename; anything odd left in it goes too
 		}
 
 		// If this plugin belongs to an exclusive group (e.g. editor/translation), disable other enabled plugins in the same group.

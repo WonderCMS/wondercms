@@ -293,9 +293,9 @@ final class LocalModulesTest extends TestCase
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master', 'the truncated copy is removed');
 	}
 
-	public function testAnArchiveWhoseTopFolderIsTheModuleNameStillReplacesTheFolderFirst(): void
+	public function testAnArchiveWhoseTopFolderIsTheModuleNameReplacesTheFolderThroughAStagingFolder(): void
 	{
-		// Not a GitHub archive: extracting it beside the installed folder would merge into it, so it keeps the old order.
+		// Not a GitHub archive: extracting it beside the installed folder would merge into it, so it goes through foo.update.tmp.
 		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
 			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
 		}
@@ -312,6 +312,80 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame('newcss', file_get_contents($this->root . '/themes/foo/css/style.css'));
 		$this->assertFileDoesNotExist($this->root . '/themes/foo/stale.txt', 'replaced, not merged');
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp', 'the staging folder is gone');
+	}
+
+	public function testAnArchiveWhoseTopFolderIsTheModuleNameAndCannotBeExtractedLeavesTheInstalledVersionInPlace(): void
+	{
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo/css', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		file_put_contents($this->root . '/themes/foo/css/style.css', 'oldcss');
+		// foo/css is a file, so the entry under it cannot be created: extractTo() stops there and returns false
+		$zipPath = $this->moduleZip(['foo/theme.php' => 'new', 'foo/css' => 'a file', 'foo/css/style.css' => 'newcss']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Could not extract the update. The installed version was left in place.', $alerts['danger'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('success', $alerts);
+		$this->assertSame('old', file_get_contents($this->root . '/themes/foo/theme.php'));
+		$this->assertSame('oldcss', file_get_contents($this->root . '/themes/foo/css/style.css'));
+		$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), 'nothing merged in');
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp', 'the partial copy is removed');
+		$this->assertFileDoesNotExist($this->root . '/data_test/files_test/ZIPFromURL.zip');
+	}
+
+	public function testAnArchiveWhoseTopFolderIsTheModuleNameAndLandsShortLeavesTheInstalledVersionInPlace(): void
+	{
+		// The full-disk shape of the test above: extractTo() returns true and the file is cut short.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		$zipPath = $this->moduleZip(['foo/theme.php' => '0123456789'], static function (string $bytes): string {
+			$central = strpos($bytes, "PK\x01\x02");
+			return substr_replace($bytes, pack('V', 20), $central + 24, 4); // the uncompressed size field of the one entry
+		});
+		$zip = new ZipArchive();
+		$this->assertTrue($zip->open($zipPath));
+		$this->assertSame(20, $zip->statIndex(0)['size'], 'the doctored size is what statIndex() reports');
+		$scratch = $this->root . '/scratch';
+		mkdir($scratch);
+		if (@$zip->extractTo($scratch) !== true || filesize($scratch . '/foo/theme.php') !== 10) {
+			$this->markTestSkipped('this libzip refuses the doctored size itself, so the return value already covers it');
+		}
+		$zip->close();
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Could not extract the update. The installed version was left in place.', $alerts['danger'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('success', $alerts);
+		$this->assertSame('old', file_get_contents($this->root . '/themes/foo/theme.php'));
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp', 'the truncated copy is removed');
+	}
+
+	public function testAStaleStagingFolderFromAKilledRequestIsClearedBeforeTheOwnNameArchiveIsExtracted(): void
+	{
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		mkdir($this->root . '/themes/foo.update.tmp/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo.update.tmp/foo/leftover.php', 'from a request that was cut short');
+		file_put_contents($this->root . '/themes/foo.update.tmp/leftover.php', 'beside it');
+		$zipPath = $this->moduleZip(['foo/theme.php' => 'new']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('danger', $alerts);
+		$this->assertSame(['theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), 'only the archive\'s files');
+		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp');
 	}
 
 	public function testAFreshInstallWhoseArchiveCannotBeExtractedInstallsNothingAndSaysSo(): void
