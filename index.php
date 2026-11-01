@@ -402,7 +402,7 @@ class Wcms
 			if ($isLeftover && is_file($file) && filemtime($file) < time() - $maxAge) {
 				if (function_exists('unlink')) {
 					@unlink($file);
-				} elseif (filesize($file) > 0) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+				} elseif (function_exists('file_put_contents') && filesize($file) > 0) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
 					@file_put_contents($file, '');
 				}
 			}
@@ -4370,9 +4370,9 @@ EOT;
 		} finally {
 			if (function_exists('unlink')) {
 				@unlink($zipPath);
-			} else { // disabled on some hardened hosts: the archive is emptied instead (file_put_contents() is what every save needs), so the 0-byte file left under data/ holds nothing and the next backup's walk skips its name
+			} elseif (function_exists('file_put_contents')) { // disabled on some hardened hosts: the archive is emptied instead (file_put_contents() is what every save needs), so the 0-byte file left under data/ holds nothing and the next backup's walk skips its name
 				@file_put_contents($zipPath, '');
-			}
+			} // where both are disabled the archive stays complete under data/ (a 128-bit random name, listed nowhere), as in 3.7.1
 		}
 		die();
 	}
