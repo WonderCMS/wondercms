@@ -23,11 +23,12 @@ final class PluginSubclassSignatureTest extends TestCase
 		$method = new ReflectionMethod(Wcms::class, 'createUniqueSlug');
 		$this->assertTrue($method->isPublic());
 		$this->assertSame(2, $method->getNumberOfParameters());
-		$this->assertSame('string', (string)$method->getReturnType());
+		$this->assertSame('string', $method->getReturnType()->getName());
 		[$slug, $menu] = $method->getParameters();
-		$this->assertSame('string', (string)$slug->getType());
+		$this->assertSame('string', $slug->getType()->getName());
 		$this->assertFalse($slug->getType()->allowsNull());
-		$this->assertSame('?string', (string)$menu->getType());
+		$this->assertSame('string', $menu->getType()->getName()); // (string) of a nullable type reads '?string' only from PHP 8.0; getName() plus allowsNull() says the same on 7.4
+		$this->assertTrue($menu->getType()->allowsNull());
 		$this->assertTrue($menu->isDefaultValueAvailable());
 		$this->assertNull($menu->getDefaultValue());
 	}
