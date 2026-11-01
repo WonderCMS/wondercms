@@ -47,6 +47,35 @@ final class PluginSubclassSignatureTest extends TestCase
 		$this->assertSame('404', $wcms->createUniqueSlug('404'), 'as in 3.7.1, a page without a menu entry does not count here');
 	}
 
+	public function testAnOverrideIsAppliedToEveryCreateAndRename(): void
+	{
+		// In 3.7.1 createMenuItem() and updateMenuItem() called the public createUniqueSlug(), so a subclass's slug policy reached every create and rename.
+		if (!class_exists('PrefixingPluginWcms', false)) {
+			eval('class PrefixingPluginWcms extends Wcms { public function createUniqueSlug(string $slug, ?string $menu = null): string { return "custom-" . parent::createUniqueSlug($slug, $menu); } }');
+		}
+		$wcms = new PrefixingPluginWcms('data_test', 'files_test', 'database_test.js');
+		$wcms->loggedIn = true;
+		$dbPath = __DIR__ . '/../data_test/database_test.js';
+
+		$wcms->createMenuItem('Panel Probe', null, 'show', true);
+
+		$menuItems = (array)json_decode(file_get_contents($dbPath))->config->menuItems;
+		$this->assertContains('custom-panel-probe', array_column($menuItems, 'slug'), 'the override names the created item');
+		$this->assertTrue(isset(json_decode(file_get_contents($dbPath))->pages->{'custom-panel-probe'}), 'and its page');
+		$this->assertSame('custom-panel-probe', $_SESSION['redirect_to'] ?? null);
+		$key = (string)max(array_keys($menuItems));
+		$this->assertSame('custom-panel-probe', $menuItems[$key]->slug, 'the new item is the last top-level entry');
+
+		$wcms->updateMenuItem('Renamed Probe', $key, 'show');
+
+		$db = json_decode(file_get_contents($dbPath));
+		$this->assertSame('custom-renamed-probe', $db->config->menuItems->{$key}->slug, 'the override names the renamed item');
+		$this->assertTrue(isset($db->pages->{'custom-renamed-probe'}), 'the page moved with it');
+		$this->assertFalse(isset($db->pages->{'custom-panel-probe'}));
+		// The #410 context of a create or rename does not leak into a later direct call: a page without a menu entry does not count there, as in 3.7.1
+		$this->assertSame('custom-404', $wcms->createUniqueSlug('404'));
+	}
+
 	public function testTheDeclarationIsAcceptedInAFreshProcess(): void
 	{
 		// The same check with nothing else loaded: the bite on a changed signature is exit code 255 (PHP fatal error)

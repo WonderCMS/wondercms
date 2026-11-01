@@ -83,6 +83,9 @@ class Wcms
 	/** @var bool $replacingPassword - set by changePasswordAction() for the one save that may replace the password hash */
 	private $replacingPassword = false;
 
+	/** @var array{excludeKey: ?string, againstPages: bool} $slugContext what createMenuItem() and updateMenuItem() give createUniqueSlug() for the one call they make (its public signature is 3.7.1 API and cannot carry it) */
+	protected $slugContext = ['excludeKey' => null, 'againstPages' => false];
+
 	/** @var array $listeners for hooks */
 	public $listeners = [];
 
@@ -741,7 +744,7 @@ class Wcms
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
 		// Without $createPage the entry links a page that already exists (createPage() writes the page first)
-		$slug = $this->uniqueSlugAmong($name, $menu, null, $createPage);
+		$slug = $this->createUniqueSlugWithContext($name, $menu, null, $createPage);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
@@ -808,7 +811,7 @@ class Wcms
 		// The renamed item is checked against its siblings and the pages at its level, not its children, and is not its own sibling
 		$parentTree = explode('-', $menu);
 		$ownKey = array_pop($parentTree);
-		$slug = $this->uniqueSlugAmong($name, implode('-', $parentTree), $ownKey, true);
+		$slug = $this->createUniqueSlugWithContext($name, implode('-', $parentTree), $ownKey, true);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -857,7 +860,10 @@ class Wcms
 	 * Check if slug already exists and creates unique one
 	 *
 	 * Unique among the menu items at that level, as in 3.7.1. The signature is public API (a plugin may override it),
-	 * so it stays as it was; createMenuItem() and updateMenuItem() pass their extra context to uniqueSlugAmong().
+	 * so it stays as it was, and createMenuItem() and updateMenuItem() call it for every create and rename, as in 3.7.1,
+	 * so an override is applied there too. The context those two callers need (the renamed item's own key, the pages at
+	 * that level) cannot travel through this signature; they set $slugContext around the call instead. Called directly,
+	 * with no context set, it checks the menu items at that level only.
 	 *
 	 * @param string $slug
 	 * @param string|null $menu key tree of the parent item, empty for the top level
@@ -865,7 +871,28 @@ class Wcms
 	 */
 	public function createUniqueSlug(string $slug, ?string $menu = null): string
 	{
-		return $this->uniqueSlugAmong($slug, $menu, null, false);
+		return $this->uniqueSlugAmong($slug, $menu, $this->slugContext['excludeKey'], $this->slugContext['againstPages']);
+	}
+
+	/**
+	 * Call createUniqueSlug() (so an override in a plugin subclass is consulted) with the context of a create or rename
+	 *
+	 * The context is cleared again whatever happens, so a later direct call of createUniqueSlug() does not inherit it.
+	 *
+	 * @param string $slug
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
+	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
+	 * @return string
+	 */
+	private function createUniqueSlugWithContext(string $slug, ?string $menu, ?string $excludeKey, bool $againstPages): string
+	{
+		$this->slugContext = ['excludeKey' => $excludeKey, 'againstPages' => $againstPages];
+		try {
+			return $this->createUniqueSlug($slug, $menu);
+		} finally {
+			$this->slugContext = ['excludeKey' => null, 'againstPages' => false];
+		}
 	}
 
 	/**
