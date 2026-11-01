@@ -4351,7 +4351,8 @@ EOT;
 		$source = realpath($this->rootDir);
 		$filesPath = realpath($this->filesPath);
 		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
-		$sessionDir = $savePath !== '' ? @realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
+		$sessionDir = @realpath($savePath !== '' ? substr(strrchr(';' . $savePath, ';'), 1) : sys_get_temp_dir()); // "N;/path" and "N;MODE;/path": the folder is after the last ';'; an empty save path means PHP's files handler writes to the system temp dir; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
+		$sessionPrefix = $sessionDir !== false ? $sessionDir . DIRECTORY_SEPARATOR : ''; // compared case-insensitively: on macOS and Windows realpath() keeps the spelling the save path was typed in (Data/Sessions for data/sessions)
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
@@ -4361,7 +4362,7 @@ EOT;
 			if (is_dir($file)) {
 				$zip->addEmptyDir($name . '/');
 			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)
-				&& !($sessionDir !== false && strpos($file, $sessionDir . DIRECTORY_SEPARATOR) === 0 && preg_match('~^sess_[A-Za-z0-9,-]{22,256}$~', basename($file)))) { // not the archive, not an old backup, not a build in progress, and not a PHP session file (sess_<id>) anywhere below the save path: those hold live ids
+				&& !($sessionPrefix !== '' && strncasecmp($file, $sessionPrefix, strlen($sessionPrefix)) === 0 && preg_match('~^sess_[A-Za-z0-9,-]{22,256}$~', basename($file)))) { // not the archive, not an old backup, not a build in progress, and not a PHP session file (sess_<id>) anywhere below the save path: those hold live ids
 				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
 					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
 				} else {

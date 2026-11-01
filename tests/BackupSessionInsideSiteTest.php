@@ -175,4 +175,39 @@ final class BackupSessionInsideSiteTest extends TestCase
 		$this->assertContains('data/files/photo.jpg', $names);
 		$this->assertSame([], array_values(preg_grep('~(^|/)sess_[A-Za-z0-9,-]{22,256}$~', $names)), 'no PHP session file is archived, not even in data/ itself');
 	}
+
+	public function testAMixedCaseSavePathStillLeavesOutTheSessionFilesOnACaseInsensitiveFilesystem(): void
+	{
+		// macOS and Windows: a save path typed Data/Sessions for the folder data/sessions works for PHP, and realpath() keeps the
+		// typed spelling, so a case-sensitive prefix match missed it and the live session file went into the archive
+		if (!is_dir($this->root . '/DATA/SESSIONS')) {
+			$this->markTestSkipped('a case-sensitive filesystem: a mixed-case save path is another folder here');
+		}
+		$this->startServer(['session.save_path' => $this->root . '/Data/Sessions']);
+		@mkdir($this->root . '/data/files');
+		file_put_contents($this->root . '/data/files/photo.jpg', 'jpeg');
+
+		[$names] = $this->loginAndBackup();
+		$this->assertNotEmpty(glob($this->root . '/data/sessions/sess_*'), 'PHP stored the sessions under the mixed-case save path');
+		$this->assertContains('data/database.js', $names);
+		$this->assertContains('data/files/photo.jpg', $names);
+		$this->assertSame([], array_values(preg_grep('~(^|/)sess_[A-Za-z0-9,-]{22,256}$~', $names)), 'no PHP session file is archived, whatever the case the save path was typed in');
+	}
+
+	public function testAnEmptySavePathMeansTheTempDirAndItsSessionFilesAreLeftOut(): void
+	{
+		// With session.save_path empty PHP's files handler writes to sys_get_temp_dir(); a host whose sys_temp_dir sits inside the
+		// site (a per-site tmp under data/) then had its live session file archived, since an empty save path skipped the check
+		mkdir($this->root . '/data/tmp', 0777, true);
+		$this->startServer(['session.save_path' => '', 'sys_temp_dir' => $this->root . '/data/tmp']);
+		@mkdir($this->root . '/data/files');
+		file_put_contents($this->root . '/data/files/photo.jpg', 'jpeg');
+
+		[$names] = $this->loginAndBackup();
+		$this->assertNotEmpty(glob($this->root . '/data/tmp/sess_*'), 'PHP stored the sessions in the temp dir inside the site');
+		$this->assertContains('data/database.js', $names);
+		$this->assertContains('data/files/photo.jpg', $names);
+		$this->assertContains('data/tmp/', $names, 'the temp folder itself is kept');
+		$this->assertSame([], array_values(preg_grep('~(^|/)sess_[A-Za-z0-9,-]{22,256}$~', $names)), 'no PHP session file is archived: the temp dir is the save path when none is set');
+	}
 }
