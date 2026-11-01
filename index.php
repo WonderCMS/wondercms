@@ -2694,32 +2694,55 @@ EOT;
 	 * next login of a site installed before this check existed). The page is the one defaultPage names (renaming Home in
 	 * the menu moves the page and repoints defaultPage) and 'home' while it exists. Only the untouched paragraph matches:
 	 * a page whose paragraph was edited by hand is not written.
+	 * Success is the page read back from database.js without the paragraph: a failed save (a read-only data folder, a full
+	 * disk) leaves the file as it was, so the admin is told the password is still shown and the next login tries again.
 	 * @return void
 	 * @throws Exception
 	 */
 	private function removeInstallPasswordParagraph(): void
 	{
-		$removed = false;
+		$changed = [];
 		foreach (array_unique([(string)$this->get('config', 'defaultPage'), 'home']) as $slugTree) {
-			$page = $this->get(self::DB_PAGES_KEY); // walked with ??, not get(): get() would create a missing page
-			foreach (explode('/', $slugTree) as $depth => $slug) {
-				$page = $depth === 0 ? $page->{$slug} ?? null : $page->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
-			}
+			$page = $this->findPage($this->get(self::DB_PAGES_KEY), $slugTree);
 			if (!isset($page->content) || !is_string($page->content)) {
 				continue;
 			}
 			$content = $this->withoutInstallPassword($page->content);
 			if ($content !== null) {
 				$page->content = $content;
-				$removed = true;
+				$changed[] = $slugTree;
 			}
 		}
-		if (!$removed) {
+		if ($changed === []) {
 			return;
 		}
 		$this->save();
+		$onDisk = json_decode($this->lockedRead($this->dbPath));
+		$pages = is_object($onDisk) && isset($onDisk->{self::DB_PAGES_KEY}) && is_object($onDisk->{self::DB_PAGES_KEY}) ? $onDisk->{self::DB_PAGES_KEY} : null;
+		foreach ($changed as $slugTree) {
+			$page = $this->findPage($pages, $slugTree);
+			if (!isset($page->content) || !is_string($page->content) || $this->withoutInstallPassword($page->content) !== null) {
+				$this->alert('danger', 'Your password is still shown on the public home page: the data folder could not be written. Fix its permissions, then log in again.');
+				return;
+			}
+		}
 		$this->alert('info',
 			'Your password was shown on the public home page until now; that line is removed. Please change it in <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
+	}
+
+	/**
+	 * The page object a slug tree ('home', 'about/team') names, walked with ??, not get(): get() would create a missing page
+	 * @param object|null $pages
+	 * @param string $slugTree
+	 * @return object|null
+	 */
+	private function findPage(?object $pages, string $slugTree): ?object
+	{
+		$page = $pages;
+		foreach (explode('/', $slugTree) as $depth => $slug) {
+			$page = $depth === 0 ? $page->{$slug} ?? null : $page->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
+		}
+		return is_object($page) ? $page : null;
 	}
 
 	/**
