@@ -397,8 +397,9 @@ final class BackupTest extends TestCase
 		// them. Where flock() works, a live send holds a shared lock (see testTheSweepNeverTouchesAnArchiveThatIsBeingSent), so
 		// both are emptied past the 300 s threshold. Where flock() or fopen() is disabled the sweep has only the age: emptying
 		// truncates the inode a slow download may still be streaming, so one aged 10 minutes must stay complete and only one
-		// older than a day is emptied.
-		$ageOnly = array_intersect(['flock', 'fopen', 'fclose'], explode(',', $ini['disable_functions'] ?? '')) !== [];
+		// older than a day is emptied. A disabled fclose() alone changes nothing: the lock is asked, the handle is released at
+		// request end.
+		$ageOnly = array_intersect(['flock', 'fopen'], explode(',', $ini['disable_functions'] ?? '')) !== [];
 		$streaming = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('ab', 16) . '.zip';
 		$crashed = $this->site . '/data/2026-01-01-backup-' . str_repeat('cd', 16) . '.zip';
 		file_put_contents($streaming, 'still being sent by a slow download');
@@ -472,6 +473,28 @@ final class BackupTest extends TestCase
 		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'flock,unlink', 'display_errors' => '1']);
 	}
 
+	public function testWhereOnlyFcloseIsDisabledTheSweepStillAsksTheLockAndDoesNotWaitADay(): void
+	{
+		// fclose() disabled, flock() and fopen() there: the lock is asked (a handle PHP cannot close is released at request end),
+		// so an unlocked leftover aged 10 minutes is emptied without the one-day wait. A sweep that treats a missing fclose() like
+		// a missing flock() keeps that leftover complete and fails here.
+		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'unlink,fclose', 'display_errors' => '1']);
+	}
+
+	public function testTheBackupDownloadsWhereSysGetTempDirIsDisabledAndNoSavePathIsSet(): void
+	{
+		// session.save_path empty (PHP's files handler then writes to the system temp dir) on a host that disables
+		// sys_get_temp_dir(): the unguarded call is a fatal after the archive is built, so the admin got a fatal page as a .zip.
+		// The guard skips the session-folder check and the backup is a clean archive.
+		[$headers, $body] = $this->download(['session.save_path' => '', 'disable_functions' => 'sys_get_temp_dir', 'display_errors' => '1']);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertSame((string)strlen($body), $this->header($headers, 'Content-Length'), 'the whole archive and nothing after it');
+		$this->assertStringNotContainsString('Fatal error', $body);
+		$this->assertStringNotContainsString('sys_get_temp_dir', $body);
+		$this->assertContains('data/database.js', $this->entries($body));
+		$this->assertNothingLeftOnDisk();
+	}
+
 	/**
 	 * Two aged archives under a shared lock held by this process (what sendBackup() holds while it streams, from another php -S
 	 * worker's point of view) survive a backup's sweep untouched; once the lock is gone the next backup's sweep removes them
@@ -538,5 +561,13 @@ final class BackupTest extends TestCase
 	public function testTheSweepNeverEmptiesAnArchiveThatIsBeingSentWhereUnlinkIsDisabled(): void
 	{
 		$this->assertTheSweepLeavesALockedArchiveAlone(['disable_functions' => 'unlink', 'display_errors' => '1']);
+	}
+
+	public function testTheSweepNeverEmptiesAnArchiveThatIsBeingSentWhereUnlinkAndFcloseAreDisabled(): void
+	{
+		// A host that disables fclose() too still has flock() and fopen(): the lock is asked and a day-old archive still being
+		// sent stays complete. A sweep that gives up on the lock without fclose() falls back to the age, empties the day-old
+		// archive under the sender's shared lock, and fails here; once the lock is gone the same archive is emptied.
+		$this->assertTheSweepLeavesALockedArchiveAlone(['disable_functions' => 'unlink,fclose', 'display_errors' => '1']);
 	}
 }
