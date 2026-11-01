@@ -65,8 +65,8 @@ final class BackupTest extends TestCase
 		}
 	}
 
-	/** Start php -S with $ini settings over the router; return its port once it accepts connections */
-	private function startServer(array $ini = []): int
+	/** Start php -S with $ini settings over the router; return its port once it accepts connections. $stderr captures the server log */
+	private function startServer(array $ini = [], string $stderr = '/dev/null'): int
 	{
 		$socket = stream_socket_server('tcp://127.0.0.1:0');
 		$name = stream_socket_get_name($socket, false);
@@ -78,7 +78,7 @@ final class BackupTest extends TestCase
 			$command[] = $key . '=' . $value;
 		}
 		array_push($command, '-S', '127.0.0.1:' . $port, $this->tmp . '/router.php');
-		$this->server = proc_open($command, [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $this->tmp);
+		$this->server = proc_open($command, [1 => ['file', '/dev/null', 'w'], 2 => ['file', $stderr, 'w']], $pipes, $this->tmp);
 		for ($i = 0; $i < 50; $i++) {
 			$fp = @fsockopen('127.0.0.1', $port);
 			if ($fp) {
@@ -176,7 +176,29 @@ final class BackupTest extends TestCase
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), $body);
 		$entries = $this->entries($body);
 		foreach (['index.php', 'data/database.js', 'data/files/photo.jpg'] as $name) {
-			$this->assertContains($name, $entries, 'the session folder is skipped only below data/, never data/ itself');
+			$this->assertContains($name, $entries, 'only session files (sess_<id>) below the save path are skipped, never database.js or an upload, even when the save path is data/ itself');
+		}
+	}
+
+	public function testTheBackupDownloadsWhereOpenBasedirExcludesTheSessionFolder(): void
+	{
+		// Plesk's default: open_basedir is the site and PHP's session folder sits outside it. realpath() on the save path then
+		// prints "open_basedir restriction in effect"; with display_errors on and no output buffer that warning goes out before
+		// the attachment headers, so sendBackup() sees headers_sent() and refuses with the "a plugin or theme printed output" alert.
+		// The @realpath() keeps the backup a clean zip and the server log quiet.
+		$outside = sys_get_temp_dir() . '/wcms-sess-' . bin2hex(random_bytes(4)); // outside $this->tmp, so outside open_basedir below
+		mkdir($outside);
+		$log = $this->tmp . '/php-stderr.log';
+		try {
+			$openBasedir = dirname(__DIR__) . PATH_SEPARATOR . $this->tmp; // the router requires the repo index.php (outside $this->tmp); both must be allowed, only the session folder is not
+			[$headers, $body] = $this->request($this->startServer(['open_basedir' => $openBasedir, 'display_errors' => '1', 'output_buffering' => '0', 'session.save_path' => $outside], $log));
+			$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 400));
+			$this->assertStringNotContainsString('open_basedir', $body, 'no open_basedir warning in front of the archive');
+			$this->assertContains('data/database.js', $this->entries($body));
+			$this->assertStringNotContainsString('open_basedir', (string)@file_get_contents($log), 'no open_basedir warning in the server log either: the realpath is silenced, not just hidden');
+			$this->assertNothingLeftOnDisk();
+		} finally {
+			exec('rm -rf ' . escapeshellarg($outside));
 		}
 	}
 

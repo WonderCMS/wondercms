@@ -4324,7 +4324,7 @@ EOT;
 
 	/**
 	 * Build the backup archive under data/ and return its path; the caller sends and removes it
-	 * The files of PHP's session folder are left out where that folder is inside the site (its entry stays): they hold live session ids
+	 * Every PHP session file (sess_<id>) anywhere below the session save path is left out, its folder entries kept: they hold live session ids
 	 * @return string
 	 * @throws Exception
 	 */
@@ -4338,10 +4338,7 @@ EOT;
 		$source = realpath($this->rootDir);
 		$filesPath = realpath($this->filesPath);
 		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
-		$sessionDir = $savePath !== '' ? realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'
-		if ($sessionDir === false || strpos($sessionDir, $source . DIRECTORY_SEPARATOR) !== 0 || $sessionDir === realpath($this->dataPath)) {
-			$sessionDir = false; // outside the site nothing is skipped; nor in data/ itself, which holds database.js
-		}
+		$sessionDir = $savePath !== '' ? @realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
@@ -4350,7 +4347,8 @@ EOT;
 			$name = str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			if (is_dir($file)) {
 				$zip->addEmptyDir($name . '/');
-			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file) && dirname($file) !== $sessionDir) { // not the archive itself, not the old backups (each one used to nest all earlier ones), and not another build's file in progress
+			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)
+				&& !($sessionDir !== false && strpos($file, $sessionDir . DIRECTORY_SEPARATOR) === 0 && preg_match('~^sess_[A-Za-z0-9,-]{22,256}$~', basename($file)))) { // not the archive, not an old backup, not a build in progress, and not a PHP session file (sess_<id>) anywhere below the save path: those hold live ids
 				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
 					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
 				} else {
