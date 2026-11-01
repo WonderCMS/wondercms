@@ -539,4 +539,32 @@ final class BackupTest extends TestCase
 	{
 		$this->assertTheSweepLeavesALockedArchiveAlone(['disable_functions' => 'unlink', 'display_errors' => '1']);
 	}
+
+	public function testWhereFilemtimeIsDisabledTheSweepLetsTheLockDecide(): void
+	{
+		// A host that disables filemtime() (the temp-file sweep already respects that shape): the archive's age is unknown, so
+		// the lock alone decides. A locked leftover (being sent) is kept whole; an unlocked one is treated as old enough and removed.
+		if (!function_exists('flock')) {
+			$this->markTestSkipped('needs flock() in the test process');
+		}
+		$sent = $this->site . '/data/2026-01-01-backup-' . str_repeat('ab', 16) . '.zip';
+		$left = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('cd', 16) . '.zip';
+		file_put_contents($sent, 'being sent by another request');
+		file_put_contents($left, 'left behind by a killed request');
+		touch($sent, time() - 3600);
+		touch($left, time() - 3600);
+		$lock = fopen($sent, 'rb');
+		$this->assertTrue(flock($lock, LOCK_SH), 'the test process holds the shared lock a live send holds');
+		[$headers, $body] = $this->download(['disable_functions' => 'filemtime', 'display_errors' => '1']);
+		$this->assertStringNotContainsString('Fatal error', $body);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		clearstatcache();
+		$this->assertFileExists($sent, 'a locked archive is kept, its age unknown');
+		$this->assertSame(strlen('being sent by another request'), filesize($sent));
+		$this->assertFileDoesNotExist($left, 'an unlocked leftover is removed, its age unknown');
+		flock($lock, LOCK_UN);
+		fclose($lock);
+		unlink($sent);
+		$this->assertNothingLeftOnDisk();
+	}
 }
