@@ -2684,8 +2684,9 @@ EOT;
 	/**
 	 * Count a login attempt for an address before its password is checked, so parallel requests cannot all pass
 	 * @param string $key
-	 * @return int 0 when counted; else the address already has LOGIN_THROTTLE_LIMIT attempts in the window, nothing is
-	 * counted and the seconds until its oldest attempt leaves the window come back
+	 * @return int 0 when counted, or when the counts file could not be written (nothing counted, nothing enforced); else
+	 * the address already has LOGIN_THROTTLE_LIMIT attempts in the window, nothing is counted and the seconds until its
+	 * oldest attempt leaves the window come back
 	 */
 	private function countLoginAttempt(string $key): int
 	{
@@ -2717,10 +2718,12 @@ EOT;
 	 * Read, prune, change and write the attempts file under an exclusive lock on a lock file next to it (writeFile()
 	 * renames a new file into place, so the file itself cannot hold the lock). Attempts older than the window are
 	 * dropped on every change and at most LOGIN_THROTTLE_MAX_ADDRESSES addresses are kept. A host without flock or
-	 * fopen changes it unlocked; a data/logs folder that cannot be written throttles nothing (it never locks the owner
-	 * out). Never database.js: a visitor's failed login writes nothing there
+	 * fopen changes it unlocked; a data/logs folder or file that cannot be written throttles nothing (it never locks the
+	 * owner out): a count is enforced only when the counts were written, so a throttled request rewrites the file too
+	 * (the same small JSON a counted failure writes) and a refusal is backed by a write that succeeded. Never
+	 * database.js: a visitor's failed login writes nothing there
 	 * @param callable $change gets the attempts by reference and the time, returns the caller's result
-	 * @return int
+	 * @return int the caller's result, or 0 when it was above 0 or changed the counts and the file could not be written
 	 */
 	private function changeLoginAttempts(callable $change): int
 	{
@@ -2751,8 +2754,8 @@ EOT;
 		});
 		$attempts = array_slice($attempts, 0, self::LOGIN_THROTTLE_MAX_ADDRESSES, true);
 		$json = json_encode($attempts);
-		if ($json !== false && $stored !== $attempts) {
-			$this->writeFile($this->loginAttemptsPath, $json);
+		if ($json !== false && ($stored !== $attempts || $result > 0) && !$this->writeFile($this->loginAttemptsPath, $json)) {
+			$result = 0; // the counts cannot be kept (a folder or file made read-only, a full disk): throttle nothing, as promised above; never locks the owner out
 		}
 		if ($lock !== false) {
 			flock($lock, LOCK_UN);

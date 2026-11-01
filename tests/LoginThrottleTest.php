@@ -459,6 +459,38 @@ final class LoginThrottleTest extends TestCase
 	}
 
 	/**
+	 * A count is enforced only when the counts file could be written. The file already holds ten current failures for
+	 * the address and then the folder and the file turn read-only (permissions changed, a full disk): the right password
+	 * logs in and nothing is counted, instead of a 429 for the rest of the window (on 646eb55 the refusal came without any
+	 * write, so an unwritable logs folder locked the owner out for 15 minutes while the docblock said it throttles
+	 * nothing). The same seed with a writable folder is refused, as testARefusedAttemptNeverChecksThePassword checks too.
+	 */
+	public function testASeededCountIsNotEnforcedWhereTheCountsFileCannotBeRewritten(): void
+	{
+		if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+			$this->markTestSkipped('root writes through any mode');
+		}
+		$key = $this->keyOf('203.0.113.9');
+		$seed = json_encode([$key => array_fill(0, 10, time())]);
+		file_put_contents(self::ATTEMPTS_PATH, $seed);
+		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9')); // with a writable folder the seeded count is enforced
+
+		$logs = dirname(self::ATTEMPTS_PATH);
+		chmod(self::ATTEMPTS_PATH, 0444);
+		chmod($logs, 0555);
+		try {
+			$wcms = $this->post('wrongPass', '203.0.113.9');
+			$this->assertNotSame('HTTP/1.1 429 Too Many Requests', $wcms->headerResponse, 'a count that cannot be kept is not enforced');
+			$this->assertSame('Wrong password.', $_SESSION['alert']['danger'][0]['message'] ?? null, 'the password was checked');
+			$this->assertLoggedIn($this->post(self::PASSWORD, '203.0.113.9'));
+			$this->assertStringEqualsFile(self::ATTEMPTS_PATH, $seed, 'nothing was written');
+		} finally {
+			chmod($logs, 0755);
+			chmod(self::ATTEMPTS_PATH, 0644);
+		}
+	}
+
+	/**
 	 * The same flow over HTTP against php -S: the status line, Retry-After, the login page body, no cookie but the
 	 * session one, no address in the file. A router gives PHP a non-loopback REMOTE_ADDR (loopback is never throttled).
 	 */
