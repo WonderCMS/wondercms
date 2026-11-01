@@ -4323,6 +4323,7 @@ EOT;
 
 	/**
 	 * Send the backup archive at $zipPath as a download and remove it, also when the transfer fails
+	 * The session is closed before the archive streams: the file session handler would otherwise hold the admin's other requests until the download ends
 	 * @param string $zipPath
 	 * @return void
 	 */
@@ -4345,6 +4346,9 @@ EOT;
 			if ($sender === '' || $handle === false) {
 				$this->alert('danger', $sender === '' ? 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).' : 'Cannot send the backup: the archive could not be opened.');
 				return;
+			}
+			if (function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
+				session_write_close(); // after the alerts above, which write $_SESSION; nothing below writes it
 			}
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
