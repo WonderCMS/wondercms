@@ -2589,8 +2589,10 @@ EOT;
 	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). The file stores an HMAC of
 	 * that, never the address: its salt comes from this install's folder and password hash, neither readable from the
 	 * public side, so the file alone (public on a site whose .htaccess predates 3.7.0) identifies nobody; a password
-	 * change starts the counts afresh. No valid address and loopback (a local proxy or health check is every visitor at
-	 * once) give null and no throttle: one key for every request would let any visitor lock the owner out
+	 * change starts the counts afresh. No valid address and a private or reserved one, loopback included, give null and
+	 * no throttle: a private address at PHP means a proxy, a container network or a local health check in front, which
+	 * is every visitor at once, and one key for every request would let any visitor lock the owner out; a public
+	 * address is the connection's own client
 	 * @return string|null
 	 */
 	private function loginThrottleKey(): ?string
@@ -2602,7 +2604,7 @@ EOT;
 		if (strlen($packed) === 16 && strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
 			$packed = substr($packed, 12);
 		}
-		if ($packed === str_repeat("\0", 15) . "\1" || (strlen($packed) === 4 && $packed[0] === "\x7f")) {
+		if (filter_var(inet_ntop($packed), FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
 			return null;
 		}
 		$salt = hash('sha256', $this->rootDir . "\0" . $this->passwordHash(), true);

@@ -5,7 +5,7 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../index.php';
 
 /**
- * Failed logins are counted per connecting address (REMOTE_ADDR only, IPv6 per /64; loopback never): the 11th POST to
+ * Failed logins are counted per connecting address (REMOTE_ADDR only, IPv6 per /64; private and reserved addresses, loopback included, never): the 11th POST to
  * the login slug within 15 minutes gets HTTP 429 and the login page, without a password check, and a success clears the
  * address. The counts live in data/logs/, never in database.js, under a salted hash of the address, never the address;
  * nothing identifies a browser (no cookie but the session one).
@@ -285,12 +285,22 @@ final class LoginThrottleTest extends TestCase
 		$this->assertFileDoesNotExist(self::ATTEMPTS_PATH, 'loopback is not counted either');
 	}
 
-	public function testAPrivateAddressIsThrottled(): void
+	/**
+	 * Behind a remote proxy, inside a container (Docker Desktop's bridge gateway) or on a host fronting PHP over a
+	 * private address, every visitor reaches PHP from one private address
+	 */
+	public function testAPrivateAddressIsNeverThrottled(): void
 	{
-		foreach (['10.0.0.5', '192.168.1.10', 'fd00::1'] as $address) {
-			$this->failTimes($address, 10);
-			$this->assertRefused($this->post(self::PASSWORD, $address));
+		foreach (['10.0.0.5', '172.18.0.2', '192.168.65.1', 'fc00::1', '::ffff:10.0.0.5'] as $address) {
+			for ($i = 0; $i < 12; $i++) {
+				$this->post('wrongPass', $address);
+			}
+			$this->assertLoggedIn($this->post(self::PASSWORD, $address));
 		}
+		$this->assertFileDoesNotExist(self::ATTEMPTS_PATH, 'a private address is not counted either');
+
+		$this->failTimes('203.0.113.9', 10);
+		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
 	}
 
 	public function testASuccessClearsTheAddress(): void
