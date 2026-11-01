@@ -563,7 +563,8 @@ final class LoginThrottleTest extends TestCase
 	 * was set, as on 3.7.1, and the admin home fataled again in the modules cache save): the login answers with no fatal
 	 * (its IP list save fails quietly, since save() alerts only a request that is already logged in), the admin page
 	 * renders, a content save answers with no fatal and leaves database.js untouched, and the reload carries the
-	 * "Could not write" alert. A wrong password is simply refused. Over HTTP against php -S, the install seeded first
+	 * "Could not write" alert. The Force HTTPS toggle redirects with no fatal, writes no security.json and stays on http://
+	 * (on 5ddb06c updateSecurityCache() fataled). A wrong password is simply refused. Over HTTP against php -S, the install seeded first
 	 * with the function on; cache.json and today's stamp are seeded so the admin page fetches nothing.
 	 */
 	public function testALoginWorksWhereFilePutContentsIsDisabled(): void
@@ -629,6 +630,13 @@ final class LoginThrottleTest extends TestCase
 			$this->assertStringContainsString('Could not write database.js', $reload['body'], 'the reload after the editor save carries the alert');
 			$this->assertStringNotContainsString('unsaved words', $reload['body'], 'the content did not land');
 
+			$https = $this->fpcRequest($server['base'], 'POST', null, $good['cookie'], '/', ['forceHttps' => 'true', 'token' => $token[1]]);
+			$this->assertStringContainsString(' 302 ', $https['status'], 'the Force HTTPS toggle answers with a redirect');
+			$this->assertStringNotContainsString('Fatal error', $https['body'], 'the security cache write is skipped (on 5ddb06c updateSecurityCache() fataled)');
+			$this->assertStringNotContainsString('file_put_contents', $https['body']);
+			$this->assertStringStartsWith('http://', $https['location'], 'with no cache, url() follows the request scheme');
+			$this->assertFileDoesNotExist($root . '/data/security.json', 'no security cache was written');
+
 			$bad = $this->fpcRequest($server['base'], 'POST', 'wrongPass', null);
 			$this->assertStringContainsString(' 302 ', $bad['status'], 'a wrong password is refused with a clean redirect, not a fatal');
 			$this->assertStringNotContainsString('file_put_contents', $bad['body'], 'no fatal on the throttle path');
@@ -691,11 +699,15 @@ final class LoginThrottleTest extends TestCase
 		$body = (string)@file_get_contents($base . $path, false, $context);
 		$headers = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : ($http_response_header ?? []); // the variable is deprecated in PHP 8.5
 		$found = '';
+		$location = '';
 		foreach ($headers as $line) {
 			if (stripos($line, 'Set-Cookie:') === 0 && preg_match('/PHPSESSID=[^;]+/', $line, $m)) {
 				$found = $m[0];
 			}
+			if (stripos($line, 'Location:') === 0) {
+				$location = trim(substr($line, 9));
+			}
 		}
-		return ['status' => (string)($headers[0] ?? ''), 'body' => $body, 'cookie' => $found];
+		return ['status' => (string)($headers[0] ?? ''), 'body' => $body, 'cookie' => $found, 'location' => $location];
 	}
 }
