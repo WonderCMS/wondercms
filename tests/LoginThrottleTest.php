@@ -263,6 +263,27 @@ final class LoginThrottleTest extends TestCase
 		$this->assertLoggedIn($this->post(self::PASSWORD, '::ffff:198.51.100.20'));
 	}
 
+	/**
+	 * An IPv6-only server behind a NAT64 translator sees every IPv4 client as 64:ff9b::<ipv4>, all in one /64
+	 */
+	public function testANat64AddressCountsAsItsEmbeddedIpv4(): void
+	{
+		$this->failTimes('64:ff9b::203.0.113.9', 10);
+
+		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
+		$this->assertRefused($this->post(self::PASSWORD, '64:ff9b::cb00:7109'));
+		$this->assertLoggedIn($this->post(self::PASSWORD, '64:ff9b::198.51.100.20'));
+	}
+
+	public function testANat64PrivateAddressIsNeverThrottled(): void
+	{
+		for ($i = 0; $i < 12; $i++) {
+			$this->post('wrongPass', '64:ff9b::10.0.0.5');
+		}
+		$this->assertLoggedIn($this->post(self::PASSWORD, '64:ff9b::10.0.0.5'));
+		$this->assertFileDoesNotExist(self::ATTEMPTS_PATH, 'a private address is not counted either');
+	}
+
 	public function testAMissingAddressIsNeverOneSharedBucket(): void
 	{
 		for ($i = 0; $i < 12; $i++) {
@@ -286,12 +307,13 @@ final class LoginThrottleTest extends TestCase
 	}
 
 	/**
-	 * Behind a remote proxy, inside a container (Docker Desktop's bridge gateway) or on a host fronting PHP over a
-	 * private address, every visitor reaches PHP from one private address
+	 * Behind a remote proxy, inside a container (Docker Desktop's bridge gateway), on Tailscale or a cloud load balancer
+	 * (shared address space 100.64.0.0/10) or on a host fronting PHP over a private address, every visitor reaches PHP
+	 * from one such address
 	 */
 	public function testAPrivateAddressIsNeverThrottled(): void
 	{
-		foreach (['10.0.0.5', '172.18.0.2', '192.168.65.1', 'fc00::1', '::ffff:10.0.0.5'] as $address) {
+		foreach (['10.0.0.5', '172.18.0.2', '192.168.65.1', 'fc00::1', '::ffff:10.0.0.5', '100.64.0.1', '198.18.0.1', '192.0.0.9'] as $address) {
 			for ($i = 0; $i < 12; $i++) {
 				$this->post('wrongPass', $address);
 			}
@@ -301,6 +323,18 @@ final class LoginThrottleTest extends TestCase
 
 		$this->failTimes('203.0.113.9', 10);
 		$this->assertRefused($this->post(self::PASSWORD, '203.0.113.9'));
+	}
+
+	/**
+	 * The exempt list is the same on every PHP version: PHP 7.4's reserved-range filter left 2a02:10::1 unthrottled,
+	 * and the addresses just below 100.64.0.0/10 and 198.18.0.0/15 are ordinary clients
+	 */
+	public function testAPublicAddressNextToAnExemptRangeIsThrottled(): void
+	{
+		foreach (['2a02:10::1', '100.63.255.255', '198.17.255.255'] as $address) {
+			$this->failTimes($address, 10);
+			$this->assertRefused($this->post(self::PASSWORD, $address));
+		}
 	}
 
 	public function testASuccessClearsTheAddress(): void
