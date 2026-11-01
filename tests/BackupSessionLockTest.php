@@ -26,6 +26,10 @@ final class BackupSessionLockTest extends TestCase
 		if (!function_exists('proc_open') || !function_exists('exec') || !function_exists('curl_multi_init') || !class_exists('ZipArchive')) {
 			$this->markTestSkipped('needs proc_open, exec, curl and the zip extension');
 		}
+		if (PHP_VERSION_ID < 80000) {
+			// PHP 7.4's php -S forks its workers before it listens, so each worker has its own SO_REUSEPORT socket and the kernel hands a new connection to one of them by hash: about one request in five lands behind the worker that is streaming the backup, lock or no lock. PHP 8.0 listens first and the idle workers accept. The 7.4 behaviour is pinned on a real web stack instead (ea-php74 on the fenced copy, 3.7.2 release notes).
+			$this->markTestSkipped('php -S on PHP 7.4 queues a request behind a busy worker; not a session lock');
+		}
 		$this->tmp = sys_get_temp_dir() . '/wcms-backup-lock-' . bin2hex(random_bytes(4));
 		$this->root = $this->tmp . '/site';
 		mkdir($this->tmp . '/sessions', 0777, true); // outside the site: the backup would archive the session files
