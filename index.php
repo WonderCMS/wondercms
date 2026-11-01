@@ -737,7 +737,7 @@ class Wcms
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
 		// Without $createPage the entry links a page that already exists (createPage() writes the page first)
-		$slug = $this->createUniqueSlug($name, $menu, null, $createPage);
+		$slug = $this->uniqueSlugAmong($name, $menu, null, $createPage);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
@@ -804,7 +804,7 @@ class Wcms
 		// The renamed item is checked against its siblings and the pages at its level, not its children, and is not its own sibling
 		$parentTree = explode('-', $menu);
 		$ownKey = array_pop($parentTree);
-		$slug = $this->createUniqueSlug($name, implode('-', $parentTree), $ownKey, true);
+		$slug = $this->uniqueSlugAmong($name, implode('-', $parentTree), $ownKey, true);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -852,18 +852,31 @@ class Wcms
 	/**
 	 * Check if slug already exists and creates unique one
 	 *
+	 * Unique among the menu items at that level, as in 3.7.1. The signature is public API (a plugin may override it),
+	 * so it stays as it was; createMenuItem() and updateMenuItem() pass their extra context to uniqueSlugAmong().
+	 *
+	 * @param string $slug
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @return string
+	 */
+	public function createUniqueSlug(string $slug, ?string $menu = null): string
+	{
+		return $this->uniqueSlugAmong($slug, $menu, null, false);
+	}
+
+	/**
+	 * Make a slug unique at one level of the menu, with the context of the item being created or renamed
+	 *
+	 * Protected rather than private so a test can stub it; it is not part of the plugin API.
+	 *
 	 * @param string $slug
 	 * @param string|null $menu key tree of the parent item, empty for the top level
 	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
 	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
 	 * @return string
 	 */
-	public function createUniqueSlug(
-		string $slug,
-		?string $menu = null,
-		?string $excludeKey = null,
-		bool $againstPages = false
-	): string {
+	protected function uniqueSlugAmong(string $slug, ?string $menu, ?string $excludeKey, bool $againstPages): string
+	{
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$pages = $this->get(self::DB_PAGES_KEY);

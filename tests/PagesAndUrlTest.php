@@ -582,8 +582,8 @@ final class PagesAndUrlTest extends TestCase
 	public function testACreateThatIsRefusedSavesNoMenuEntry(): void
 	{
 		// The page is validated before the menu entry is saved; the slug is forced onto an existing page to reach the refusal.
-		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'createUniqueSlug'])->getMock();
-		$wcms->method('createUniqueSlug')->willReturn('404');
+		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['redirect', 'uniqueSlugAmong'])->getMock();
+		$wcms->method('uniqueSlugAmong')->willReturn('404');
 		$wcms->loggedIn = true;
 		$before = json_encode($this->reload()->config->menuItems);
 		$page404 = json_encode($this->reload()->pages->{'404'});
