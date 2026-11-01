@@ -390,22 +390,35 @@ class Wcms
 	 * unlinks), and libzip's in-progress files a request killed during close() left under data/ (or, before 3.7.2, under
 	 * data/files). Only the exact backup names, and only older than a request can live: a fresh one is another request's
 	 * archive about to be sent, or still being written.
+	 * An archive that is being sent is never touched, whatever its age: sendBackup() holds a shared lock on it for the whole
+	 * send, and the sweep removes or empties a candidate only once it gets an exclusive lock without waiting.
 	 *
 	 * @return void
 	 */
 	public function removeStaleBackupArchives(): void
 	{
 		$maxAge = max(300, (int)ini_get('max_execution_time'));
+		$canLock = function_exists('flock') && function_exists('fopen') && function_exists('fclose');
 		$candidates = array_merge(glob($this->dataPath . '/*-backup-*.zip*') ?: [], glob($this->filesPath . '/*-backup-*.zip.*') ?: []);
 		foreach ($candidates as $file) {
 			$isLeftover = $this->isBackupTempName($file) || (dirname($file) === $this->dataPath && $this->isBackupArchiveName($file)); // a finished archive in data/files is an old backup, the admin's to delete in Files
-			if ($isLeftover && is_file($file) && filemtime($file) < time() - $maxAge) {
-				if (function_exists('unlink')) {
-					@unlink($file);
-				} elseif (function_exists('file_put_contents') && filesize($file) > 0 && filemtime($file) < time() - 86400) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
-					// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode), so a leftover waits a day here; sendBackup()'s finally empties a sent archive at once, this only delays the cleanup after a crash.
-					@file_put_contents($file, '');
-				}
+			if (!$isLeftover || !is_file($file) || filemtime($file) >= time() - $maxAge) {
+				continue;
+			}
+			$lock = $canLock ? @fopen($file, 'rb') : null;
+			if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { // another request is sending it right now
+				fclose($lock);
+				continue;
+			}
+			if (function_exists('unlink')) {
+				@unlink($file);
+			} elseif (function_exists('file_put_contents') && filesize($file) > 0 && ($lock || filemtime($file) < time() - 86400)) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; where flock() or fopen() is disabled the age is all there is, so a leftover waits a day there before it is emptied.
+				@file_put_contents($file, '');
+			}
+			if ($lock) {
+				flock($lock, LOCK_UN);
+				fclose($lock);
 			}
 		}
 	}
@@ -4338,7 +4351,8 @@ EOT;
 		$source = realpath($this->rootDir);
 		$filesPath = realpath($this->filesPath);
 		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
-		$sessionDir = $savePath !== '' ? @realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
+		$sessionDir = @realpath($savePath !== '' ? substr(strrchr(';' . $savePath, ';'), 1) : sys_get_temp_dir()); // "N;/path" and "N;MODE;/path": the folder is after the last ';'; an empty save path means PHP's files handler writes to the system temp dir; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
+		$sessionPrefix = $sessionDir !== false ? $sessionDir . DIRECTORY_SEPARATOR : ''; // compared case-insensitively: on macOS and Windows realpath() keeps the spelling the save path was typed in (Data/Sessions for data/sessions)
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
@@ -4348,7 +4362,7 @@ EOT;
 			if (is_dir($file)) {
 				$zip->addEmptyDir($name . '/');
 			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)
-				&& !($sessionDir !== false && strpos($file, $sessionDir . DIRECTORY_SEPARATOR) === 0 && preg_match('~^sess_[A-Za-z0-9,-]{22,256}$~', basename($file)))) { // not the archive, not an old backup, not a build in progress, and not a PHP session file (sess_<id>) anywhere below the save path: those hold live ids
+				&& !($sessionPrefix !== '' && strncasecmp($file, $sessionPrefix, strlen($sessionPrefix)) === 0 && preg_match('~^sess_[A-Za-z0-9,-]{22,256}$~', basename($file)))) { // not the archive, not an old backup, not a build in progress, and not a PHP session file (sess_<id>) anywhere below the save path: those hold live ids
 				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
 					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
 				} else {
@@ -4387,11 +4401,13 @@ EOT;
 	/**
 	 * Send the backup archive at $zipPath as a download and remove it, also when the transfer fails
 	 * The session is closed before the archive streams: the file session handler would otherwise hold the admin's other requests until the download ends
+	 * A shared lock is held on the archive for the whole send: removeStaleBackupArchives() in another request skips a locked archive, whatever its age
 	 * @param string $zipPath
 	 * @return void
 	 */
 	public function sendBackup(string $zipPath): void
 	{
+		$lock = null;
 		try {
 			if (function_exists('ignore_user_abort')) {
 				ignore_user_abort(true); // the admin who cancels the download must not stop the script before the finally below removes the archive
@@ -4409,6 +4425,10 @@ EOT;
 			if ($sender === '' || $handle === false) {
 				$this->alert('danger', $sender === '' ? 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).' : 'Cannot send the backup: the archive could not be opened.');
 				return;
+			}
+			$lock = $handle ?? (function_exists('fopen') ? @fopen($zipPath, 'rb') : null); // readfile() keeps no handle: one is opened for the lock only
+			if ($lock && function_exists('flock')) {
+				@flock($lock, LOCK_SH); // a filesystem without locking sends as before
 			}
 			if (function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
 				session_write_close(); // after the alerts above, which write $_SESSION; nothing below writes it
@@ -4429,11 +4449,16 @@ EOT;
 						echo $chunk;
 					}
 				}
-				if (function_exists('fclose')) {
-					fclose($handle);
-				}
 			}
 		} finally {
+			if ($lock) { // released before the archive is removed: the sweep's lock then means what it says
+				if (function_exists('flock')) {
+					@flock($lock, LOCK_UN);
+				}
+				if (function_exists('fclose')) {
+					fclose($lock);
+				}
+			}
 			if (function_exists('unlink')) {
 				@unlink($zipPath);
 			} elseif (function_exists('file_put_contents')) { // disabled on some hardened hosts: the archive is emptied instead (file_put_contents() is what every save needs), so the 0-byte file left under data/ holds nothing and the next backup's walk skips its name
