@@ -405,10 +405,18 @@ class Wcms
 			if (!$isLeftover || !is_file($file) || filemtime($file) >= time() - $maxAge) {
 				continue;
 			}
-			$lock = $canLock ? @fopen($file, 'rb') : null;
-			if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { // another request is sending it right now
-				fclose($lock);
-				continue;
+			$lock = $canLock ? (@fopen($file, 'r+b') ?: @fopen($file, 'rb')) : null; // read-write when it can be: NFSv4 (AWS EFS and the like) refuses an exclusive lock on a read-only handle, and a refusal must not read as "being sent"; nothing is written through it. Pinned by reading the kernel source only: no NFS in the test suite
+			if ($lock) {
+				$wouldBlock = 0;
+				if (!@flock($lock, LOCK_EX | LOCK_NB, $wouldBlock)) {
+					if (function_exists('fclose')) {
+						fclose($lock);
+					}
+					if ($wouldBlock === 1) { // another request is sending it right now (sendBackup() holds a shared lock)
+						continue;
+					}
+					$lock = null; // refused, not held (a read-only handle on NFSv4, ENOLCK, a filesystem without locking): the age rule decides, as where locking is unavailable
+				}
 			}
 			if (function_exists('unlink')) {
 				@unlink($file);

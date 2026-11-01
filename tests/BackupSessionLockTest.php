@@ -148,4 +148,68 @@ final class BackupSessionLockTest extends TestCase
 		curl_multi_remove_handle($multi, $get);
 		curl_multi_close($multi);
 	}
+
+	/**
+	 * sendBackup() holds a shared lock on the archive for the whole send: that lock is what keeps removeStaleBackupArchives()
+	 * in another request from removing or emptying an archive still being streamed. Pinned from outside the server: while the
+	 * download streams, this process cannot take an exclusive lock on the archive under data/ without waiting, and can take a
+	 * shared one; once the download ends the archive is gone. Without the sender's LOCK_SH the exclusive lock succeeds here.
+	 */
+	public function testTheSenderHoldsASharedLockOnTheArchiveWhileItStreams(): void
+	{
+		$cookie = $this->logIn();
+		$page = (string)curl_exec($this->handle('/', $cookie));
+		$this->assertStringContainsString('id="settingsModal"', $page, 'the session is the admin');
+		$this->assertSame(1, preg_match('~name="backup".*?name="token" value="([0-9a-f]+)"~s', $page, $token));
+		if (!is_dir($this->root . '/data/files')) {
+			mkdir($this->root . '/data/files', 0777, true);
+		}
+		file_put_contents($this->root . '/data/files/padding.bin', random_bytes(8 << 20)); // about 8 MB, 8 s at the rate below
+
+		$multi = curl_multi_init();
+		$download = $this->handle('/', $cookie, ['backup' => '', 'token' => $token[1]]);
+		$received = 0;
+		curl_setopt_array($download, [
+			CURLOPT_MAX_RECV_SPEED_LARGE => 1 << 20,
+			CURLOPT_WRITEFUNCTION => static function ($curl, string $data) use (&$received): int {
+				$received += strlen($data);
+				return strlen($data);
+			},
+		]);
+		curl_multi_add_handle($multi, $download);
+		$downloadDone = false;
+		$archive = null;
+		$exclusive = null;
+		$shared = null;
+		$until = microtime(true) + 30;
+		while (!$downloadDone && microtime(true) < $until) {
+			curl_multi_exec($multi, $running);
+			curl_multi_select($multi, 0.05);
+			while ($info = curl_multi_info_read($multi)) {
+				if ($info['handle'] === $download) {
+					$downloadDone = true;
+				}
+			}
+			if ($archive === null && $received > 0) { // the attachment is streaming: the sender's lock is held
+				$archives = glob($this->root . '/data/*-backup-*.zip') ?: [];
+				$this->assertCount(1, $archives, 'the archive being sent is under data/');
+				$archive = $archives[0];
+				$handle = fopen($archive, 'rb');
+				$exclusive = flock($handle, LOCK_EX | LOCK_NB, $wouldBlock);
+				$shared = flock($handle, LOCK_SH | LOCK_NB);
+				flock($handle, LOCK_UN);
+				fclose($handle);
+			}
+		}
+		$this->assertNotNull($archive, 'the download started streaming');
+		$this->assertFalse($exclusive, 'mid-stream, an exclusive lock on the archive is refused without waiting (the sender holds its shared lock)');
+		$this->assertSame(1, $wouldBlock, 'refused because it would block, which is what the sweep treats as "being sent"');
+		$this->assertTrue($shared, 'a shared lock is granted alongside the sender\'s');
+		$this->assertTrue($downloadDone, 'the download ended');
+		$this->assertStringContainsString('application/zip', (string)curl_getinfo($download, CURLINFO_CONTENT_TYPE), 'the backup is a download');
+		clearstatcache();
+		$this->assertFileDoesNotExist($archive, 'once sent, the archive is removed');
+		curl_multi_remove_handle($multi, $download);
+		curl_multi_close($multi);
+	}
 }
