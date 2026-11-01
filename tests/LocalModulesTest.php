@@ -220,14 +220,14 @@ final class LocalModulesTest extends TestCase
 
 	/**
 	 * Runs installUpdateModuleAction() for the theme $name with the module ZIP at $zipPath; returns the alerts it left.
-	 * redirect() throws as the real one exits, so a failure branch does not run on into the next one. $tempPath and
-	 * $deviceOf, when given, stand in for tempPath() and deviceOf().
+	 * redirect() throws as the real one exits, so a failure branch does not run on into the next one. $tempPath,
+	 * $deviceOf and $mountInfo, when given, stand in for tempPath(), deviceOf() and mountInfo().
 	 */
-	private function install(string $name, string $zipPath, ?callable $tempPath = null, ?callable $deviceOf = null): array
+	private function install(string $name, string $zipPath, ?callable $tempPath = null, ?callable $deviceOf = null, ?string $mountInfo = null): array
 	{
 		$wcms = $this->getMockBuilder(Wcms::class)
 			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
-			->onlyMethods(array_merge(['redirect', 'getSingleModuleCachedData'], $tempPath === null ? [] : ['tempPath'], $deviceOf === null ? [] : ['deviceOf']))
+			->onlyMethods(array_merge(['redirect', 'getSingleModuleCachedData'], $tempPath === null ? [] : ['tempPath'], $deviceOf === null ? [] : ['deviceOf'], $mountInfo === null ? [] : ['mountInfo']))
 			->getMock();
 		$wcms->method('getSingleModuleCachedData')->willReturn(['zip' => 'file://' . $zipPath]);
 		$wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
@@ -236,6 +236,9 @@ final class LocalModulesTest extends TestCase
 		}
 		if ($deviceOf !== null) {
 			$wcms->method('deviceOf')->willReturnCallback($deviceOf);
+		}
+		if ($mountInfo !== null) {
+			$wcms->method('mountInfo')->willReturn($mountInfo);
 		}
 		$wcms->loggedIn = true;
 		unset($_SESSION['alert']);
@@ -803,6 +806,130 @@ final class LocalModulesTest extends TestCase
 				$this->assertSame('newcss', file_get_contents($css . '/style.css'), $top);
 				$this->assertSame('newprint', file_get_contents($css . '/print.css'), $top);
 				$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $top);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no aside copy holding css/, no staging or extracted folder is left');
+			} finally {
+				foreach (glob($this->root . '/themes/foo*/css/locked') ?: [] as $folder) {
+					chmod($folder, 0755);
+				}
+				exec('rm -rf ' . escapeshellarg($this->root . '/themes') . '/foo*');
+			}
+		}
+	}
+
+	public function testAVolumeMountedOnTheModuleFolderItselfStaysWhereItIsAndTheUpdateMergesIntoIt(): void
+	{
+		// A volume mounted on the module folder itself (a Docker -v on themes/sky; on macOS the rename aside takes the mount along)
+		// went aside with its subfolders all on its own device: the folder is now compared with its parent too. deviceOf() puts
+		// themes/foo and everything in it on a device of its own; a stuck subfolder keeps the folder in place through the delete,
+		// as a mount point does. A read-only volume there is refused before anything moves, and the alert says so.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$module = $this->root . '/themes/foo';
+		$deviceOf = static function (string $path) use ($module): int {
+			return $path === $module || strpos($path, $module . '/') === 0 ? 2 : 1;
+		};
+		foreach (['foo/', 'foo-master/', 'read-only'] as $top) {
+			mkdir($module . '/css', 0777, true);
+			mkdir($module . '/locked');
+			file_put_contents($module . '/theme.php', 'old');
+			file_put_contents($module . '/css/style.css', 'oldcss');
+			file_put_contents($module . '/locked/keep.txt', 'cannot be removed');
+			chmod($module . '/locked', 0666);
+			try {
+				if (@file_get_contents($module . '/locked/keep.txt') !== false) {
+					$this->markTestSkipped('this user reads through a folder without search permission (root)');
+				}
+				if ($top === 'read-only') {
+					chmod($module . '/locked', 0755);
+					chmod($module . '/css', 0555);
+					$alerts = $this->install('foo', $this->moduleZip(['foo/theme.php' => 'new', 'foo/css/style.css' => 'newcss']), null, $deviceOf);
+					$this->assertStringStartsWith('Could not update themes/foo: it cannot be written. Nothing was changed.', $alerts['danger'][0]['message'] ?? '', json_encode($alerts));
+					$this->assertStringNotContainsString('aside', $alerts['danger'][0]['message'], 'nothing was moved, so nothing went aside');
+					$this->assertArrayNotHasKey('success', $alerts);
+					$this->assertSame('old', file_get_contents($module . '/theme.php'));
+					$this->assertSame('oldcss', file_get_contents($module . '/css/style.css'));
+					$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), 'no staging or extracted folder is left');
+					continue;
+				}
+				$inode = fileinode($module);
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss', $top . 'css/print.css' => 'newprint']), null, $deviceOf);
+				clearstatcache();
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $top . ' ' . json_encode($alerts));
+				$this->assertArrayNotHasKey('danger', $alerts, $top . ' nothing of the update was left out');
+				$this->assertSame($inode, fileinode($module), $top . ' themes/foo is the same folder, never moved aside');
+				$this->assertSame(['css', 'locked', 'theme.php'], array_values(array_diff(scandir($module), ['.', '..'])), $top);
+				$this->assertSame('new', file_get_contents($module . '/theme.php'), $top);
+				$this->assertSame('newcss', file_get_contents($module . '/css/style.css'), $top);
+				$this->assertSame('newprint', file_get_contents($module . '/css/print.css'), $top);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no aside copy, no staging or extracted folder is left');
+			} finally {
+				foreach (array_merge(glob($this->root . '/themes/foo*/locked') ?: [], glob($this->root . '/themes/foo*/css') ?: []) as $folder) {
+					chmod($folder, 0755);
+				}
+				exec('rm -rf ' . escapeshellarg($this->root . '/themes') . '/foo*');
+			}
+		}
+	}
+
+	public function testABindMountLinuxListsAtOrUnderTheModuleIsAMountAndTheUpdateMergesIntoIt(): void
+	{
+		// A bind mount from the site's own filesystem keeps the device, so the walk cannot see it; Linux lists it in
+		// /proc/self/mountinfo, whose field 5 is the mount point with a space, tab, newline or backslash written as an octal escape.
+		// mountInfo() stands in for that file.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$line = static function (string $point): string {
+			return '36 25 0:45 /srv/brand ' . strtr($point, ['\\' => '\134', ' ' => '\040', "\t" => '\011', "\n" => '\012']) . " rw,relatime shared:1 - ext4 /dev/sda1 rw\n";
+		};
+		$holdsMount = new ReflectionMethod(Wcms::class, 'holdsMount');
+		if (PHP_VERSION_ID < 80100) {
+			$holdsMount->setAccessible(true);
+		}
+		$module = $this->root . '/themes/foo';
+		$spaced = $this->root . '/my site\\040/themes/foo';
+		mkdir($module . '/css', 0777, true);
+		mkdir($spaced . '/css', 0777, true);
+		$cases = [
+			[$module, $line('/') . $line($module . '/css'), true, 'a mount point under the module'],
+			[$module, $line($module), true, 'a mount point on the module folder itself'],
+			[$module, $line('/') . $line('/proc') . $line($this->root . '/themes') . $line($this->root . '/themes/foobar') . $line($module . 'bar/css'), false, 'unrelated mount points'],
+			[$spaced, $line($spaced . '/css'), true, 'an escaped space, and a backslash before 040 that is not a space'],
+			[$this->root . '/my site /themes/foo', $line($spaced . '/css'), false, 'escapes decoded once, never twice'],
+		];
+		foreach ($cases as [$dir, $mountInfo, $expected, $what]) {
+			$wcms = $this->getMockBuilder(Wcms::class)
+				->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
+				->onlyMethods(['redirect', 'mountInfo'])
+				->getMock();
+			$wcms->method('mountInfo')->willReturn($mountInfo);
+			$this->assertSame($expected, $holdsMount->invoke($wcms, $dir), $what);
+		}
+		exec('rm -rf ' . escapeshellarg($this->root . '/my site\\040') . ' ' . escapeshellarg($module));
+
+		$css = $module . '/css';
+		foreach (['foo/', 'foo-master/'] as $top) {
+			mkdir($css . '/locked', 0777, true);
+			file_put_contents($module . '/theme.php', 'old');
+			file_put_contents($css . '/style.css', 'oldcss');
+			file_put_contents($css . '/locked/keep.txt', 'cannot be removed');
+			chmod($css . '/locked', 0666);
+			try {
+				if (@file_get_contents($css . '/locked/keep.txt') !== false) {
+					$this->markTestSkipped('this user reads through a folder without search permission (root)');
+				}
+				$inode = fileinode($css);
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss']), null, null, $line('/') . $line($css));
+				clearstatcache();
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $top . ' ' . json_encode($alerts));
+				$this->assertArrayNotHasKey('danger', $alerts, $top);
+				$this->assertSame($inode, fileinode($css), $top . ' css/ is the same folder, never moved aside');
+				$this->assertSame(['locked', 'style.css'], array_values(array_diff(scandir($css), ['.', '..'])), $top);
+				$this->assertSame('newcss', file_get_contents($css . '/style.css'), $top);
+				$this->assertSame('new', file_get_contents($module . '/theme.php'), $top);
 				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no aside copy holding css/, no staging or extracted folder is left');
 			} finally {
 				foreach (glob($this->root . '/themes/foo*/css/locked') ?: [] as $folder) {

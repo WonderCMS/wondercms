@@ -2241,11 +2241,11 @@ EOT;
 			// copy is removed where it can be. A remnant stays until a later update can clear it (loadPlugins() and the Plugins
 			// tab never pick it up, the Themes tab lists it only while its theme.php is left); the aside name is new for every
 			// request, so a remnant never blocks the rename aside. Where the installed folder cannot be moved (permissions, a
-			// locked or immutable folder, a mount point, a file in it held open on Windows) or no aside name can be made, the new
-			// copy is removed and the installed one is left exactly as it was. If the rename in fails, the aside copy is renamed
-			// back. A link is removed, not renamed. A folder with a volume mounted below it (themes/<name>/css) is not renamed aside,
-			// since the mount would go with it and be emptied there: it takes the cross-device path below, so the mount stays where it
-			// is and is filled with the new files.
+			// locked or immutable folder, a file in it held open on Windows) or no aside name can be made, the new copy is removed
+			// and the installed one is left exactly as it was. If the rename in fails, the aside copy is renamed back. A link is
+			// removed, not renamed. A folder with a volume mounted on it or below it (themes/<name>, themes/<name>/css, a bind mount
+			// included where Linux lists its mounts) is not renamed aside, since the mount would go with it and be emptied there: it
+			// takes the cross-device path below, so the mount stays where it is and is filled with the new files.
 			foreach (function_exists('glob') ? (glob(strtr($path, ['[' => '[[]', '*' => '[*]', '?' => '[?]']) . $folderName . '.old.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $remnant) { // only the names tempPath() makes; a [, * or ? in the site's path matches itself
 				$this->removeQuietly($remnant);
 			}
@@ -2265,7 +2265,7 @@ EOT;
 			if ($installed && !$aside && !($crossDevice && $this->canEmpty($path . $folderName))) {
 				$partial = $staging ?? $newFolder;
 				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
-				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed. Check that ' . $type . '/' . $folderName . ' is not locked or in use' . ($crossDevice ? ' and that the web server can delete everything in it' : '') . ', then try again.');
+				$this->alert('danger', ($mounted ? 'Could not update ' . $type . '/' . $folderName . ': it cannot be written' : 'Could not move the installed version aside') . '. Nothing was changed. Check that ' . $type . '/' . $folderName . ' is not locked or in use' . ($crossDevice ? ' and that the web server can delete everything in it' : '') . ', then try again.');
 				$this->redirect();
 			}
 			if (!$aside) {
@@ -2380,15 +2380,28 @@ EOT;
 	}
 
 	/**
-	 * Whether a folder under this one is on another device (a volume mounted inside a module); links are not followed.
+	 * Whether a volume is mounted on this folder or on a folder under it: a mount point Linux lists at or under it (a bind mount
+	 * from the same filesystem keeps the device), the folder on another device than its parent, or a folder under it on another
+	 * device than the folder; links are not followed.
 	 * @param string $dir
 	 * @param int|null $device the device of the folder the walk started in
 	 * @return bool
 	 */
 	private function holdsMount(string $dir, ?int $device = null): bool
 	{
-		if (($device = $device ?? $this->deviceOf($dir)) === null) {
-			return false; // stat() disabled: it cannot tell, so no mount, as before
+		if ($device === null) {
+			foreach (explode("\n", $this->mountInfo()) as $line) { // field 5 is the mount point; a space, tab, newline or backslash in it is an octal escape
+				$point = strtr(explode(' ', $line)[4] ?? '', ['\040' => ' ', '\011' => "\t", '\012' => "\n", '\134' => '\\']);
+				if ($point === $dir || strpos($point, $dir . '/') === 0) {
+					return true;
+				}
+			}
+			if (($device = $this->deviceOf($dir)) === null) {
+				return false; // stat() disabled: it cannot tell, so no mount, as before
+			}
+			if ($device !== ($this->deviceOf(dirname($dir)) ?? $device)) {
+				return true;
+			}
 		}
 		try {
 			foreach (new DirectoryIterator($dir) as $entry) {
@@ -2411,6 +2424,15 @@ EOT;
 	{
 		$stat = function_exists('stat') ? @stat($path) : false;
 		return $stat === false ? null : $stat['dev'];
+	}
+
+	/**
+	 * The mounts Linux lists for this process (/proc/self/mountinfo); '' where there is no such file or it cannot be read.
+	 * @return string
+	 */
+	protected function mountInfo(): string
+	{
+		return function_exists('is_readable') && @is_readable('/proc/self/mountinfo') ? (string) @file_get_contents('/proc/self/mountinfo') : '';
 	}
 
 	/**
