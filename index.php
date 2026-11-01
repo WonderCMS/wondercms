@@ -2234,7 +2234,7 @@ EOT;
 				: 'Could not extract the download. Nothing was installed.');
 			$this->redirect();
 		}
-		$aside = false;
+		$aside = $merged = false;
 		if ($newFolder !== null) {
 			// The whole archive is on disk: the installed folder is renamed aside to <name>.old.<8 hex>.tmp (a rename needs write
 			// on the parent only, so a subfolder that cannot be emptied moves with it), the new one is renamed in, and the aside
@@ -2254,16 +2254,26 @@ EOT;
 			} catch (Exception $e) { // random_bytes() with no source of randomness, or a plugin's error handler that throws on the warning
 			}
 			// A folder from a lower layer of an overlay filesystem (a Docker image's content) refuses a rename with EXDEV, yet it can be
-			// deleted and the new copy renamed in: only that refusal goes on, deleting first, and only when every part of the folder can
-			// be deleted, since a part that cannot would stop the delete halfway with no aside copy to go back to.
-			if ($installed && !$aside && (!preg_match('/cross-device link$/i', error_get_last()['message'] ?? '') || !$this->canEmpty($path . $folderName))) {
+			// deleted and the new copy renamed in: only that refusal goes on, deleting first, and only when every part of the folder looks
+			// deletable, since there is no aside copy to go back to. A part the check cannot foresee (a mount point, another user's file
+			// in a sticky folder, an immutable file) still stops the delete halfway; the new copy is then moved in over what is left,
+			// entry by entry, as 3.7.1's extract did, and what cannot be moved in is reported. The folder is never left half-deleted.
+			$crossDevice = $installed && !$aside && preg_match('/cross-device link$/i', error_get_last()['message'] ?? '') === 1;
+			if ($installed && !$aside && !($crossDevice && $this->canEmpty($path . $folderName))) {
 				$partial = $staging ?? $newFolder;
 				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
-				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed. Check that ' . $type . '/' . $folderName . ' is not locked or in use and that the web server can delete everything in it, then try again.');
+				$this->alert('danger', 'Could not move the installed version aside. Nothing was changed. Check that ' . $type . '/' . $folderName . ' is not locked or in use' . ($crossDevice ? ' and that the web server can delete everything in it' : '') . ', then try again.');
 				$this->redirect();
 			}
 			if (!$aside) {
-				function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+				function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : ($crossDevice ? $this->removeQuietly($path . $folderName) : $this->recursiveDelete($path . $folderName));
+				if ($crossDevice && is_dir($path . $folderName)) {
+					$merged = true;
+					if (!$this->mergeInto($newFolder, $path . $folderName)) {
+						$this->alert('danger', 'Some of the update could not be moved into ' . $type . '/' . $folderName . '; the rest is in place. Check that the web server can replace everything in it, then update again.');
+					}
+					$this->removeQuietly($newFolder);
+				}
 			}
 		}
 
@@ -2271,7 +2281,7 @@ EOT;
 		if ($newFolder === null && !is_dir($moduleFolder)) {
 			$moduleFolder = $path . $folderName . '-main';
 		}
-		if (($newFolder !== null || is_dir($moduleFolder)) && !rename($moduleFolder, $path . $folderName)) {
+		if (!$merged && ($newFolder !== null || is_dir($moduleFolder)) && !rename($moduleFolder, $path . $folderName)) {
 			if ($aside && @rename($old, $path . $folderName)) {
 				$partial = $staging ?? $newFolder;
 				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
@@ -2364,6 +2374,40 @@ EOT;
 			return false;
 		}
 		return is_writable($dir);
+	}
+
+	/**
+	 * Moves everything in one folder into another, without a warning: a file replaces what has its name, a folder merges into a
+	 * folder of its name. What cannot be moved stays behind. Links are moved, never followed.
+	 * @param string $from
+	 * @param string $to
+	 * @return bool whether everything was moved
+	 */
+	private function mergeInto(string $from, string $to): bool
+	{
+		$all = true;
+		try {
+			foreach (new DirectoryIterator($from) as $entry) {
+				if ($entry->isDot()) {
+					continue;
+				}
+				$source = $entry->getPathname();
+				$target = $to . '/' . $entry->getFilename();
+				$sourceDir = $entry->isDir() && !$entry->isLink();
+				$targetDir = is_dir($target) && !(function_exists('is_link') && is_link($target));
+				if ($sourceDir && $targetDir) {
+					$all = $this->mergeInto($source, $target) && $all;
+					continue;
+				}
+				if ($sourceDir || $targetDir) { // a folder over a file or a file over a folder: rename() replaces neither
+					$this->removeQuietly($target);
+				}
+				$all = @rename($source, $target) && $all;
+			}
+		} catch (UnexpectedValueException $e) { // a folder it may not read
+			return false;
+		}
+		return $all;
 	}
 
 	/**

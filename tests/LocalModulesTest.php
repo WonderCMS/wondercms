@@ -577,7 +577,7 @@ final class LocalModulesTest extends TestCase
 
 				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'js/app.js' => 'newjs']), $tempPath);
 
-				$this->assertSame('Could not move the installed version aside. Nothing was changed. Check that themes/foo is not locked or in use and that the web server can delete everything in it, then try again.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
+				$this->assertSame('Could not move the installed version aside. Nothing was changed. Check that themes/foo is not locked or in use, then try again.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
 				$this->assertArrayNotHasKey('success', $alerts, $case);
 				$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'nothing removed or merged in');
 				$this->assertSame(['style.css'], array_values(array_diff(scandir($this->root . '/themes/foo/css'), ['.', '..'])), $case);
@@ -642,6 +642,55 @@ final class LocalModulesTest extends TestCase
 				$this->assertSame(['locked', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'nothing removed or merged in');
 				$this->assertSame('old', file_get_contents($this->root . '/themes/foo/theme.php'), $case);
 				$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/themes/foo/locked'), ['.', '..'])), $case);
+				$this->assertSame('cannot be removed', file_get_contents($this->root . '/themes/foo/locked/keep.txt'), $case);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $case . 'no staging, extracted or aside folder is left');
+			} finally {
+				$this->removeLockedModule();
+			}
+		}
+	}
+
+	public function testAPartTheCrossDeviceDeleteCannotRemoveIsMergedOverNeverLeftHalfDeleted(): void
+	{
+		// A subfolder with write but no search permission (0666) passes the writability check, yet nothing in it can be
+		// unlinked, so the delete stops halfway (a mount point or another user's file in a sticky folder in a Docker image's
+		// module does the same): the rename in then met the folder and threw, with theme.php gone. The new copy is moved in over
+		// what is left, as 3.7.1's extract did; an entry it cannot place (one under the stuck folder) is reported.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		foreach ([['foo/', []], ['foo-master/', []], ['foo/', ['locked/new.txt' => 'cannot be placed']]] as [$top, $stuck]) {
+			$case = $top . ($stuck ? ' with an entry under the stuck folder: ' : ': ');
+			mkdir($this->root . '/themes/foo/locked', 0777, true);
+			mkdir($this->root . '/themes/foo/css');
+			file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+			file_put_contents($this->root . '/themes/foo/css/style.css', 'oldcss');
+			file_put_contents($this->root . '/themes/foo/locked/keep.txt', 'cannot be removed');
+			chmod($this->root . '/themes/foo/locked', 0666);
+			try {
+				if (@file_get_contents($this->root . '/themes/foo/locked/keep.txt') !== false) {
+					$this->markTestSkipped('this user reads through a folder without search permission (root)');
+				}
+				$files = [$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss', $top . 'js/app.js' => 'newjs'];
+				foreach ($stuck as $name => $content) {
+					$files[$top . $name] = $content;
+				}
+				$alerts = $this->install('foo', $this->moduleZip($files), static function (string $path): string {
+					return '/dev/' . basename($path) . '.tmp';
+				});
+				chmod($this->root . '/themes/foo/locked', 0755);
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $case . json_encode($alerts));
+				if ($stuck) {
+					$this->assertSame('Some of the update could not be moved into themes/foo; the rest is in place. Check that the web server can replace everything in it, then update again.', $alerts['danger'][0]['message'] ?? '', $case . json_encode($alerts));
+				} else {
+					$this->assertArrayNotHasKey('danger', $alerts, $case);
+				}
+				$this->assertSame(['css', 'js', 'locked', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'the new copy in place beside the part that stayed');
+				$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $case);
+				$this->assertSame('newcss', file_get_contents($this->root . '/themes/foo/css/style.css'), $case);
+				$this->assertSame('newjs', file_get_contents($this->root . '/themes/foo/js/app.js'), $case);
+				$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/themes/foo/locked'), ['.', '..'])), $case . 'the stuck folder as it was');
 				$this->assertSame('cannot be removed', file_get_contents($this->root . '/themes/foo/locked/keep.txt'), $case);
 				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $case . 'no staging, extracted or aside folder is left');
 			} finally {
