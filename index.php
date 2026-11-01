@@ -6,8 +6,13 @@
  * @license MIT
  */
 
-session_start();
-define('VERSION', '3.7.1');
+session_start([
+	'cookie_httponly' => true,
+	'cookie_samesite' => 'Lax',
+	'cookie_secure' => Wcms::isCurrentlyOnSSL(), // the class is declared below at the top level, so it is bound before this line runs (as new Wcms() below relies on)
+	'use_strict_mode' => true, // a session id the server never issued is replaced, not adopted
+]);
+define('VERSION', '3.7.2');
 mb_internal_encoding('UTF-8');
 
 if (defined('PHPUNIT_TESTING') === false) {
@@ -40,6 +45,12 @@ class Wcms
 	/** @var int MIN_PASSWORD_LENGTH minimum number of characters */
 	public const MIN_PASSWORD_LENGTH = 8;
 
+	/** Login attempts allowed per connecting address within LOGIN_THROTTLE_WINDOW seconds; the next one gets HTTP 429 */
+	private const LOGIN_THROTTLE_LIMIT = 10;
+	private const LOGIN_THROTTLE_WINDOW = 900;
+	/** Addresses kept in the attempts file, the most recent first: a spray from many addresses cannot grow it */
+	private const LOGIN_THROTTLE_MAX_ADDRESSES = 1000;
+
 	/** @var string WCMS_REPO - repo URL */
 	public const WCMS_REPO = 'https://raw.githubusercontent.com/WonderCMS/wondercms/main/';
 
@@ -69,6 +80,12 @@ class Wcms
 	/** @var bool $loggedIn - check if admin is logged in */
 	public $loggedIn = false;
 
+	/** @var bool $replacingPassword - set by changePasswordAction() for the one save that may replace the password hash */
+	private $replacingPassword = false;
+
+	/** @var array{excludeKey: ?string, againstPages: bool} $slugContext what createMenuItem() and updateMenuItem() give createUniqueSlug() for the one call they make (its public signature is 3.7.1 API and cannot carry it); private, so it adds no name a subclass could collide with */
+	private $slugContext = ['excludeKey' => null, 'againstPages' => false];
+
 	/** @var array $listeners for hooks */
 	public $listeners = [];
 
@@ -83,6 +100,9 @@ class Wcms
 
 	/** @var string $dbPath path to database.js */
 	protected $dbPath;
+
+	/** @var string $loginAttemptsPath recent failed logins per salted address hash, in data/logs/ */
+	protected $loginAttemptsPath;
 
 	/** @var string $filesPath path to uploaded files */
 	public $filesPath;
@@ -133,6 +153,7 @@ class Wcms
 		$this->filesPath = sprintf('%s/%s', $this->dataPath, $filesFolder);
 		$this->modulesCachePath = sprintf('%s/%s', $this->dataPath, 'cache.json');
 		$this->securityCachePath = sprintf('%s/%s', $this->dataPath, 'security.json');
+		$this->loginAttemptsPath = sprintf('%s/%s', $this->dataPath, 'logs/login-attempts.json');
 	}
 
 	/**
@@ -288,7 +309,7 @@ class Wcms
 					. '">'
 					. (!$alert['sticky'] ? '<button type="button" class="close" data-dismiss="alert" onclick="parentNode.remove();">&times;</button>' : '')
 					. $alert['message']
-					. $this->hideAlerts();
+					. ($this->loggedIn ? $this->hideAlerts() : '</div>'); // hideAlerts() closes the alert after its link; a visitor gets no link
 			}
 		}
 		$output .= '</div>';
@@ -356,13 +377,66 @@ class Wcms
 		if (!$this->loggedIn) {
 			return;
 		}
-		$backupList = glob($this->filesPath . '/*-backup-*.zip');
+		$backupList = array_filter(glob($this->filesPath . '/*-backup-*.zip') ?: [], [$this, 'isBackupArchiveName']);
 		if (!empty($backupList)) {
 			$this->alert('danger',
-				'Backup files detected. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete unnecessary backup files</b></a>');
+				'Old backup files detected. Backups now download to your computer and are no longer saved in the Files tab. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete the old backup files</b></a>');
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
+			$this->removeStaleBackupArchives();
 			$this->zipBackup();
+		}
+	}
+
+	/**
+	 * Remove archives a killed backup request left under data/ (a time limit or a fatal mid-stream skips the finally that
+	 * unlinks), and libzip's in-progress files a request killed during close() left under data/ (or, before 3.7.2, under
+	 * data/files). Only the exact backup names, and only older than a request can live: a fresh one is another request's
+	 * archive about to be sent, or still being written.
+	 * An archive that is being sent is never touched, whatever its age: sendBackup() holds a shared lock on it for the whole
+	 * send, and the sweep removes or empties a candidate only once it gets an exclusive lock without waiting.
+	 *
+	 * @return void
+	 */
+	public function removeStaleBackupArchives(): void
+	{
+		$maxAge = max(300, (int)ini_get('max_execution_time'));
+		$canLock = function_exists('flock') && function_exists('fopen'); // not fclose(): a handle PHP cannot close is released at request end, so a host that disables only fclose() keeps the lock protection
+		$candidates = array_merge(glob($this->dataPath . '/*-backup-*.zip*') ?: [], glob($this->filesPath . '/*-backup-*.zip.*') ?: []);
+		foreach ($candidates as $file) {
+			$isLeftover = $this->isBackupTempName($file) || (dirname($file) === $this->dataPath && $this->isBackupArchiveName($file)); // a finished archive in data/files is an old backup, the admin's to delete in Files
+			if (!$isLeftover || !is_file($file)) {
+				continue;
+			}
+			$age = function_exists('filemtime') ? (int)@filemtime($file) : (function_exists('stat') ? (int)(@stat($file)['mtime'] ?? 0) : null); // a host that disables filemtime(): stat() gives the same mtime; with both disabled no age can be read and nothing is removed or emptied (an archive another request is still building is not told apart from a leftover; a leftover staying is what 3.7.1 did, it never swept)
+			if ($age === null || $age >= time() - $maxAge) {
+				continue;
+			}
+			$lock = $canLock ? (@fopen($file, 'r+b') ?: @fopen($file, 'rb')) : null; // read-write when it can be: NFSv4 (AWS EFS and the like) refuses an exclusive lock on a read-only handle, and a refusal must not read as "being sent"; nothing is written through it. Pinned by reading the kernel source only: no NFS in the test suite
+			if ($lock) {
+				$wouldBlock = 0;
+				if (!@flock($lock, LOCK_EX | LOCK_NB, $wouldBlock)) {
+					if (function_exists('fclose')) {
+						fclose($lock);
+					}
+					if ($wouldBlock === 1) { // another request is sending it right now (sendBackup() holds a shared lock)
+						continue;
+					}
+					$lock = null; // refused, not held (a read-only handle on NFSv4, ENOLCK, a filesystem without locking): the age rule decides, as where locking is unavailable
+				}
+			}
+			if (function_exists('unlink')) {
+				@unlink($file);
+			} elseif (function_exists('file_put_contents') && ($this->fileSize($file) ?? 1) > 0 && ($lock || $age < time() - 86400)) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works); a size no function can read counts as not empty
+				// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode). With the lock held, nothing is reading it; without the lock (flock() or fopen() disabled, or the lock refused) the age is the only protection, so a leftover waits a day before it is emptied. An age is always known here: a candidate without one was skipped above.
+				@file_put_contents($file, '');
+			}
+			if ($lock) {
+				flock($lock, LOCK_UN);
+				if (function_exists('fclose')) {
+					fclose($lock);
+				}
+			}
 		}
 	}
 
@@ -436,7 +510,9 @@ class Wcms
 	{
 		$content = ['forceHttps' => $this->isHttpsForced()];
 		$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-		file_put_contents($this->securityCachePath, $json, LOCK_EX);
+		if (function_exists('file_put_contents')) { // a host that disables it cannot write any cache: url() then follows the request's own scheme instead of this fataling (3.7.1 fataled)
+			file_put_contents($this->securityCachePath, $json, LOCK_EX);
+		}
 	}
 
 	/**
@@ -460,6 +536,8 @@ class Wcms
 
 	/**
 	 * Change password
+	 * On success the changing session is logged out and the login page shows "Password changed. Log in again." once
+	 * Success is the new hash read back from database.js: a failed save keeps the admin logged in with the old password
 	 * @return void
 	 * @throws Exception
 	 */
@@ -488,10 +566,20 @@ class Wcms
 				$this->redirect();
 				return;
 			}
-			$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT));
-			$this->set('config', 'forceLogout', true);
+			$this->replacingPassword = true;
+			try {
+				$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT)); // a new hash, a new stamp: every session stamped with the old one is logged out at its next request
+			} finally {
+				$this->replacingPassword = false;
+			}
+			$onDisk = json_decode($this->lockedRead($this->dbPath));
+			$diskHash = $onDisk->{self::DB_CONFIG}->password ?? null;
+			if (!is_string($diskHash) || !password_verify($_POST['new_password'], $diskHash)) { // a failed save left the new hash in this request's copy only: save() queued its danger alert, the admin stays in
+				$this->redirect();
+				return;
+			}
+			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1); // before the logout: redirect() ends the request
 			$this->logoutAction(true);
-			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1);
 		}
 	}
 
@@ -655,7 +743,8 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// Without $createPage the entry links a page that already exists (createPage() writes the page first)
+		$slug = $this->createUniqueSlugWithContext($name, $menu, null, $createPage);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = !empty($menu) || $menu === '0' ? explode('-', $menu) : [];
@@ -676,6 +765,12 @@ class Wcms
 			}
 		}
 		$slugTree[] = $slug;
+
+		// Validate before saving either: a refused page must leave no menu entry behind
+		if ($createPage && $this->pageExistsAt($slugTree)) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
 
 		$menuCount = count(get_object_vars($menuSelectionObject));
 		while (isset($menuSelectionObject->{$menuCount})) {
@@ -713,7 +808,10 @@ class Wcms
 			return;
 		}
 		$name = empty($name) ? 'empty' : str_replace([PHP_EOL, '<br>'], '', $name);
-		$slug = $this->createUniqueSlug($name, $menu);
+		// The renamed item is checked against its siblings and the pages at its level, not its children, and is not its own sibling
+		$parentTree = explode('-', $menu);
+		$ownKey = array_pop($parentTree);
+		$slug = $this->createUniqueSlugWithContext($name, implode('-', $parentTree), $ownKey, true);
 
 		$menuItems = $menuSelectionObject = clone $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
 		$menuTree = explode('-', $menu);
@@ -738,6 +836,11 @@ class Wcms
 			$this->alert('danger', 'Page not found.');
 			return;
 		}
+		// An override of createUniqueSlug() may return the slug of a page at that level: moving the renamed page there would replace it
+		if ($slug !== $menuSelectionObject->{$menuKey}->slug && $this->pageExistsAt(array_merge($slugTree, [$slug]))) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
 
 		$slugTree[] = $menuSelectionObject->{$menuKey}->slug;
 		$menuSelectionObject->{$menuKey}->name = $name;
@@ -747,40 +850,103 @@ class Wcms
 		$this->set(self::DB_CONFIG, self::DB_MENU_ITEMS, $menuItems);
 
 		$this->updatePageSlug($slugTree, $slug);
-		if ($this->get(self::DB_CONFIG, 'defaultPage') === implode('/', $slugTree)) {
+		$oldPath = implode('/', $slugTree);
+		array_pop($slugTree);
+		$slugTree[] = $slug;
+		if ($this->get(self::DB_CONFIG, 'defaultPage') === $oldPath) {
 			// Change old slug with new one
-			array_pop($slugTree);
-			$slugTree[] = $slug;
 			$this->set(self::DB_CONFIG, 'defaultPage', implode('/', $slugTree));
 		}
+		$_SESSION['redirect_to_name'] = $name;
+		$_SESSION['redirect_to'] = implode('/', $slugTree);
 	}
 
 	/**
 	 * Check if slug already exists and creates unique one
 	 *
+	 * Unique among the menu items at that level, as in 3.7.1. The signature is public API (a plugin may override it),
+	 * so it stays as it was, and createMenuItem() and updateMenuItem() call it for every create and rename, as in 3.7.1,
+	 * so an override is applied there too. The context those two callers need (the renamed item's own key, the pages at
+	 * that level) cannot travel through this signature; they set $slugContext around the call instead. Called directly,
+	 * with no context set, it checks the menu items at that level only. An override that calls createUniqueSlug() again
+	 * while handling a create or rename sees that call's context too (it is cleared when the outer call returns).
+	 *
 	 * @param string $slug
-	 * @param string|null $menu
+	 * @param string|null $menu key tree of the parent item, empty for the top level
 	 * @return string
 	 */
 	public function createUniqueSlug(string $slug, ?string $menu = null): string
 	{
+		return $this->uniqueSlugAmong($slug, $menu, $this->slugContext['excludeKey'], $this->slugContext['againstPages']);
+	}
+
+	/**
+	 * Call createUniqueSlug() (so an override in a plugin subclass is consulted) with the context of a create or rename
+	 *
+	 * The previous context is put back whatever happens: a later direct call of createUniqueSlug() does not inherit this one,
+	 * and a create or rename that an override runs inside this call does not strip it from the outer call.
+	 *
+	 * @param string $slug
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
+	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
+	 * @return string
+	 */
+	private function createUniqueSlugWithContext(string $slug, ?string $menu, ?string $excludeKey, bool $againstPages): string
+	{
+		$previous = $this->slugContext;
+		$this->slugContext = ['excludeKey' => $excludeKey, 'againstPages' => $againstPages];
+		try {
+			return $this->createUniqueSlug($slug, $menu);
+		} finally {
+			$this->slugContext = $previous;
+		}
+	}
+
+	/**
+	 * Make a slug unique at one level of the menu, with the context of the item being created or renamed
+	 *
+	 * Protected rather than private so a test can stub it; it is not part of the plugin API.
+	 *
+	 * @param string $slug
+	 * @param string|null $menu key tree of the parent item, empty for the top level
+	 * @param string|null $excludeKey key of an item at that level that does not count (the item being renamed)
+	 * @param bool $againstPages also skip the slugs of existing pages at that level (a new or renamed page)
+	 * @return string
+	 */
+	protected function uniqueSlugAmong(string $slug, ?string $menu, ?string $excludeKey, bool $againstPages): string
+	{
 		$slug = $this->slugify($slug);
 		$allMenuItems = $this->get(self::DB_CONFIG, self::DB_MENU_ITEMS);
-		$menuCount = count(get_object_vars($allMenuItems));
+		$pages = $this->get(self::DB_PAGES_KEY);
 
-		// Check if it is subpage
-		$menuTree = $menu ? explode('-', $menu) : [];
+		// Check if it is subpage ('0', the first top-level item, is a parent too)
+		$menuTree = $menu !== null && $menu !== '' ? explode('-', $menu) : [];
 		if (count($menuTree)) {
 			foreach ($menuTree as $childMenuKey) {
-				$allMenuItems = $allMenuItems->{$childMenuKey}->subpages ?? [];
+				$parentItem = $allMenuItems->{$childMenuKey} ?? null;
+				$allMenuItems = $parentItem->subpages ?? [];
+				$pages = $pages->{$parentItem->slug ?? ''}->subpages ?? null;
 			}
 		}
 
-		foreach ($allMenuItems as $value) {
-			if ($value->slug === $slug) {
-				$slug .= '-' . $menuCount;
-				break;
-			}
+		// Recheck every candidate: a generated '-N' can itself be a sibling's slug
+		$siblings = (array)$allMenuItems;
+		$ownSlug = null;
+		if ($excludeKey !== null) {
+			$ownSlug = $siblings[$excludeKey]->slug ?? null;
+			unset($siblings[$excludeKey]);
+		}
+		$takenSlugs = array_column($siblings, 'slug');
+		if ($againstPages && is_object($pages)) {
+			// A page without a menu entry (the 404 page, for one) is taken too; the renamed item's own page is not
+			$pageSlugs = array_map('strval', array_keys(get_object_vars($pages)));
+			$takenSlugs = array_merge($takenSlugs, array_diff($pageSlugs, [(string)$ownSlug]));
+		}
+		$base = $slug;
+		$n = 2;
+		while (in_array($slug, $takenSlugs, true)) {
+			$slug = $base . '-' . $n++;
 		}
 
 		return $slug;
@@ -796,19 +962,7 @@ class Wcms
 	 */
 	public function createPage(?array $slugTree = null, bool $createMenuItem = false): void
 	{
-		$pageExists = false;
-		$pageData = null;
-		foreach ($slugTree as $parentPage) {
-			if (!$pageData) {
-				$pageData = $this->get(self::DB_PAGES_KEY)->{$parentPage} ?? null;
-				continue;
-			}
-
-			$pageData = $pageData->subpages->{$parentPage} ?? null;
-			$pageExists = !empty($pageData);
-		}
-
-		if ($pageExists) {
+		if ($this->pageExistsAt($slugTree ?? [])) {
 			$this->alert('danger', 'Cannot create page with existing slug.');
 			return;
 		}
@@ -858,6 +1012,28 @@ class Wcms
 		if ($createMenuItem) {
 			$this->createMenuItem($selectedPage->{$slug}->title, $menuKey);
 		}
+	}
+
+	/**
+	 * Check if a page exists at the full slug tree, a one-segment top-level tree included
+	 *
+	 * @param array $slugTree
+	 * @return bool
+	 */
+	private function pageExistsAt(array $slugTree): bool
+	{
+		if (empty($slugTree)) {
+			return false;
+		}
+		$pages = $this->get(self::DB_PAGES_KEY);
+		foreach ($slugTree as $slug) {
+			$page = is_object($pages) ? ($pages->{$slug} ?? null) : null;
+			if (!is_object($page)) {
+				return false;
+			}
+			$pages = $page->subpages ?? null;
+		}
+		return true;
 	}
 
 	/**
@@ -977,6 +1153,13 @@ class Wcms
 			}
 		}
 
+		if ($newSlugName === $slug) {
+			// A rename that keeps the slug: the unset below would delete the page
+			$selectedPage->{$slug}->modified = date('c');
+			$this->save();
+			return;
+		}
+
 		$selectedPage->{$newSlugName} = $selectedPage->{$slug};
 		$selectedPage->{$newSlugName}->modified = date('c');
 		unset($selectedPage->{$slug});
@@ -995,7 +1178,23 @@ class Wcms
 EOT;
 			return $this->hook('css', $styles)[0];
 		}
-		return $this->hook('css', '')[0];
+		// a visitor gets alerts too (the login page's "Wrong password."): only their rules, only on a page that shows one (alerts() prints what is queued, or already printed it), all under .alertWrapper so a theme's own .alert boxes are untouched.
+		// The admin stylesheet stays admin-only; !important beats a theme's own button rules. The hook keeps its argument ('' for a visitor, as before), so a listener that replaces it cannot drop these rules; its output follows them
+		if (!$this->printedAlerts && (empty($_SESSION['alert']) || isset($_POST['fieldname'], $_POST['content'], $_POST['target']))) {
+			return $this->hook('css', '')[0];
+		}
+		$styles = <<<'EOT'
+<style>
+.alertWrapper{position:fixed;top:0;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;font-size:14px;line-height:1.5}
+.alertWrapper .alert{position:relative;top:70px;margin-bottom:20px;padding:20px 30px;border:1px solid transparent;border-radius:5px;text-align:left}
+.alertWrapper .alert-danger{color:#a94442;background-color:#f2dede;border-color:#ebccd1}
+.alertWrapper .alert-success{color:#155724;background-color:#d4edda;border-color:#c3e6cb}
+.alertWrapper .alert-dismissible{padding-right:50px}
+.alertWrapper .alert .close{position:absolute;top:10px;right:14px;width:auto;height:auto;min-width:0;min-height:0;margin:0;padding:0 4px;background:none!important;border:0!important;border-radius:0;box-shadow:none;color:#000!important;opacity:.4;font:700 21px/1 Arial,sans-serif;letter-spacing:normal;text-transform:none;text-shadow:#fff 0 1px 0;-webkit-appearance:none;appearance:none;cursor:pointer}
+.alertWrapper .alert .close:after{display:none}
+</style>
+EOT;
+		return $styles . $this->hook('css', '')[0];
 	}
 
 	/**
@@ -1340,13 +1539,17 @@ EOT;
 	}
 
 	/**
-	 * Generate random password
+	 * Generate random password, each character drawn with random_int() (a CSPRNG, not str_shuffle's Mersenne Twister)
 	 * @return string
 	 */
 	public function generatePassword(): string
 	{
 		$characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-		return substr(str_shuffle($characters), 0, self::MIN_PASSWORD_LENGTH);
+		$password = '';
+		for ($i = 0; $i < self::MIN_PASSWORD_LENGTH; $i++) {
+			$password .= $characters[random_int(0, strlen($characters) - 1)];
+		}
+		return $password;
 	}
 
 	/**
@@ -1361,6 +1564,7 @@ EOT;
 
 	/**
 	 * Get something from database
+	 * Creates and saves a missing key: never call it for an optional key on an unauthenticated path
 	 */
 	public function get()
 	{
@@ -1967,6 +2171,8 @@ EOT;
 		}
 
 		// Basic zip-slip protection: reject any absolute paths or parent traversal.
+		// Also note the one top folder every entry sits under ('' once two differ or an entry sits at the root).
+		$top = null;
 		for ($i = 0; $i < $zip->numFiles; $i++) {
 			$name = $zip->getNameIndex($i);
 			if ($name === false) {
@@ -1982,17 +2188,45 @@ EOT;
 				$this->alert('danger', 'ZIP file contains invalid paths.');
 				$this->redirect();
 			}
+			$entryTop = (string)strstr($name, '/', true);
+			$top = $top === null || $top === $entryTop ? $entryTop : '';
 		}
 
-		// First delete old plugin/theme folder (a link is removed, never followed, as in deleteFileModuleAction())
-		function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+		// A GitHub archive (everything under <name>-master/ or <name>-main/) unpacks beside the installed folder, which goes only
+		// once the new one is complete. Any other ZIP (its top folder already <name>/) would merge into the live folder, so it
+		// keeps the old order: delete, extract, rename. A link is removed, never followed, as in deleteFileModuleAction().
+		$newFolder = in_array($top, [$folderName . '-master', $folderName . '-main'], true) ? $path . $top : null;
+		// A GitHub archive first clears its own folder, a leftover of an earlier attempt that was cut short; a folder under the
+		// other suffix is left alone, as before (uploaded by hand, it is a module in its own right). Any other ZIP clears the
+		// installed folder here, as before.
+		$stale = $newFolder ?? $path . $folderName;
+		function_exists('is_link') && is_link($stale) ? unlink($stale) : $this->recursiveDelete($stale);
 
-		// Then extract new one
-		$zip->extractTo($path);
+		$extracted = @$zip->extractTo($path);
+		// extractTo() returns true when a full disk cuts a write short (the file lands truncated), so every file is measured
+		// against the archive; where the host disables filesize() only the return value can be checked.
+		for ($i = 0; $newFolder !== null && $extracted && function_exists('filesize') && $i < $zip->numFiles; $i++) {
+			$stat = $zip->statIndex($i);
+			if ($stat !== false && substr($stat['name'], -1) !== '/') {
+				$extracted = @filesize($path . $stat['name']) === $stat['size'];
+			}
+		}
 		$zip->close();
 		$this->recursiveDelete($zipFile);
 
-		$moduleFolder = $path . $folderName . '-master';
+		if ($newFolder !== null && !$extracted) {
+			function_exists('is_link') && is_link($newFolder) ? unlink($newFolder) : $this->recursiveDelete($newFolder);
+			$this->alert('danger', $wasInstalled
+				? 'Could not extract the update. The installed version was left in place.'
+				: 'Could not extract the download. Nothing was installed.');
+			$this->redirect();
+		}
+		if ($newFolder !== null) {
+			// The whole archive is on disk: now the installed folder goes
+			function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
+		}
+
+		$moduleFolder = $newFolder ?? $path . $folderName . '-master'; // the folder this archive extracted to; any other ZIP is probed as before
 		if (!is_dir($moduleFolder)) {
 			$moduleFolder = $path . $folderName . '-main';
 		}
@@ -2396,11 +2630,25 @@ EOT;
 		}
 	
 		$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
-		$ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+		// The connection address only: Client-IP and X-Forwarded-For are whatever the client sends
+		$ip = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) !== false ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 		$timestamp = date('c');
-		$valid = password_verify($password, $this->get('config', 'password'));
+		$throttleKey = $this->loginThrottleKey();
+		$retryAfter = $throttleKey !== null ? $this->countLoginAttempt($throttleKey) : 0;
+		if ($retryAfter > 0) { // before password_verify: a refused attempt costs no bcrypt check
+			$this->headerResponse = 'HTTP/1.1 429 Too Many Requests';
+			$this->headerResponseDefault = false;
+			header('Retry-After: ' . $retryAfter);
+			$this->alert('danger', 'Too many attempts. Try again in a few minutes.');
+			return;
+		}
+		$hash = $this->passwordHash();
+		$valid = $hash !== '' && password_verify($password, $hash);
 	
 		if ($valid) {
+			if ($throttleKey !== null) {
+				$this->clearLoginAttempts($throttleKey);
+			}
 			session_regenerate_id(true);
 			unset($_SESSION['token']); // a token the visitor's session already carried (the alert hide script, the search form, a failed login) is not the admin's: mint a new one after login, before a login_success listener reads it
 			// Success hook before any redirects
@@ -2412,8 +2660,9 @@ EOT;
 	
 			$_SESSION['loggedIn'] = true;
 			$_SESSION['rootDir'] = $this->rootDir;
-			$this->set('config', 'forceLogout', false);
-			$this->saveAdminLoginIP();
+			$_SESSION['authStamp'] = $this->authStamp($hash); // the hash that was verified, never a re-read one: a password change during the login leaves this session out
+			$this->saveAdminLoginIP($ip);
+			$this->removeInstallPasswordParagraph();
 			$this->redirect();
 		} else {
 			// Failure hook before showing error
@@ -2431,13 +2680,8 @@ EOT;
 	/**
 	 * Save admins last 5 IPs
 	 */
-	private function saveAdminLoginIP(): void
+	private function saveAdminLoginIP(string $getAdminIP): void
 	{
-		$getAdminIP = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
-		if ($getAdminIP === null) {
-			return;
-		}
-
 		if (!$savedIPs = $this->get('config', 'lastLogins')) {
 			$this->set('config', 'lastLogins', []);
 			$savedIPs = [];
@@ -2449,14 +2693,252 @@ EOT;
 	}
 
 	/**
-	 * Check if admin is logged in
+	 * The key a login attempt is counted under: REMOTE_ADDR only (Client-IP and X-Forwarded-For are the client's to
+	 * choose), an IPv6 address by its /64 (one client holds a whole /64), an IPv4-mapped IPv6 address as the IPv4 one
+	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same), and so is a NAT64
+	 * well-known-prefix address 64:ff9b::/96 (an IPv6-only server behind a translator sees every IPv4 client in that
+	 * one /64). The file stores an HMAC of
+	 * that, never the address: its salt comes from this install's folder and password hash, neither readable from the
+	 * public side, so the file alone (public on a site whose .htaccess predates 3.7.0) identifies nobody; a password
+	 * change starts the counts afresh. No valid address and a local, private or shared-space one (isLocalOrSharedAddress)
+	 * give null and no throttle: such an address at PHP means a proxy, a container network or a local health check in
+	 * front, which is every visitor at once, and one key for every request would let any visitor lock the owner out; a
+	 * public address is the connection's own client
+	 * @return string|null
+	 */
+	private function loginThrottleKey(): ?string
+	{
+		$address = $_SERVER['REMOTE_ADDR'] ?? null;
+		if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false || ($packed = inet_pton($address)) === false) {
+			return null;
+		}
+		if (strlen($packed) === 16 && (strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0
+				|| strncmp($packed, "\x00\x64\xff\x9b" . str_repeat("\0", 8), 12) === 0)) {
+			$packed = substr($packed, 12);
+		}
+		if ($this->isLocalOrSharedAddress($packed)) {
+			return null;
+		}
+		$salt = hash('sha256', $this->rootDir . "\0" . $this->passwordHash(), true);
+		return hash_hmac('sha256', strlen($packed) === 4 ? $packed : substr($packed, 0, 8), $salt);
+	}
+
+	/**
+	 * A local, private or shared-space address at PHP means a proxy or container network in front, which is every
+	 * visitor at once; the list is written out (not PHP's private/reserved filter flags) so every PHP version agrees
+	 * @param string $ip the packed address, 4 or 16 bytes (inet_pton)
+	 * @return bool
+	 */
+	private function isLocalOrSharedAddress(string $ip): bool
+	{
+		$ranges = strlen($ip) === 4
+			? ['0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.0.0.0/24', '192.168.0.0/16', '198.18.0.0/15', '240.0.0.0/4']
+			: ['::/128', '::1/128', 'fc00::/7', 'fe80::/10'];
+		foreach ($ranges as $range) {
+			[$prefix, $bits] = explode('/', $range);
+			$prefix = inet_pton($prefix);
+			$bytes = intdiv((int)$bits, 8);
+			$mask = (0xff << (8 - (int)$bits % 8)) & 0xff;
+			if (strncmp($ip, $prefix, $bytes) === 0 && ($mask === 0 || (ord($ip[$bytes]) & $mask) === ord($prefix[$bytes]))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Count a login attempt for an address before its password is checked, so parallel requests cannot all pass
+	 * @param string $key
+	 * @return int 0 when counted, or when the counts file could not be written (nothing counted, nothing enforced); else
+	 * the address already has LOGIN_THROTTLE_LIMIT attempts in the window, nothing is counted and the seconds until its
+	 * oldest attempt leaves the window come back
+	 */
+	private function countLoginAttempt(string $key): int
+	{
+		return $this->changeLoginAttempts(static function (array &$attempts, int $now) use ($key): int {
+			$times = $attempts[$key] ?? [];
+			if (count($times) >= self::LOGIN_THROTTLE_LIMIT) {
+				return max(1, min($times) + self::LOGIN_THROTTLE_WINDOW - $now);
+			}
+			$times[] = $now;
+			$attempts[$key] = $times;
+			return 0;
+		});
+	}
+
+	/**
+	 * A successful login clears its address
+	 * @param string $key
+	 * @return void
+	 */
+	private function clearLoginAttempts(string $key): void
+	{
+		$this->changeLoginAttempts(static function (array &$attempts) use ($key): int {
+			unset($attempts[$key]);
+			return 0;
+		});
+	}
+
+	/**
+	 * Read, prune, change and write the attempts file under an exclusive lock on a lock file next to it (writeFile()
+	 * renames a new file into place, so the file itself cannot hold the lock). Attempts older than the window are
+	 * dropped on every change and at most LOGIN_THROTTLE_MAX_ADDRESSES addresses are kept. A host without flock or
+	 * fopen changes it unlocked; a data/logs folder or file that cannot be written throttles nothing (it never locks the
+	 * owner out): a count is enforced only when the counts were written, so a throttled request rewrites the file too
+	 * (the same small JSON a counted failure writes) and a refusal is backed by a write that succeeded. Never
+	 * database.js: a visitor's failed login writes nothing there
+	 * @param callable $change gets the attempts by reference and the time, returns the caller's result
+	 * @return int the caller's result, or 0 when it was above 0 or changed the counts and the file could not be written
+	 */
+	private function changeLoginAttempts(callable $change): int
+	{
+		$folder = dirname($this->loginAttemptsPath);
+		if (!function_exists('file_put_contents') || (!is_dir($folder) && !@mkdir($folder, 0755) && !is_dir($folder))) {
+			return 0; // no writer (writeFile() needs file_put_contents in every path) or no logs folder: throttle nothing, never fatal, like an unwritable logs folder
+		}
+		$lock = function_exists('flock') && function_exists('fopen') && function_exists('fclose')
+			? @fopen($this->loginAttemptsPath . '.lock', 'c')
+			: false;
+		if ($lock !== false) {
+			flock($lock, LOCK_EX);
+		}
+		$now = time();
+		$stored = is_file($this->loginAttemptsPath) ? json_decode($this->lockedRead($this->loginAttemptsPath), true) : [];
+		$attempts = [];
+		foreach (is_array($stored) ? $stored : [] as $address => $times) {
+			$times = array_values(array_filter(is_array($times) ? $times : [], static function ($time) use ($now): bool {
+				return is_int($time) && $time > $now - self::LOGIN_THROTTLE_WINDOW && $time <= $now;
+			}));
+			if ($times) {
+				$attempts[(string)$address] = array_slice($times, -self::LOGIN_THROTTLE_LIMIT);
+			}
+		}
+		$result = $change($attempts, $now);
+		uasort($attempts, static function (array $a, array $b): int {
+			return max($b) <=> max($a);
+		});
+		$attempts = array_slice($attempts, 0, self::LOGIN_THROTTLE_MAX_ADDRESSES, true);
+		$json = json_encode($attempts);
+		if ($json !== false && ($stored !== $attempts || $result > 0) && !$this->writeFile($this->loginAttemptsPath, $json)) {
+			$result = 0; // the counts cannot be kept (a folder or file made read-only, a full disk): throttle nothing, as promised above; never locks the owner out
+		}
+		if ($lock !== false) {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+		}
+		return $result;
+	}
+
+	/**
+	 * Remove the password paragraph createDb() writes into the public home page, at the admin's first login (and at the
+	 * next login of a site installed before this check existed). The page is the one defaultPage names (renaming Home in
+	 * the menu moves the page and repoints defaultPage) and 'home' while it exists. Only the untouched paragraph matches:
+	 * a page whose paragraph was edited by hand is not written.
+	 * Success is the page read back from database.js without the paragraph: a failed save (a read-only data folder, a full
+	 * disk) leaves the file as it was, so the admin is told the password is still shown and the next login tries again.
+	 * @return void
+	 * @throws Exception
+	 */
+	private function removeInstallPasswordParagraph(): void
+	{
+		$changed = [];
+		foreach (array_unique([(string)$this->get('config', 'defaultPage'), 'home']) as $slugTree) {
+			$page = $this->findPage($this->get(self::DB_PAGES_KEY), $slugTree);
+			if (!isset($page->content) || !is_string($page->content)) {
+				continue;
+			}
+			$content = $this->withoutInstallPassword($page->content);
+			if ($content !== null) {
+				$page->content = $content;
+				$changed[] = $slugTree;
+			}
+		}
+		if ($changed === []) {
+			return;
+		}
+		$this->save();
+		$onDisk = json_decode($this->lockedRead($this->dbPath));
+		$pages = is_object($onDisk) && isset($onDisk->{self::DB_PAGES_KEY}) && is_object($onDisk->{self::DB_PAGES_KEY}) ? $onDisk->{self::DB_PAGES_KEY} : null;
+		foreach ($changed as $slugTree) {
+			$page = $this->findPage($pages, $slugTree);
+			if (!isset($page->content) || !is_string($page->content) || $this->withoutInstallPassword($page->content) !== null) {
+				$this->alert('danger', 'Your password is still shown on the public home page: the data folder could not be written. Fix its permissions, then log in again.');
+				return;
+			}
+		}
+		$this->alert('info',
+			'Your password was shown on the public home page until now; that line is removed. Please change it in <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#security"><b>Settings, Security</b></a>.');
+	}
+
+	/**
+	 * The page object a slug tree ('home', 'about/team') names, walked with ??, not get(): get() would create a missing page
+	 * @param object|null $pages
+	 * @param string $slugTree
+	 * @return object|null
+	 */
+	private function findPage(?object $pages, string $slugTree): ?object
+	{
+		$page = $pages;
+		foreach (explode('/', $slugTree) as $depth => $slug) {
+			$page = $depth === 0 ? $page->{$slug} ?? null : $page->{self::DB_PAGES_SUBPAGE_KEY}->{$slug} ?? null;
+		}
+		return is_object($page) ? $page : null;
+	}
+
+	/**
+	 * The content without any copy of the install password paragraph, or null when it carries none
+	 * Before 3.2.0 the password sat in an <h4> that was also the login link (with a stray </a>); it goes too, and no link
+	 * is written in its place: the admin is logged in at that moment, and the login URL is in Settings, Security.
+	 * @param string $content
+	 * @return string|null
+	 */
+	private function withoutInstallPassword(string $content): ?string
+	{
+		$content = preg_replace([
+			'~<p>Your password for editing everything is: <b>[^<]*</b></p>(?:\r?\n){0,2}~',
+			'~<h4><a href="[^"]*">[^<]*</a> Your password is: <b>[^<]*</b></a></h4>(?:\r?\n){0,2}~',
+		], '', $content, -1, $count);
+		return $content !== null && $count > 0 ? $content : null;
+	}
+
+	/**
+	 * Check if admin is logged in: the session must belong to this install and carry the stamp of the password hash on
+	 * disk, so a password change (or a hash edited by hand in database.js) logs out every session from before it.
+	 * A session from 3.7.1 or older has no stamp and logs in once more. config.forceLogout is no longer read.
+	 * A session ended here is told so once, on the page it lands on (the next request is no longer this install's).
 	 * @return void
 	 */
 	public function loginStatus(): void
 	{
-		$this->loggedIn = $this->get('config', 'forceLogout')
-			? false
-			: isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$thisInstall = isset($_SESSION['loggedIn'], $_SESSION['rootDir']) && $_SESSION['rootDir'] === $this->rootDir;
+		$expected = $this->authStamp($this->passwordHash());
+		$given = $_SESSION['authStamp'] ?? null;
+		$this->loggedIn = $thisInstall && $expected !== '' && is_string($given) && hash_equals($expected, $given);
+		if ($thisInstall && !$this->loggedIn) {
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']); // emptied, so nothing reading $_SESSION directly (a hand-uploaded plugin) sees it as an admin session
+			$this->alert('danger', 'You were logged out: the password changed or WonderCMS was updated. Please log in again.', 1); // danger: the visitor alert CSS styles only danger and success
+		}
+	}
+
+	/**
+	 * The password hash on disk, read without get(): get() would create and save a missing key on a visitor's request
+	 * @return string empty when the key is missing or not a string (a hand-edited database)
+	 */
+	private function passwordHash(): string
+	{
+		$config = $this->db->{self::DB_CONFIG} ?? null;
+		$hash = is_object($config) ? ($config->password ?? null) : null;
+		return is_string($hash) ? $hash : '';
+	}
+
+	/**
+	 * What a login session carries instead of the hash itself; unique per install through the bcrypt salt
+	 * @param string $hash
+	 * @return string empty for an empty hash, which no session matches
+	 */
+	private function authStamp(string $hash): string
+	{
+		return $hash === '' ? '' : hash_hmac('sha256', 'wcms-session-v1', $hash);
 	}
 
 	/**
@@ -2486,7 +2968,7 @@ EOT;
 
 	/**
 	 * Logout action
-	 * @param bool $forceLogout
+	 * @param bool $forceLogout a logout the code decided (a password change): the queued alerts stay for the login page
 	 * @return void
 	 */
 	public function logoutAction(bool $forceLogout = false): void
@@ -2498,7 +2980,10 @@ EOT;
 			$to = isset($_GET['to']) && is_string($_GET['to']) && $_GET['to'] !== '' && !$this->isLogoutToLoginScreenEnabled()
 				? $_GET['to']
 				: $this->get('config', 'login');
-			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['token'], $_SESSION['alert']);
+			unset($_SESSION['loggedIn'], $_SESSION['rootDir'], $_SESSION['authStamp'], $_SESSION['token']);
+			if (!$forceLogout) { // the admin's own logout click drops what was queued, as before
+				unset($_SESSION['alert']);
+			}
 			$this->redirect($to);
 		}
 	}
@@ -2815,6 +3300,24 @@ EOT;
 	}
 
 	/**
+	 * Size of a file, read with filesize() or, where the host disables it, stat(); null when neither can read it
+	 * @param string $file
+	 * @return int|null
+	 */
+	private function fileSize(string $file): ?int
+	{
+		if (function_exists('filesize')) {
+			$size = @filesize($file);
+		} elseif (function_exists('stat')) {
+			$stat = @stat($file);
+			$size = $stat === false ? false : $stat['size'];
+		} else {
+			$size = false;
+		}
+		return $size === false ? null : $size;
+	}
+
+	/**
 	 * Recursive delete - used for deleting files, themes, plugins
 	 *
 	 * @param string $file
@@ -2881,9 +3384,50 @@ EOT;
 			);
 			return;
 		}
-		if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
-			$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+		$lock = $path === $this->dbPath ? $this->lockDatabase() : null; // the password change saves through here too, so it waits for the same lock
+		try {
+			if ($path === $this->dbPath && !$this->replacingPassword) {
+				// Every save writes the whole snapshot this request read; one read before a password change (a login spends ~100 ms
+				// in bcrypt) would write the old hash back and revive every session stamped with it. Only changePasswordAction() replaces it.
+				$onDisk = json_decode($this->lockedRead($path));
+				$diskHash = is_object($onDisk) && isset($onDisk->{self::DB_CONFIG}) && is_object($onDisk->{self::DB_CONFIG}) ? ($onDisk->{self::DB_CONFIG}->password ?? null) : null;
+				$config = $content->{self::DB_CONFIG} ?? null;
+				if (is_string($diskHash) && $diskHash !== '' && is_object($config) && ($config->password ?? null) !== $diskHash) { // no readable hash on disk (the first install, a vanished file): saved as it is
+					$config->password = $diskHash; // $content is $this->db: the request's own copy is corrected too
+					$json = json_encode($content, JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+				}
+			}
+			if (!$this->writeFile($path, $json) && $this->loggedIn) { // a full disk: the file on disk is untouched (3.6.0 truncated it first and wrote what fitted); a visitor whose page view saved (an old database upgraded on read) is not told
+				$this->alert('danger', 'Could not write ' . htmlspecialchars(basename($path)) . '. Check the free disk space and the permissions of the data folder; nothing was changed.');
+			}
+		} finally {
+			if ($lock !== null) {
+				flock($lock, LOCK_UN);
+				fclose($lock);
+			}
 		}
+	}
+
+	/**
+	 * An exclusive lock on database.js.lock (denied over HTTP by the database\.js rule in .htaccess), held by save() from the
+	 * re-read of the password hash on disk until the new file is renamed into place: without it a save from a snapshot read
+	 * before a password change could re-read the old hash, the change rename its file, and this save rename the old hash back
+	 * @return resource|null null where flock() or fopen() is disabled or the lock file cannot be opened: the save goes ahead unlocked
+	 */
+	private function lockDatabase()
+	{
+		if (!function_exists('flock') || !function_exists('fopen') || !function_exists('fclose')) {
+			return null;
+		}
+		$handle = @fopen($this->dbPath . '.lock', 'c'); // created empty, never truncated or written
+		if ($handle === false) {
+			return null;
+		}
+		if (!flock($handle, LOCK_EX)) { // a filesystem without locking saves as before
+			fclose($handle);
+			return null;
+		}
+		return $handle;
 	}
 
 	/**
@@ -2910,8 +3454,6 @@ EOT;
 				$_POST['content'], $_POST['target'], $_POST['menu'] ?? null, ($_POST['visibility'] ?? 'hide'));
 			if ($target === 'menuItemUpdate' && $menu !== null) {
 				$this->updateMenuItem($content, $menu, $visibility);
-				$_SESSION['redirect_to_name'] = $content;
-				$_SESSION['redirect_to'] = $this->slugify($content);
 			}
 			if ($target === 'menuItemCreate' && $menu !== null) {
 				$this->createMenuItem($content, $menu, $visibility, true);
@@ -3096,10 +3638,15 @@ EOT;
 							 <p class="subTitle marginTop20">Delete files</p>
 							 <div class="change">';
 		foreach ($fileList as $file) {
+			if ($this->isBackupTempName($file)) {
+				continue; // an unfinished backup a killed request left (before 3.7.2): never offered as a file, removed by the next backup once stale
+			}
+			$fileLink = '<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>'
+				. ($this->isBackupArchiveName($file) ? ' (old backup: download it if you need it, then delete it)' : ''); // made before 3.7.2: a sent archive is now deleted, emptied where unlink is disabled, or kept under data/ where file_put_contents is disabled too; the owner keeps the link
 			$output .= '
 									<a href="' . self::url($this->getCurrentPagePath() . '?deleteModule=' . rawurlencode($file) . '&type=files&token=' . $this->getToken()) . '" class="wbtn wbtn-sm wbtn-danger" data-confirm="Delete ' . htmlspecialchars($file, ENT_QUOTES) . '?" onclick="return confirm(this.dataset.confirm)" title="Delete file"><i class="deleteIcon"></i></a>
 									<span class="marginLeft5">
-										<a href="' . self::url('data/files/') . rawurlencode($file) . '" class="normalFont" target="_blank" rel="noopener" title="' . self::url('data/files/') . htmlspecialchars($file, ENT_QUOTES) . '"><b class="fontSize21">' . htmlspecialchars($file, ENT_QUOTES) . '</b></a>
+										' . $fileLink . '
 									</span>
 									<p></p>';
 		}
@@ -3141,7 +3688,7 @@ EOT;
 									<button type="submit" class="wbtn wbtn-block wbtn-info" name="backup"><i class="installIcon"></i> Backup website</button><input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#backup-and-restore" target="_blank"><i class="linkIcon"></i> How to restore backup</a></p>
 							 
 							 <p class="subTitle">Save confirmation popup</p>
 							 <p class="change small">If this is turned "ON", WonderCMS will always ask you to confirm any changes you make.</p>
@@ -3190,7 +3737,7 @@ EOT;
 									<input type="hidden" name="token" value="' . $this->getToken() . '">
 								</form>
 							 </div>
-							 <p class="text-right marginTop5"><a href="https://www.wondercms.com/docs/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
+							 <p class="text-right marginTop5"><a href="https://docs.wondercms.com/#security-settings" target="_blank"><i class="linkIcon"></i> Read more before enabling</a></p>';
 		$output .= $this->renderAdminLoginIPs();
 		$output .= '
 				 		 </div>
@@ -3201,7 +3748,7 @@ EOT;
 							<a href="https://wondercms.com" target="_blank">WonderCMS ' . VERSION . '</a> &nbsp;
 							<b><a href="https://wondercms.com/news" target="_blank">News</a> &nbsp;
 							<a href="https://wondercms.com/community" target="_blank">Community</a> &nbsp;
-							<a href="https://wondercms.com/docs" target="_blank">Docs</a> &nbsp;
+							<a href="https://docs.wondercms.com/" target="_blank">Docs</a> &nbsp;
 							<a href="https://wondercms.com/donate" target="_blank">Donate</a> &nbsp;
 							<a href="https://swag.wondercms.com" target="_blank">Shop/Merch</a></b>
 						</p>
@@ -3517,7 +4064,7 @@ EOT;
 						</div>
 						<input type="hidden" name="token" value="' . $this->getToken() . '" /><input type="hidden" name="pluginThemeType" value="' . $type . '" /><input type="hidden" name="password_recheck" />
 					</form>
-					<p class="text-right"><a href="https://www.wondercms.com/docs/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
+					<p class="text-right"><a href="https://docs.wondercms.com/#custom-modules" target="_blank"><i class="linkIcon"></i> Read more about custom modules</a></p>
 				</div>';
 		return $output;
 	}
@@ -3618,6 +4165,9 @@ EOT;
 	 */
 	private function writeFile(string $path, string $contents): bool
 	{
+		if (!function_exists('file_put_contents')) {
+			return false; // every path below ends in file_put_contents(): a host that disables it gets a clean false (save() tells the admin "Could not write"), never a fatal in a login or an admin page
+		}
 		foreach (['is_writable', 'is_link', 'stat', 'fileowner', 'filegroup', 'fileperms', 'chmod', 'rename', 'unlink'] as $function) {
 			if (!function_exists($function)) { // a host that disables one of these (disable_functions): write in place as 3.6.0 did
 				return @file_put_contents($path, $contents, LOCK_EX) === strlen($contents);
@@ -3856,37 +4406,185 @@ EOT;
 	}
 
 	/**
-	 * Create a ZIP backup of whole WonderCMS installation (all files)
+	 * Create a ZIP backup of whole WonderCMS installation (all files) and send it to the admin as a download.
+	 * Nothing is kept on the server: before 3.7.2 the archive stayed in data/files under a public URL.
+	 * The session is closed before the walk: where session.save_path is inside the site, reading this request's own locked session file waited until the time limit.
 	 *
 	 * @return void
 	 */
 	public function zipBackup(): void
 	{
+		if ($this->backupSender() === '') {
+			$this->alert('danger', 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).');
+			return;
+		}
+		if (function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
+			session_write_close(); // an alert queued below is still printed by this request from $_SESSION in memory
+		}
 		try {
-			$randomNumber = random_bytes(8);
+			$zipPath = $this->createBackupArchive();
 		} catch (Exception $e) {
-			$randomNumber = microtime(false);
-		}
-		$zipName = date('Y-m-d') . '-backup-' . bin2hex($randomNumber) . '.zip';
-		$zipPath = $this->rootDir . '/data/files/' . $zipName;
-		$zip = new ZipArchive();
-		if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
 			$this->alert('danger', 'Cannot create ZIP archive.');
+			return;
 		}
+		$this->sendBackup($zipPath);
+	}
+
+	/**
+	 * Is $name a backup archive (data/files/<date>-backup-<hex>.zip before 3.7.2, data/<date>-backup-<hex>.zip while one is sent)
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isBackupArchiveName(string $name): bool
+	{
+		// The exact shape every backup has had since 3.1.0 (16, 42 or 32 hex): an admin's own holiday-backup-2024.zip is an upload
+		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip$~i', $name); // a bare name or a path, with either separator
+	}
+
+	/**
+	 * Is $name the file libzip writes a backup archive into during close(): <backup name>.XXXXXX.part (libzip 1.10+),
+	 * <backup name>.XXXXXX (older) or <backup name>.<8 hex> (Windows). It is renamed to the backup name when complete;
+	 * a killed request leaves it behind as a partial copy of the site
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isBackupTempName(string $name): bool
+	{
+		return (bool)preg_match('~(^|[/\\\\])\d{4}-\d{2}-\d{2}-backup-[0-9a-f]{16,}\.zip\.[A-Za-z0-9]{6,8}(\.part)?$~iD', $name);
+	}
+
+	/**
+	 * Build the backup archive under data/ and return its path; the caller sends and removes it
+	 * Every PHP session file (sess_<id>) anywhere below the session save path is left out, its folder entries kept: they hold live session ids
+	 * @return string
+	 * @throws Exception
+	 */
+	public function createBackupArchive(): string
+	{
+		$zipPath = $this->dataPath . '/' . date('Y-m-d') . '-backup-' . bin2hex(random_bytes(16)) . '.zip';
+		$zip = new ZipArchive();
+		if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::EXCL) !== true) {
+			throw new Exception('Cannot create ZIP archive.');
+		}
+		$source = realpath($this->rootDir);
+		$filesPath = realpath($this->filesPath);
+		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
+		$sessionDir = $savePath !== '' ? @realpath(substr(strrchr(';' . $savePath, ';'), 1)) : (function_exists('sys_get_temp_dir') ? @realpath(sys_get_temp_dir()) : false); // "N;/path" and "N;MODE;/path": the folder is after the last ';'; an empty save path means PHP's files handler writes to the system temp dir; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
+		$sessionPrefix = $sessionDir !== false ? $sessionDir . DIRECTORY_SEPARATOR : ''; // compared case-insensitively: on macOS and Windows realpath() keeps the spelling the save path was typed in (Data/Sessions for data/sessions)
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
 		foreach ($files as $file) {
 			$file = realpath($file);
-			$source = realpath($this->rootDir);
+			$name = str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
 			if (is_dir($file)) {
-				$zip->addEmptyDir(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file . DIRECTORY_SEPARATOR)); // entry names relative with forward slashes on Windows too; on Unix the second pair is a no-op
-			} elseif (is_file($file)) {
-				$zip->addFromString(str_replace([$source . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR], ['', '/'], $file), $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				$zip->addEmptyDir($name . '/');
+			} elseif (is_file($file) && !$this->isBackupArchiveName($file) && !$this->isBackupTempName($file)
+				&& !($sessionPrefix !== '' && strncasecmp($file, $sessionPrefix, strlen($sessionPrefix)) === 0 && preg_match('~^sess_[A-Za-z0-9,-]{22,256}$~', basename($file)))) { // not the archive, not an old backup, not a build in progress, and not a PHP session file (sess_<id>) anywhere below the save path: those hold live ids
+				if ($filesPath !== false && strpos($file, $filesPath . DIRECTORY_SEPARATOR) === 0) {
+					$zip->addFile($file, $name); // read from disk in chunks at close(): a large upload is never held in memory
+				} else {
+					$zip->addFromString($name, $this->lockedRead($file)); // a save() running at the same moment cannot put a half-written database.js in the backup
+				}
 			}
 		}
-		$zip->close();
-		$this->redirect('data/files/' . $zipName);
+		if (!$zip->close()) {
+			if (function_exists('unlink')) {
+				@unlink($zipPath);
+			}
+			throw new Exception('Cannot create ZIP archive.');
+		}
+		return $zipPath;
+	}
+
+	/**
+	 * The function that sends the backup on this host: readfile, else fopen with fpassthru, else fopen with an fread loop;
+	 * '' where hardened disable_functions leave none (the backup is then refused before it is built)
+	 * @return string
+	 */
+	private function backupSender(): string
+	{
+		if (function_exists('readfile')) {
+			return 'readfile';
+		}
+		if (!function_exists('fopen')) {
+			return '';
+		}
+		if (function_exists('fpassthru')) {
+			return 'fpassthru';
+		}
+		return function_exists('fread') ? 'fread' : '';
+	}
+
+	/**
+	 * Send the backup archive at $zipPath as a download and remove it, also when the transfer fails
+	 * The session is closed before the archive streams: the file session handler would otherwise hold the admin's other requests until the download ends
+	 * A shared lock is held on the archive for the whole send: removeStaleBackupArchives() in another request skips a locked archive, whatever its age
+	 * @param string $zipPath
+	 * @return void
+	 */
+	public function sendBackup(string $zipPath): void
+	{
+		$lock = null;
+		try {
+			if (function_exists('ignore_user_abort')) {
+				ignore_user_abort(true); // the admin who cancels the download must not stop the script before the finally below removes the archive
+			}
+			if (function_exists('ob_get_level') && function_exists('ob_end_clean')) { // a host that disables the ob_* functions has no buffer to close
+				while (ob_get_level() > 0 && @ob_end_clean()) { // a buffer left open by a plugin would hold the whole archive in memory; stops on one that cannot be removed, as loadThemeAndFunctions() does (its notice must not land in front of the archive)
+				}
+			}
+			if (headers_sent()) { // a plugin already printed, unbuffered: the archive would land as bytes inside the page
+				$this->alert('danger', 'Cannot send the backup: a plugin or theme printed output before it. Disable it and try again.');
+				return;
+			}
+			$sender = $this->backupSender(); // chosen and opened before any header: once the attachment headers are out, a failure is a corrupt download
+			$handle = in_array($sender, ['fpassthru', 'fread'], true) ? @fopen($zipPath, 'rb') : null;
+			if ($sender === '' || $handle === false) {
+				$this->alert('danger', $sender === '' ? 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).' : 'Cannot send the backup: the archive could not be opened.');
+				return;
+			}
+			$lock = $handle ?? (function_exists('fopen') ? @fopen($zipPath, 'rb') : null); // readfile() keeps no handle: one is opened for the lock only
+			if ($lock && function_exists('flock')) {
+				@flock($lock, LOCK_SH); // a filesystem without locking sends as before
+			}
+			if (function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
+				session_write_close(); // after the alerts above, which write $_SESSION; nothing below writes it
+			}
+			header('Content-Type: application/zip');
+			header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
+			header('Cache-Control: no-store');
+			$size = ini_get('zlib.output_compression') ? null : $this->fileSize($zipPath); // the compressed body would be shorter than the file
+			if ($size !== null) { // where no function can read the size (filesize() and stat() disabled) the header is left out: a streamed download does not need it
+				header('Content-Length: ' . $size);
+			}
+			if ($handle === null) {
+				readfile($zipPath);
+			} else {
+				if ($sender === 'fpassthru') {
+					fpassthru($handle);
+				} else {
+					while (($chunk = fread($handle, 1048576)) !== false && $chunk !== '') {
+						echo $chunk;
+					}
+				}
+			}
+		} finally {
+			if ($lock) { // released before the archive is removed: the sweep's lock then means what it says
+				if (function_exists('flock')) {
+					@flock($lock, LOCK_UN);
+				}
+				if (function_exists('fclose')) {
+					fclose($lock);
+				}
+			}
+			if (function_exists('unlink')) {
+				@unlink($zipPath);
+			} elseif (function_exists('file_put_contents')) { // disabled on some hardened hosts: the archive is emptied instead (file_put_contents() is what every save needs), so the 0-byte file left under data/ holds nothing and the next backup's walk skips its name
+				@file_put_contents($zipPath, '');
+			} // where both are disabled the archive stays complete under data/ (a 128-bit random name, listed nowhere), as in 3.7.1
+		}
+		die();
 	}
 
 	/**
@@ -4126,7 +4824,7 @@ EOT;
 				$results[] = [
 					'title' => $page->title ?? '',
 					'excerpt' => $this->createExcerpt($page->content ?? '', $query, 100),
-					'slug' => $prefix . $slug
+					'slug' => $prefix . $slug . (!empty((array)($page->subpages ?? [])) ? '/' : '') // a parent ends with '/', as in the menu (renderPageNavMenuItem), so its relative links resolve the same
 				];
 			}
 			if (!empty($page->subpages) && is_object($page->subpages)) {

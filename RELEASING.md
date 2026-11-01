@@ -169,7 +169,7 @@ tag, rule 3 above; every push is read back through the API and recorded).
    files): `wondercms/`, `index.php`, `.htaccess`, `themes/`, `themes/sky/`, `theme.php`, `wcms-modules.json`, `css/`,
    `style.css`, `css/fonts/` and the two `catamaran` woff2 files; `unzip -l` must show nothing else. Then create the GitHub release with
    notes (Features and fixes / Changes / Backwards compatibility / How to update / Installation
-   with the SHA-256 of the uploaded asset) and attach the ZIP. Then download the asset from the release page and
+   with the SHA-256 of the uploaded asset) and attach the ZIP. The login throttle's `data/logs/login-attempts.json` holds only salted hashes of addresses and times, nothing that identifies a visitor, so the notes ask for no `.htaccess` edit on sites whose `.htaccess` predates 3.7.0. Then download the asset from the release page and
    compare its SHA-256 with the local file; the notes carry the downloaded file's hash, not the local one (a ZIP
    built on another machine or in another timezone has other member timestamps and another hash).
 9. wondercms.com: copy the ZIP next to the previous ones, point `download-latest.php` at the new
@@ -182,7 +182,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
    then the certificate (AutoSSL validates over HTTP, so it needs the name to resolve first); a DNS record before the
    vhost served another customer's default vhost under the demo name for four minutes on 2026-10-29. Delete any
    placeholder `index.html` before the built `index.php` goes in, and purge the demo host's Cloudflare cache after the
-   build. The site is
+   build, then refresh every theme and plugin on the demo from the official list zips; compare version files to the
+   list, zero differences. The site is
    behind Cloudflare: purge its cache after the page edits (Caching, Purge Everything), and remember
    `download-latest.php` is browser-cached for 48 hours, so check it from a private window.
 10. Theme or plugin changes shipped with the release (for example `themes/sky`) are pushed to

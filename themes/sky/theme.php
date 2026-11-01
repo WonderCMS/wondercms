@@ -29,8 +29,8 @@
 		<!-- Admin CSS -->
 		<?= $Wcms->css() ?>
 		
-		<!-- Theme CSS -->
-		<link rel="stylesheet" rel="preload" as="style" href="<?= $Wcms->asset('css/style.css') ?>">
+		<!-- Theme CSS, its URL changes with the file, so an update never pairs this theme.php with a cached old stylesheet -->
+		<link rel="stylesheet" rel="preload" as="style" href="<?= $Wcms->asset('css/style.css') ?>?v=<?= function_exists('filemtime') ? filemtime(__DIR__ . '/css/style.css') : '3.7.15' ?>">
 	</head>
 
 	<body>
