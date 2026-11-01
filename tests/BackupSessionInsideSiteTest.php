@@ -131,13 +131,18 @@ final class BackupSessionInsideSiteTest extends TestCase
 		@mkdir($this->root . '/data/files');
 		// A session-shaped upload outside the save path: the skip must need the file below the save path too, not the name alone
 		file_put_contents($this->root . '/data/files/sess_00112233445566778899aabbccddeeff', 'an upload with a session-like name');
+		// Owner files the host put in the session folder: the directory-only skip of #431 dropped these; the two-condition rule keeps them
+		file_put_contents($this->root . '/data/sessions/.htaccess', "deny from all\n");
+		file_put_contents($this->root . '/data/sessions/keep.txt', 'keep');
 
 		[$names] = $this->loginAndBackup();
 		$this->assertNotEmpty(glob($this->root . '/data/sessions/sess_*'), 'the sessions are stored inside the site');
 		$this->assertContains('index.php', $names);
 		$this->assertContains('data/database.js', $names);
-		$this->assertSame([], array_values(preg_grep('~^data/sessions/.~', $names)), 'no session file is archived: each holds a live session id');
+		$this->assertSame([], array_values(preg_grep('~^data/sessions/sess_[A-Za-z0-9,-]{22,256}$~', $names)), 'no session file is archived: each holds a live session id');
 		$this->assertContains('data/sessions/', $names, 'the session folder itself is kept');
+		$this->assertContains('data/sessions/.htaccess', $names, 'an owner file in the session folder is kept: the skip is by session-file shape, not by folder');
+		$this->assertContains('data/sessions/keep.txt', $names, 'another owner file in the session folder is kept');
 		$this->assertContains('data/files/sess_00112233445566778899aabbccddeeff', $names, 'an upload outside the save path is archived, even with a session-shaped name: condition 1 (below the save path) is not met');
 	}
 

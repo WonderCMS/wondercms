@@ -4338,7 +4338,7 @@ EOT;
 		$source = realpath($this->rootDir);
 		$filesPath = realpath($this->filesPath);
 		$savePath = function_exists('session_save_path') ? (string)session_save_path() : '';
-		$sessionDir = $savePath !== '' ? realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'
+		$sessionDir = $savePath !== '' ? @realpath(substr(strrchr(';' . $savePath, ';'), 1)) : false; // "N;/path" and "N;MODE;/path": the folder is after the last ';'; @ so open_basedir (session folder outside the site, Plesk's default) prints no warning before the attachment headers
 		$iterator = new RecursiveDirectoryIterator($this->rootDir);
 		$iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
 		$files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
