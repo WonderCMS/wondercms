@@ -2656,8 +2656,8 @@ EOT;
 	private function changeLoginAttempts(callable $change): int
 	{
 		$folder = dirname($this->loginAttemptsPath);
-		if (!is_dir($folder) && !@mkdir($folder, 0755) && !is_dir($folder)) {
-			return 0;
+		if (!function_exists('file_put_contents') || (!is_dir($folder) && !@mkdir($folder, 0755) && !is_dir($folder))) {
+			return 0; // no writer (writeFile() needs file_put_contents in every path) or no logs folder: throttle nothing, never fatal, like an unwritable logs folder
 		}
 		$lock = function_exists('flock') && function_exists('fopen') && function_exists('fclose')
 			? @fopen($this->loginAttemptsPath . '.lock', 'c')

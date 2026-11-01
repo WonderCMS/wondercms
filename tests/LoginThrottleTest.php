@@ -519,4 +519,121 @@ final class LoginThrottleTest extends TestCase
 			@unlink($path);
 		}
 	}
+
+	/**
+	 * A host that disables file_put_contents() (disable_functions) must still let the owner log in: writeFile() needs that
+	 * function in every path, so the throttle has no way to write its counts file. It fails open, as on an unwritable logs
+	 * folder, instead of fataling before the password check. On 8177d69 the throttle's write happens first and fatals, so
+	 * no admin session is ever created; here the throttle writes nothing, the password is checked, and the session is set
+	 * (the later saveAdminLoginIP save still fatals on such a host, as it did on 3.7.1, so a follow-up GET is the admin
+	 * page). A wrong password is simply refused. Over HTTP against php -S, the install seeded first with the function on.
+	 */
+	public function testALoginWorksWhereFilePutContentsIsDisabled(): void
+	{
+		if (DIRECTORY_SEPARATOR === '\\') {
+			$this->markTestSkipped('the local server writes its output to /dev/null');
+		}
+		if (!function_exists('proc_open')) {
+			$this->markTestSkipped('needs proc_open and php -S');
+		}
+		$root = sys_get_temp_dir() . '/wcms-fpc-' . bin2hex(random_bytes(4));
+		mkdir($root);
+		copy(__DIR__ . '/../index.php', $root . '/index.php');
+		file_put_contents($root . '/router.php', '<?php $_SERVER["REMOTE_ADDR"] = "203.0.113.9"; require __DIR__ . "/index.php";');
+		mkdir($root . '/themes');
+		mkdir($root . '/themes/sky');
+		foreach (glob(__DIR__ . '/../themes/sky/*') as $file) {
+			if (is_file($file)) {
+				copy($file, $root . '/themes/sky/' . basename($file));
+			}
+		}
+		$attempts = $root . '/data/logs/login-attempts.json';
+
+		$server = $this->startDisabledServer($root, null); // seed with the function enabled: createDb -> save -> writeFile needs it
+		try {
+			for ($i = 0; $i < 50 && @file_get_contents($server['base'] . '/') === false; $i++) {
+				usleep(100000);
+			}
+			$this->assertFileExists($root . '/data/database.js', 'the first request installed the site');
+			$site = new Wcms('data', 'files', 'database.js', $root);
+			wcmsSetPasswordOnDisk($site, self::PASSWORD);
+		} finally {
+			proc_terminate($server['proc']);
+			proc_close($server['proc']);
+		}
+
+		$server = $this->startDisabledServer($root, 'file_put_contents'); // the login requests: no way to write the counts file
+		try {
+			$good = $this->fpcRequest($server['base'], 'POST', self::PASSWORD, null);
+			$this->assertNotSame('', $good['cookie'], 'the login set a session cookie');
+			$this->assertFileDoesNotExist($attempts, 'the throttle wrote no counts file');
+			$admin = $this->fpcRequest($server['base'], 'GET', null, $good['cookie']);
+			$this->assertStringContainsString(' 302 ', $admin['status'], 'logged in: the login slug redirects (on 8177d69 the throttle fataled and no session was set)');
+
+			$bad = $this->fpcRequest($server['base'], 'POST', 'wrongPass', null);
+			$this->assertStringContainsString(' 302 ', $bad['status'], 'a wrong password is refused with a clean redirect, not a fatal');
+			$this->assertStringNotContainsString('file_put_contents', $bad['body'], 'no fatal on the throttle path');
+			$this->assertStringNotContainsString('Fatal error', $bad['body']);
+			$refused = $this->fpcRequest($server['base'], 'GET', null, $bad['cookie'] !== '' ? $bad['cookie'] : $good['cookie']);
+			$this->assertStringContainsString('Wrong password', $refused['body'], 'the wrong password was simply refused');
+			$this->assertStringContainsString('name="password"', $refused['body'], 'not logged in: the login form');
+			$this->assertFileDoesNotExist($attempts, 'a refused attempt wrote no counts file either');
+		} finally {
+			proc_terminate($server['proc']);
+			proc_close($server['proc']);
+			$this->removeTree($root);
+		}
+	}
+
+	/** Start php -S over the router with an optional disable_functions list; return its process and base URL once it listens */
+	private function startDisabledServer(string $root, ?string $disable): array
+	{
+		$socket = stream_socket_server('tcp://127.0.0.1:0');
+		$name = stream_socket_get_name($socket, false);
+		$port = (int)substr($name, strrpos($name, ':') + 1);
+		fclose($socket);
+		$command = [PHP_BINARY];
+		if ($disable !== null) {
+			$command[] = '-d';
+			$command[] = 'disable_functions=' . $disable;
+		}
+		array_push($command, '-S', '127.0.0.1:' . $port, 'router.php');
+		$proc = proc_open($command, [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, $root);
+		for ($i = 0; $i < 50; $i++) {
+			$fp = @fsockopen('127.0.0.1', $port);
+			if ($fp) {
+				fclose($fp);
+				break;
+			}
+			usleep(100000);
+		}
+		return ['proc' => $proc, 'base' => 'http://127.0.0.1:' . $port];
+	}
+
+	/** One request to the login slug; POST sends the password, an optional Cookie carries the session; returns status line, body and any PHPSESSID */
+	private function fpcRequest(string $base, string $method, ?string $password, ?string $cookie): array
+	{
+		$header = '';
+		$options = ['method' => $method, 'follow_location' => 0, 'ignore_errors' => true, 'timeout' => 10];
+		if ($password !== null) {
+			$options['content'] = http_build_query(['password' => $password]);
+			$header .= "Content-Type: application/x-www-form-urlencoded\r\n";
+		}
+		if ($cookie !== null && $cookie !== '') {
+			$header .= 'Cookie: ' . $cookie . "\r\n";
+		}
+		if ($header !== '') {
+			$options['header'] = $header;
+		}
+		$context = stream_context_create(['http' => $options]);
+		$body = (string)@file_get_contents($base . '/?page=loginURL', false, $context);
+		$headers = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : ($http_response_header ?? []); // the variable is deprecated in PHP 8.5
+		$found = '';
+		foreach ($headers as $line) {
+			if (stripos($line, 'Set-Cookie:') === 0 && preg_match('/PHPSESSID=[^;]+/', $line, $m)) {
+				$found = $m[0];
+			}
+		}
+		return ['status' => (string)($headers[0] ?? ''), 'body' => $body, 'cookie' => $found];
+	}
 }
