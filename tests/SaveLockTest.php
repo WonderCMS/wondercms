@@ -97,7 +97,7 @@ final class SaveLockTest extends TestCase
 			@unlink($go);
 			$writers = [];
 			for ($i = 0; $i < self::WRITERS; $i++) {
-				$writers[] = $this->startStaleSaver($go, 400);
+				$writers[] = $this->startStaleSaver($go, 5000); // they save until the go file is removed below; the cap is a safety net
 			}
 			touch($go);
 
@@ -108,12 +108,14 @@ final class SaveLockTest extends TestCase
 			$_POST = ['old_password' => 'old-secret', 'new_password' => 'new-secret-123', 'repeat_password' => 'new-secret-123', 'token' => $wcms->getToken()];
 			$wcms->changePasswordAction();
 			$_POST = [];
+			@unlink($go); // the change has landed: the writers stop after their current save
 
 			$saves = 0;
 			foreach ($writers as [$process, $pipes]) {
 				$saves += $this->finishStaleSaver($process, $pipes);
 			}
-			@unlink($go);
+			// Every writer saved from before the change (the hash is computed before the lock is taken) until after it, so
+			// together they saved more than once each whatever the runner's speed.
 			$this->assertGreaterThan(self::WRITERS, $saves, 'the writers kept saving around the change');
 			if (!password_verify('new-secret-123', $this->diskHash())) {
 				$restored[] = $trial;

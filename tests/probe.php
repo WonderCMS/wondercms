@@ -13,7 +13,8 @@
  * php tests/probe.php locked-json <file>            getJsonFileData() on the file (cache.json's read); prints what it decoded
  * php tests/probe.php locked-zip <root>             createBackupArchive() of <root> into <root>/data_test; prints the archive path
  * php tests/probe.php locked-stale-saves <go> <ms>  reads the database, prints "ready", waits for the file <go> (- for none), then
- *                                                   saves siteTitle from that snapshot for <ms> milliseconds (0: once); prints the count
+ *                                                   saves siteTitle from that snapshot until <go> is removed, at most <ms> milliseconds
+ *                                                   (0: once); prints the count
  * php tests/probe.php module-delete <root> <type> <name>          deleteFileModuleAction() as the admin; prints the alerts
  * php tests/probe.php module-install <root> <type> <name> <zip>  installUpdateModuleAction() as the admin, the module's ZIP at the URL <zip>; prints the alerts
  * php tests/probe.php module-list <root> <type>    listAllModules() as the admin, the official list empty; prints it
@@ -129,9 +130,9 @@ switch ($mode) {
 		}
 		$until = microtime(true) + (int)$argv[3] / 1000;
 		$saves = 0;
-		do {
+		do { // until the test removes <go> (its signal that the change has landed), the <ms> cap only a safety net
 			$wcms->set('config', 'siteTitle', 'stale ' . getmypid() . ' ' . ++$saves);
-		} while (microtime(true) < $until);
+		} while (microtime(true) < $until && file_exists($argv[2]));
 		echo json_encode(['saves' => $saves]);
 		break;
 	case 'locked-zip':
