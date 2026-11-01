@@ -393,9 +393,12 @@ final class BackupTest extends TestCase
 			$this->assertSame($sizes[0], filesize($left[0]), 'without file_put_contents the sent archive stays complete');
 		}
 		touch($left[0], time() - 3600);
-		// Two full archives a killed request left behind: without unlink the sweep can only empty them, and emptying truncates the
-		// inode a slow download may still be streaming, so one aged 10 minutes (past the 300 s threshold) must stay complete and
-		// only one older than a day is emptied.
+		// Two full archives a killed request left behind, nobody holding a lock on either: without unlink the sweep can only empty
+		// them. Where flock() works, a live send holds a shared lock (see testTheSweepNeverTouchesAnArchiveThatIsBeingSent), so
+		// both are emptied past the 300 s threshold. Where flock() or fopen() is disabled the sweep has only the age: emptying
+		// truncates the inode a slow download may still be streaming, so one aged 10 minutes must stay complete and only one
+		// older than a day is emptied.
+		$ageOnly = array_intersect(['flock', 'fopen', 'fclose'], explode(',', $ini['disable_functions'] ?? '')) !== [];
 		$streaming = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('ab', 16) . '.zip';
 		$crashed = $this->site . '/data/2026-01-01-backup-' . str_repeat('cd', 16) . '.zip';
 		file_put_contents($streaming, 'still being sent by a slow download');
@@ -411,7 +414,11 @@ final class BackupTest extends TestCase
 		$this->assertNotContains('data/' . basename($streaming), $entries, 'a leftover is not nested in the second');
 		$sizes[] = strlen($body);
 		clearstatcache();
-		$this->assertSame(strlen('still being sent by a slow download'), filesize($streaming), 'a leftover aged 10 minutes is never emptied: a slow download may still be streaming it');
+		if ($ageOnly || !$emptied) {
+			$this->assertSame(strlen('still being sent by a slow download'), filesize($streaming), 'without a lock to ask, a leftover aged 10 minutes is not emptied: a slow download may still be streaming it');
+		} else {
+			$this->assertSame(0, filesize($streaming), 'with flock() there, an unlocked leftover aged 10 minutes is nobody\'s download: emptied');
+		}
 		if ($emptied) {
 			$this->assertSame(0, filesize($crashed), 'a leftover older than a day is emptied');
 		} else {
@@ -457,5 +464,79 @@ final class BackupTest extends TestCase
 	{
 		// The disable_functions list of the CI boot check ("Fresh install boots with the disable-able functions disabled")
 		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'flock,fopen,stream_get_contents,fclose,ob_start,ob_get_level,ob_end_clean,ob_end_flush,chmod,rename,unlink,fileowner,filegroup,fileperms,getmypid,exec,shell_exec,system,passthru,proc_open,popen', 'display_errors' => '1']);
+	}
+
+	public function testWhereFlockIsDisabledTheSweepFallsBackToTheOneDayAgeBeforeEmptying(): void
+	{
+		// No lock to ask and no unlink: a leftover aged 10 minutes stays complete, one older than a day is emptied
+		$this->assertTwoBackupsDownloadWithUnlinkDisabled(['disable_functions' => 'flock,unlink', 'display_errors' => '1']);
+	}
+
+	/**
+	 * Two aged archives under a shared lock held by this process (what sendBackup() holds while it streams, from another php -S
+	 * worker's point of view) survive a backup's sweep untouched; once the lock is gone the next backup's sweep removes them
+	 * (unlink there) or empties them (unlink disabled, past 300 s, no day to wait: the lock, not the age, protects a live send)
+	 */
+	private function assertTheSweepLeavesALockedArchiveAlone(array $ini): void
+	{
+		if (!function_exists('flock')) {
+			$this->markTestSkipped('needs flock() in the test process');
+		}
+		$unlinkDisabled = in_array('unlink', explode(',', $ini['disable_functions'] ?? ''), true);
+		$old = $this->site . '/data/2026-01-01-backup-' . str_repeat('ab', 16) . '.zip'; // older than the one-day heuristic of 3.7.2's first sweep
+		$recent = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('cd', 16) . '.zip'; // past the 300 s threshold
+		file_put_contents($old, 'a huge site, more than a day into its download');
+		file_put_contents($recent, 'a large site, ten minutes into its download');
+		touch($old, time() - 86400 - 3600);
+		touch($recent, time() - 600);
+		$locks = [];
+		foreach ([$old, $recent] as $file) {
+			$lock = fopen($file, 'rb');
+			$this->assertTrue(flock($lock, LOCK_SH), 'the test process holds the shared lock a live send holds');
+			$locks[] = $lock;
+		}
+		$port = $this->startServer($ini);
+		[$headers, $body] = $this->request($port);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertStringNotContainsString('Fatal error', $body);
+		clearstatcache();
+		$this->assertFileExists($old, 'an archive being sent is not removed, whatever its age');
+		$this->assertFileExists($recent);
+		$this->assertSame(strlen('a huge site, more than a day into its download'), filesize($old), 'an archive being sent is not emptied, whatever its age');
+		$this->assertSame(strlen('a large site, ten minutes into its download'), filesize($recent));
+		foreach ($locks as $lock) {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+		}
+		[$headers, $body] = $this->request($port);
+		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), substr($body, 0, 300));
+		$this->assertStringNotContainsString('Fatal error', $body);
+		clearstatcache();
+		if ($unlinkDisabled) {
+			$this->assertFileExists($old);
+			$this->assertFileExists($recent);
+			$this->assertSame(0, filesize($old), 'once the send is over the leftover is emptied');
+			$this->assertSame(0, filesize($recent), 'past 300 s and unlocked: emptied without waiting a day');
+			foreach (glob($this->site . '/data/*.zip') as $file) {
+				$this->assertSame(0, filesize($file), 'the two sent archives are empty too');
+				unlink($file);
+			}
+		} else {
+			$this->assertFileDoesNotExist($old, 'once the send is over the leftover is removed');
+			$this->assertFileDoesNotExist($recent);
+		}
+		$this->assertNothingLeftOnDisk();
+	}
+
+	public function testTheSweepNeverTouchesAnArchiveThatIsBeingSent(): void
+	{
+		// A download that outlives any age (a slow line, a huge site) met a second Backup click: the sweep judged the archive by
+		// its mtime and removed it; without unlink() it emptied it, which truncates the inode the download is still reading.
+		$this->assertTheSweepLeavesALockedArchiveAlone(['display_errors' => '1']);
+	}
+
+	public function testTheSweepNeverEmptiesAnArchiveThatIsBeingSentWhereUnlinkIsDisabled(): void
+	{
+		$this->assertTheSweepLeavesALockedArchiveAlone(['disable_functions' => 'unlink', 'display_errors' => '1']);
 	}
 }
