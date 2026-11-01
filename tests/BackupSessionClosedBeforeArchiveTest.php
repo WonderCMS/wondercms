@@ -18,9 +18,8 @@ final class BackupSessionClosedBeforeArchiveTest extends TestCase
 
 	protected function setUp(): void
 	{
-		if (!function_exists('readfile') && !function_exists('fopen')) {
-			$this->markTestSkipped('zipBackup() refuses the backup before the session close where no file sender exists');
-		}
+		$_SERVER['SERVER_NAME'] = 'wondercms.doc';
+		$_SERVER['SERVER_PORT'] = '80';
 		$this->tmp = sys_get_temp_dir() . '/wcms-backup-close-' . bin2hex(random_bytes(4));
 		mkdir($this->tmp, 0777, true);
 		$this->wasActive = session_status() === PHP_SESSION_ACTIVE;
@@ -40,7 +39,7 @@ final class BackupSessionClosedBeforeArchiveTest extends TestCase
 		if (session_status() === PHP_SESSION_ACTIVE) {
 			session_write_close();
 		}
-		if ($this->wasActive) { // leave the suite the session it had: $_SESSION stays in memory either way, the later tests read and write it
+		if ($this->wasActive) { // leave the suite the session it had: $_SESSION is read back from the file the close wrote, the later tests read and write it
 			ini_set('session.use_cookies', '0'); // PHPUnit has printed by now, so a cookie could not be sent; nothing in the suite reads this setting, and it cannot be changed back while the session is active
 			@session_start();
 		} elseif ($this->previousUseCookies !== false) {
@@ -60,6 +59,13 @@ final class BackupSessionClosedBeforeArchiveTest extends TestCase
 		$archive = $this->tmp . '/2026-01-01-backup-0123456789abcdef.zip';
 		$statusAtBuild = null;
 		$wcms = $this->getMockBuilder(Wcms::class)->setConstructorArgs(['data_test', 'files_test', 'database_test.js'])->onlyMethods(['createBackupArchive', 'sendBackup'])->getMock();
+		$sender = new ReflectionMethod(Wcms::class, 'backupSender'); // private, so not stubbed: the real one decides whether zipBackup() refuses the backup before the close
+		if (PHP_VERSION_ID < 80100) {
+			$sender->setAccessible(true);
+		}
+		if ($sender->invoke($wcms) === '') {
+			$this->markTestSkipped('zipBackup() refuses the backup before the session close where no file sender exists');
+		}
 		$wcms->expects($this->once())->method('createBackupArchive')->willReturnCallback(static function () use (&$statusAtBuild, $archive): string {
 			$statusAtBuild = session_status();
 			file_put_contents($archive, 'a small archive');
