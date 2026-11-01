@@ -67,7 +67,7 @@ final class WcmsTest extends TestCase
 		$this->assertFalse(isset($_SESSION['loggedIn']));
 		$this->assertFalse(isset($_SESSION['rootDir']));
 		$this->assertEquals($_SESSION['alert']['danger'][0]['message'], 'Wrong password.');
-		$visitorToken = $this->wcms->getToken(); // the token the failed attempt's session carries (round-14 opus-7: a planted session must not know the admin's token)
+		$visitorToken = $this->wcms->getToken(); // the token the failed attempt's session carries (a planted session must not know the admin's token)
 
 		// Test right password
 		wcmsSetPasswordOnDisk($this->wcms, self::PASSWORD);

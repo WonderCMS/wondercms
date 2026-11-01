@@ -512,9 +512,9 @@ final class DatabaseLockTest extends TestCase
 
 	public function testAHostThatDisablesTheStreamFunctionsStillReadsAndSaves(): void
 	{
-		// Round-14 gpt-7 and gpt-3: with flock (or fopen, stream_get_contents, fclose) in disable_functions every request fataled on the new read; 3.6.0 called none of them at boot.
+		// Review finding: with flock (or fopen, stream_get_contents, fclose) in disable_functions every request fataled on the new read; 3.6.0 called none of them at boot.
 		// Each function alone, then all four: a guard that checked only one of them would pass the combined run (gate F-2).
-		// getmypid: on hardening lists too; the save's temp name must not need it (round-17 opus-3: every save fataled).
+		// getmypid: on hardening lists too; the save's temp name must not need it (otherwise every save fataled).
 		foreach (['flock', 'fopen', 'stream_get_contents', 'fclose', 'getmypid', 'flock,fopen,stream_get_contents,fclose'] as $disabled) {
 			$cmd = escapeshellarg(PHP_BINARY) . ' -d disable_functions=' . $disabled . ' ' . escapeshellarg(__DIR__ . '/probe.php') . ' locked-save after-' . strlen($disabled);
 			$process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__));
@@ -527,7 +527,7 @@ final class DatabaseLockTest extends TestCase
 	public function testAVanishedDatabaseFileReadsAsEmptyLikeTheOldRead(): void
 	{
 		// lockedRead() returns '' when fopen() fails (the file removed between the existence check and the read); 3.6.0's
-		// file_get_contents() gave false there, and both end in the same TypeError on getDb()'s return type (round-15 opus-4).
+		// file_get_contents() gave false there, and both end in the same TypeError on getDb()'s return type.
 		$wcms = new Wcms('data_test', 'files_test', 'database_probe.js');
 		$read = new ReflectionMethod(Wcms::class, 'lockedRead');
 		if (PHP_VERSION_ID < 80100) {
