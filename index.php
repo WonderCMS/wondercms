@@ -377,7 +377,7 @@ class Wcms
 		$backupList = array_filter(glob($this->filesPath . '/*-backup-*.zip') ?: [], [$this, 'isBackupArchiveName']);
 		if (!empty($backupList)) {
 			$this->alert('danger',
-				'Old backup files detected. Backups now download to your computer and are not kept on the server. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete the old backup files</b></a>');
+				'Old backup files detected. Backups now download to your computer and are no longer saved in the Files tab. <a data-toggle="wcms-modal" href="#settingsModal" data-target-tab="#files"><b>View and delete the old backup files</b></a>');
 		}
 		if (isset($_POST['backup']) && $this->verifyFormActions()) {
 			$this->removeStaleBackupArchives();
