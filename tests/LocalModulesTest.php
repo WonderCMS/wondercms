@@ -429,8 +429,8 @@ final class LocalModulesTest extends TestCase
 
 	public function testLinksAtTheStagingAndAsidePathsAreRemovedAndTheirTargetNeverTouched(): void
 	{
-		// The staging and aside paths have no trailing slash, so is_link() sees the link itself; with one it would follow it and
-		// empty the target.
+		// The staging path has no trailing slash and glob() returns a remnant's without one, so is_link() sees the link itself;
+		// with one it would follow it and empty the target. A remnant of an earlier update that is a plain folder is cleared.
 		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
 			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
 		}
@@ -438,10 +438,12 @@ final class LocalModulesTest extends TestCase
 		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
 		mkdir($this->root . '/outside', 0777, true);
 		file_put_contents($this->root . '/outside/keep.txt', 'not part of any module');
-		foreach (['foo.update.tmp', 'foo.old.tmp'] as $link) {
+		foreach (['foo.update.tmp', 'foo.old.0123abcd.tmp'] as $link) {
 			symlink($this->root . '/outside', $this->root . '/themes/' . $link);
 			$this->assertTrue(is_link($this->root . '/themes/' . $link));
 		}
+		mkdir($this->root . '/themes/foo.old.89abcdef.tmp');
+		file_put_contents($this->root . '/themes/foo.old.89abcdef.tmp/theme.php', 'older');
 		$zipPath = $this->moduleZip(['foo/theme.php' => 'new']);
 
 		$alerts = $this->install('foo', $zipPath);
@@ -451,17 +453,18 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/outside'), ['.', '..'])), 'nothing extracted into the target');
 		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
 		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
-		foreach (['foo.update.tmp', 'foo.old.tmp'] as $link) {
+		foreach (['foo.update.tmp', 'foo.old.0123abcd.tmp'] as $link) {
 			$this->assertFalse(is_link($this->root . '/themes/' . $link), $link . ': the link is removed');
 			$this->assertFileDoesNotExist($this->root . '/themes/' . $link);
 		}
+		$this->assertSame([], glob($this->root . '/themes/foo.old*'), 'the remnant folder and this update\'s aside copy are gone too');
 	}
 
 	public function testAnInstalledFolderThatCannotBeEmptiedIsRenamedAsideAndTheUpdateLands(): void
 	{
 		// A subfolder the PHP user cannot empty (uploaded by FTP as another user, or made read-only) stopped the delete halfway,
 		// and rename() then met a non-empty folder and threw, leaving a half-deleted module. Renaming the installed folder aside
-		// needs write on themes/ only, so the subfolder moves with it and stays behind in foo.old.tmp. 0000: a folder it cannot
+		// needs write on themes/ only, so the subfolder moves with it and stays behind in foo.old.<hex>.tmp. 0000: a folder it cannot
 		// even open, where the removal of the aside copy stops early and the update still lands.
 		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
 			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
@@ -482,21 +485,65 @@ final class LocalModulesTest extends TestCase
 				$this->assertArrayNotHasKey('danger', $alerts, $case);
 				$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), $case . 'the new copy only');
 				$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $case);
-				$this->assertDirectoryExists($this->root . '/themes/foo.old.tmp/locked', $case . 'the remnant stays aside');
+				$remnants = glob($this->root . '/themes/foo.old.*.tmp') ?: [];
+				$this->assertCount(1, $remnants, $case . 'the remnant stays aside');
+				$this->assertDirectoryExists($remnants[0] . '/locked', $case);
 				if ($mode === 0555) {
-					$this->assertSame(['locked'], array_values(array_diff(scandir($this->root . '/themes/foo.old.tmp'), ['.', '..'])), $case . 'the rest of the old copy is gone');
-					$this->assertSame('cannot be removed', file_get_contents($this->root . '/themes/foo.old.tmp/locked/keep.txt'), $case);
+					$this->assertSame(['locked'], array_values(array_diff(scandir($remnants[0]), ['.', '..'])), $case . 'the rest of the old copy is gone');
+					$this->assertSame('cannot be removed', file_get_contents($remnants[0] . '/locked/keep.txt'), $case);
 				}
 				$this->assertDirectoryDoesNotExist($this->root . '/themes/foo.update.tmp', $case);
 				$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master', $case);
 			} finally {
-				foreach (['/themes/foo/locked', '/themes/foo.old.tmp/locked'] as $locked) {
-					if (is_dir($this->root . $locked)) {
-						chmod($this->root . $locked, 0755);
-					}
-				}
-				exec('rm -rf ' . escapeshellarg($this->root . '/themes/foo') . ' ' . escapeshellarg($this->root . '/themes/foo.old.tmp'));
+				$this->removeLockedModule();
 			}
+		}
+	}
+
+	public function testEachUpdateLandsWhileTheRemnantsOfEarlierOnesStayAside(): void
+	{
+		// The locked folder is uploaded again after each update. The aside name is new for every update, so the remnant of the
+		// one before never blocks the next (with one fixed name the second rename aside failed, the delete-first fallback stopped
+		// at the locked folder and the rename in threw).
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		try {
+			foreach ([1, 2] as $update) {
+				mkdir($this->root . '/themes/foo/locked');
+				file_put_contents($this->root . '/themes/foo/locked/keep.txt', 'upload ' . $update);
+				chmod($this->root . '/themes/foo/locked', 0555);
+				if (is_writable($this->root . '/themes/foo/locked')) {
+					$this->markTestSkipped('this user writes into a read-only folder (root)');
+				}
+				$alerts = $this->install('foo', $this->moduleZip(['foo/theme.php' => 'new ' . $update]));
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', 'update ' . $update . ': ' . json_encode($alerts));
+				$this->assertSame(['theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), 'update ' . $update);
+				$this->assertSame('new ' . $update, file_get_contents($this->root . '/themes/foo/theme.php'));
+			}
+			$kept = [];
+			foreach (glob($this->root . '/themes/foo.old.*.tmp') ?: [] as $remnant) {
+				$this->assertSame(['locked'], array_values(array_diff(scandir($remnant), ['.', '..'])), 'a remnant holds only what could not be removed');
+				$kept[] = file_get_contents($remnant . '/locked/keep.txt');
+			}
+			sort($kept);
+			$this->assertSame(['upload 1', 'upload 2'], $kept, 'each upload stays aside in its own remnant');
+		} finally {
+			$this->removeLockedModule();
+		}
+	}
+
+	/** Removes themes/foo and its remnants, a locked subfolder in any of them unlocked first */
+	private function removeLockedModule(): void
+	{
+		foreach (array_merge([$this->root . '/themes/foo'], glob($this->root . '/themes/foo.old*') ?: []) as $folder) {
+			if (is_dir($folder . '/locked')) {
+				chmod($folder . '/locked', 0755);
+			}
+			exec('rm -rf ' . escapeshellarg($folder));
 		}
 	}
 

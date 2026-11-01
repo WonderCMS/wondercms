@@ -2234,16 +2234,20 @@ EOT;
 				: 'Could not extract the download. Nothing was installed.');
 			$this->redirect();
 		}
-		$old = $path . $folderName . '.old.tmp';
+		$old = $this->tempPath($path . $folderName . '.old');
 		$aside = false;
 		if ($newFolder !== null) {
-			// The whole archive is on disk: the installed folder is renamed aside to <name>.old.tmp (a rename needs write on the
-			// parent only, so a subfolder that cannot be emptied moves with it), the new one is renamed in, and the aside copy is
-			// removed where it can be. A remnant stays as <name>.old.tmp until an update can clear it: loadPlugins() and the
-			// Plugins tab never pick it up (they look for <name>.old.tmp.php), and the Themes tab lists it only while its
-			// theme.php is left. If the rename aside fails, the installed folder is deleted first, as before; if the rename in
-			// fails, the aside copy is renamed back. A link is removed, not renamed.
-			$this->removeQuietly($old);
+			// The whole archive is on disk: the installed folder is renamed aside to <name>.old.<8 hex>.tmp (a rename needs write
+			// on the parent only, so a subfolder that cannot be emptied moves with it), the new one is renamed in, and the aside
+			// copy is removed where it can be. A remnant stays until a later update can clear it (loadPlugins() and the Plugins
+			// tab never pick it up, the Themes tab lists it only while its theme.php is left); the aside name is new for every
+			// request, so a remnant never blocks the rename aside. That rename then fails only where the parent folder refuses to
+			// move the installed one (permissions, or a file in it held open on Windows), and there the installed folder is
+			// deleted first, as before, an order the same refusal stops too. If the rename in fails, the aside copy is renamed
+			// back. A link is removed, not renamed.
+			foreach (function_exists('glob') ? (glob($path . $folderName . '.old.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $remnant) { // only the names tempPath() makes
+				$this->removeQuietly($remnant);
+			}
 			$aside = $wasInstalled && !(function_exists('is_link') && is_link($path . $folderName)) && @rename($path . $folderName, $old);
 			if (!$aside) {
 				function_exists('is_link') && is_link($path . $folderName) ? unlink($path . $folderName) : $this->recursiveDelete($path . $folderName);
