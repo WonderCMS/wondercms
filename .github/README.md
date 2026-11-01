@@ -3,7 +3,7 @@
     <img src="https://github.com/WonderCMS/wondercms-cdn-files/blob/main/logo.svg?raw=true" alt="WonderCMS logo" title="WonderCMS" align="center" height="150" />
 </a>
  <br>WonderCMS - small flat file CMS<br>
-    <sup>7 files • ∼80KB zip - 1 step install</sup>
+    <sup>5 files • ∼80KB zip - 1 step install</sup>
 </h1>
 
 <p align="center">
