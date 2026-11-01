@@ -836,6 +836,11 @@ class Wcms
 			$this->alert('danger', 'Page not found.');
 			return;
 		}
+		// An override of createUniqueSlug() may return the slug of a page at that level: moving the renamed page there would replace it
+		if ($slug !== $menuSelectionObject->{$menuKey}->slug && $this->pageExistsAt(array_merge($slugTree, [$slug]))) {
+			$this->alert('danger', 'Cannot create page with existing slug.');
+			return;
+		}
 
 		$slugTree[] = $menuSelectionObject->{$menuKey}->slug;
 		$menuSelectionObject->{$menuKey}->name = $name;
@@ -878,7 +883,8 @@ class Wcms
 	/**
 	 * Call createUniqueSlug() (so an override in a plugin subclass is consulted) with the context of a create or rename
 	 *
-	 * The context is cleared again whatever happens, so a later direct call of createUniqueSlug() does not inherit it.
+	 * The previous context is put back whatever happens: a later direct call of createUniqueSlug() does not inherit this one,
+	 * and a create or rename that an override runs inside this call does not strip it from the outer call.
 	 *
 	 * @param string $slug
 	 * @param string|null $menu key tree of the parent item, empty for the top level
@@ -888,11 +894,12 @@ class Wcms
 	 */
 	private function createUniqueSlugWithContext(string $slug, ?string $menu, ?string $excludeKey, bool $againstPages): string
 	{
+		$previous = $this->slugContext;
 		$this->slugContext = ['excludeKey' => $excludeKey, 'againstPages' => $againstPages];
 		try {
 			return $this->createUniqueSlug($slug, $menu);
 		} finally {
-			$this->slugContext = ['excludeKey' => null, 'againstPages' => false];
+			$this->slugContext = $previous;
 		}
 	}
 
