@@ -402,7 +402,8 @@ class Wcms
 			if ($isLeftover && is_file($file) && filemtime($file) < time() - $maxAge) {
 				if (function_exists('unlink')) {
 					@unlink($file);
-				} elseif (function_exists('file_put_contents') && filesize($file) > 0) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+				} elseif (function_exists('file_put_contents') && filesize($file) > 0 && filemtime($file) < time() - 86400) { // a host that disables unlink: the leftover is emptied instead (a 0-byte file holds nothing; the walk skips it by name, so the next backup still works)
+					// Emptying truncates the inode a slow download may still be reading (unlink leaves the stream its inode), so a leftover waits a day here; sendBackup()'s finally empties a sent archive at once, this only delays the cleanup after a crash.
 					@file_put_contents($file, '');
 				}
 			}

@@ -361,13 +361,32 @@ final class BackupTest extends TestCase
 			$this->assertSame($sizes[0], filesize($left[0]), 'without file_put_contents the sent archive stays complete');
 		}
 		touch($left[0], time() - 3600);
+		// Two full archives a killed request left behind: without unlink the sweep can only empty them, and emptying truncates the
+		// inode a slow download may still be streaming, so one aged 10 minutes (past the 300 s threshold) must stay complete and
+		// only one older than a day is emptied.
+		$streaming = $this->site . '/data/' . date('Y-m-d') . '-backup-' . str_repeat('ab', 16) . '.zip';
+		$crashed = $this->site . '/data/2026-01-01-backup-' . str_repeat('cd', 16) . '.zip';
+		file_put_contents($streaming, 'still being sent by a slow download');
+		file_put_contents($crashed, 'left by a request killed a day ago');
+		touch($streaming, time() - 600);
+		touch($crashed, time() - 86400 - 60);
 		[$headers, $body] = $this->request($port);
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), 'the second backup still works: ' . substr($body, 0, 300));
 		$this->assertStringNotContainsString('Fatal error', $body);
 		$entries = $this->entries($body);
 		$this->assertContains('data/database.js', $entries);
 		$this->assertNotContains('data/' . basename($left[0]), $entries, 'the first archive is not nested in the second');
+		$this->assertNotContains('data/' . basename($streaming), $entries, 'a leftover is not nested in the second');
 		$sizes[] = strlen($body);
+		clearstatcache();
+		$this->assertSame(strlen('still being sent by a slow download'), filesize($streaming), 'a leftover aged 10 minutes is never emptied: a slow download may still be streaming it');
+		if ($emptied) {
+			$this->assertSame(0, filesize($crashed), 'a leftover older than a day is emptied');
+		} else {
+			$this->assertSame(strlen('left by a request killed a day ago'), filesize($crashed), 'without file_put_contents a leftover stays complete');
+		}
+		unlink($streaming);
+		unlink($crashed);
 		$left = glob($this->site . '/data/*.zip');
 		$this->assertCount(2, $left, 'both names stay: nothing can remove them on this host');
 		clearstatcache();
