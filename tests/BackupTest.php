@@ -349,14 +349,19 @@ final class BackupTest extends TestCase
 		$this->assertContains('data/database.js', $this->entries($body));
 		$this->assertStringNotContainsString('Fatal error', $body);
 		$left = glob($this->site . '/data/*.zip');
-		$this->assertCount(1, $left, 'without unlink the archive stays under data/');
+		$this->assertCount(1, $left, 'without unlink the archive name stays under data/');
+		clearstatcache();
+		$this->assertSame(0, filesize($left[0]), 'the sent archive is emptied: a full-site copy never stays on the server');
 		touch($left[0], time() - 3600);
 		[$headers, $body] = $this->request($port);
 		$this->assertSame('application/zip', $this->header($headers, 'Content-Type'), 'the second backup still works: ' . substr($body, 0, 300));
 		$entries = $this->entries($body);
 		$this->assertContains('data/database.js', $entries);
 		$this->assertNotContains('data/' . basename($left[0]), $entries, 'the first archive is not nested in the second');
-		$this->assertCount(2, glob($this->site . '/data/*.zip'), 'both stay: nothing can remove them on this host');
+		$left = glob($this->site . '/data/*.zip');
+		$this->assertCount(2, $left, 'both names stay: nothing can remove them on this host');
+		clearstatcache();
+		$this->assertSame([0, 0], array_map('filesize', $left), 'both are empty: the sweep and the send leave nothing inside');
 		$this->assertSame([self::LEGACY, self::UPLOAD, 'photo.jpg'], array_values(array_diff(scandir($this->site . '/data/files'), ['.', '..'])), 'nothing new in data/files');
 	}
 
