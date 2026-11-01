@@ -4250,6 +4250,7 @@ EOT;
 	/**
 	 * Create a ZIP backup of whole WonderCMS installation (all files) and send it to the admin as a download.
 	 * Nothing is kept on the server: before 3.7.2 the archive stayed in data/files under a public URL.
+	 * The session is closed before the walk: where session.save_path is inside the site, reading this request's own locked session file waited until the time limit.
 	 *
 	 * @return void
 	 */
@@ -4258,6 +4259,9 @@ EOT;
 		if ($this->backupSender() === '') {
 			$this->alert('danger', 'Cannot send the backup: this server disables the PHP functions needed to send a file (readfile, fopen).');
 			return;
+		}
+		if (function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
+			session_write_close(); // an alert queued below is still printed by this request from $_SESSION in memory
 		}
 		try {
 			$zipPath = $this->createBackupArchive();
