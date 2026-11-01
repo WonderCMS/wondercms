@@ -248,11 +248,11 @@ final class LoginThrottleTest extends TestCase
 	public function testAnIpv6ClientIsCountedPerSlash64(): void
 	{
 		for ($i = 1; $i <= 10; $i++) {
-			$this->post('wrongPass', '2001:db8:1:2::' . dechex($i));
+			$this->post('wrongPass', '2606:4700:1:2::' . dechex($i));
 		}
 
-		$this->assertRefused($this->post(self::PASSWORD, '2001:db8:1:2:ffff::1'));
-		$this->assertLoggedIn($this->post(self::PASSWORD, '2001:db8:1:3::1'));
+		$this->assertRefused($this->post(self::PASSWORD, '2606:4700:1:2:ffff::1'));
+		$this->assertLoggedIn($this->post(self::PASSWORD, '2606:4700:1:3::1'));
 	}
 
 	public function testIpv4MappedAddressesAreNotOneBucket(): void
@@ -316,10 +316,10 @@ final class LoginThrottleTest extends TestCase
 	public function testTheFileHoldsNoAddress(): void
 	{
 		$this->failTimes('203.0.113.9', 3);
-		$this->failTimes('2001:db8:1:2::1', 3);
+		$this->failTimes('2606:4700:1:2::1', 3);
 
 		$file = file_get_contents(self::ATTEMPTS_PATH);
-		foreach (['203.0.113.9', '2001:db8:1:2::1', '2001:db8:1:2::/64', '203.0.113', '2001:db8'] as $address) {
+		foreach (['203.0.113.9', '2606:4700:1:2::1', '2606:4700:1:2::/64', '203.0.113', '2606:4700'] as $address) {
 			$this->assertStringNotContainsString($address, $file);
 			$this->assertStringNotContainsString(hash('sha256', $address), $file, 'not an unsalted hash either');
 			$this->assertStringNotContainsString(md5($address), $file);
