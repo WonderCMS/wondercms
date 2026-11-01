@@ -2196,12 +2196,11 @@ EOT;
 		// once the new one is complete. Any other ZIP (its top folder already <name>/) would merge into the live folder, so it
 		// keeps the old order: delete, extract, rename. A link is removed, never followed, as in deleteFileModuleAction().
 		$newFolder = in_array($top, [$folderName . '-master', $folderName . '-main'], true) ? $path . $top : null;
-		// A GitHub archive first clears both leftovers of an earlier attempt that was cut short (the rename below must find only
-		// this archive's folder); any other ZIP clears the installed folder here, as before.
-		$stale = $newFolder !== null ? [$path . $folderName . '-master', $path . $folderName . '-main'] : [$path . $folderName];
-		foreach ($stale as $leftover) {
-			function_exists('is_link') && is_link($leftover) ? unlink($leftover) : $this->recursiveDelete($leftover);
-		}
+		// A GitHub archive first clears its own folder, a leftover of an earlier attempt that was cut short; a folder under the
+		// other suffix is left alone, as before (uploaded by hand, it is a module in its own right). Any other ZIP clears the
+		// installed folder here, as before.
+		$stale = $newFolder ?? $path . $folderName;
+		function_exists('is_link') && is_link($stale) ? unlink($stale) : $this->recursiveDelete($stale);
 
 		$extracted = @$zip->extractTo($path);
 		// extractTo() returns true when a full disk cuts a write short (the file lands truncated), so every file is measured

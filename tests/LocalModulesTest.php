@@ -329,17 +329,17 @@ final class LocalModulesTest extends TestCase
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
 	}
 
-	public function testAStaleMasterFolderBesideAMainArchiveIsClearedAndTheExtractedFolderIsTheOneRenamedIn(): void
+	public function testAFolderUnderTheOtherSuffixBesideAMainArchiveIsLeftAloneAndTheExtractedFolderIsTheOneRenamedIn(): void
 	{
-		// A leftover of an earlier attempt under the other suffix (the module's default branch was renamed since) must not be
-		// the folder that ends up live.
+		// A folder under the other suffix (the module's default branch was renamed since, or a hand-made upload) must not be
+		// the folder that ends up live, and it is not this archive's to remove.
 		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
 			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
 		}
 		mkdir($this->root . '/themes/foo', 0777, true);
 		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
 		mkdir($this->root . '/themes/foo-master', 0777, true);
-		file_put_contents($this->root . '/themes/foo-master/theme.php', 'stale');
+		file_put_contents($this->root . '/themes/foo-master/theme.php', 'other');
 		$zipPath = $this->moduleZip(['foo-main/theme.php' => 'new']);
 
 		$alerts = $this->install('foo', $zipPath);
@@ -347,8 +347,32 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
 		$this->assertArrayNotHasKey('danger', $alerts);
 		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), 'the extracted folder is the one renamed in');
-		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master', 'the stale leftover is cleared');
+		$this->assertSame('other', file_get_contents($this->root . '/themes/foo-master/theme.php'), 'the folder under the other suffix is left intact');
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-main');
+	}
+
+	public function testAModuleLivingUnderTheOtherSuffixSurvivesAnUpdateOfTheModuleItIsNamedAfter(): void
+	{
+		// themes/foo-main is a theme of its own (a GitHub ZIP uploaded by hand and never renamed works under that name);
+		// updating foo from a -master archive must not touch it.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		mkdir($this->root . '/themes/foo-main/css', 0777, true);
+		file_put_contents($this->root . '/themes/foo-main/theme.php', 'live under the other suffix');
+		file_put_contents($this->root . '/themes/foo-main/css/style.css', 'its css');
+		$zipPath = $this->moduleZip(['foo-master/theme.php' => 'new']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('danger', $alerts);
+		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), 'foo is updated');
+		$this->assertSame('live under the other suffix', file_get_contents($this->root . '/themes/foo-main/theme.php'), 'foo-main is untouched');
+		$this->assertSame('its css', file_get_contents($this->root . '/themes/foo-main/css/style.css'));
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
 	}
 
 	public function testTheFilesTabSortsNaturallyAndIgnoresCase(): void
