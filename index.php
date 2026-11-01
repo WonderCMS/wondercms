@@ -503,6 +503,7 @@ class Wcms
 	/**
 	 * Change password
 	 * On success the changing session is logged out and the login page shows "Password changed. Log in again." once
+	 * Success is the new hash read back from database.js: a failed save keeps the admin logged in with the old password
 	 * @return void
 	 * @throws Exception
 	 */
@@ -536,6 +537,12 @@ class Wcms
 				$this->set('config', 'password', password_hash($_POST['new_password'], PASSWORD_DEFAULT)); // a new hash, a new stamp: every session stamped with the old one is logged out at its next request
 			} finally {
 				$this->replacingPassword = false;
+			}
+			$onDisk = json_decode($this->lockedRead($this->dbPath));
+			$diskHash = $onDisk->{self::DB_CONFIG}->password ?? null;
+			if (!is_string($diskHash) || !password_verify($_POST['new_password'], $diskHash)) { // a failed save left the new hash in this request's copy only: save() queued its danger alert, the admin stays in
+				$this->redirect();
+				return;
 			}
 			$this->alert('success', '<center><b>Password changed. Log in again.</b></center>', 1); // before the logout: redirect() ends the request
 			$this->logoutAction(true);
