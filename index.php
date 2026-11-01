@@ -2243,14 +2243,17 @@ EOT;
 			// request, so a remnant never blocks the rename aside. Where the installed folder cannot be moved (permissions, a
 			// locked or immutable folder, a mount point, a file in it held open on Windows) or no aside name can be made, the new
 			// copy is removed and the installed one is left exactly as it was. If the rename in fails, the aside copy is renamed
-			// back. A link is removed, not renamed.
+			// back. A link is removed, not renamed. A folder with a volume mounted below it (themes/<name>/css) is not renamed aside,
+			// since the mount would go with it and be emptied there: it takes the cross-device path below, so the mount stays where it
+			// is and is filled with the new files.
 			foreach (function_exists('glob') ? (glob(strtr($path, ['[' => '[[]', '*' => '[*]', '?' => '[?]']) . $folderName . '.old.' . str_repeat('[0-9a-f]', 8) . '.tmp') ?: []) : [] as $remnant) { // only the names tempPath() makes; a [, * or ? in the site's path matches itself
 				$this->removeQuietly($remnant);
 			}
 			$installed = $wasInstalled && !(function_exists('is_link') && is_link($path . $folderName));
+			$mounted = $installed && $this->holdsMount($path . $folderName);
 			error_clear_last();
 			try {
-				$aside = $installed && @rename($path . $folderName, $old = $this->tempPath($path . $folderName . '.old'));
+				$aside = $installed && !$mounted && @rename($path . $folderName, $old = $this->tempPath($path . $folderName . '.old'));
 			} catch (Exception $e) { // random_bytes() with no source of randomness, or a plugin's error handler that throws on the warning
 			}
 			// A folder from a lower layer of an overlay filesystem (a Docker image's content) refuses a rename with EXDEV, yet it can be
@@ -2258,7 +2261,7 @@ EOT;
 			// deletable, since there is no aside copy to go back to. A part the check cannot foresee (a mount point, another user's file
 			// in a sticky folder, an immutable file) still stops the delete halfway; the new copy is then moved in over what is left,
 			// entry by entry, as 3.7.1's extract did, and what cannot be moved in is reported. The folder is never left half-deleted.
-			$crossDevice = $installed && !$aside && preg_match('/cross-device link$/i', error_get_last()['message'] ?? '') === 1;
+			$crossDevice = $installed && !$aside && ($mounted || preg_match('/cross-device link$/i', error_get_last()['message'] ?? '') === 1);
 			if ($installed && !$aside && !($crossDevice && $this->canEmpty($path . $folderName))) {
 				$partial = $staging ?? $newFolder;
 				function_exists('is_link') && is_link($partial) ? unlink($partial) : $this->recursiveDelete($partial);
@@ -2377,9 +2380,43 @@ EOT;
 	}
 
 	/**
+	 * Whether a folder under this one is on another device (a volume mounted inside a module); links are not followed.
+	 * @param string $dir
+	 * @param int|null $device the device of the folder the walk started in
+	 * @return bool
+	 */
+	private function holdsMount(string $dir, ?int $device = null): bool
+	{
+		if (($device = $device ?? $this->deviceOf($dir)) === null) {
+			return false; // stat() disabled: it cannot tell, so no mount, as before
+		}
+		try {
+			foreach (new DirectoryIterator($dir) as $entry) {
+				if (!$entry->isDot() && $entry->isDir() && !$entry->isLink()
+					&& (($sub = $this->deviceOf($entry->getPathname())) !== null && $sub !== $device || $this->holdsMount($entry->getPathname(), $device))) {
+					return true;
+				}
+			}
+		} catch (UnexpectedValueException $e) { // a folder it may not read
+		}
+		return false;
+	}
+
+	/**
+	 * The device a file or folder is on; null where stat() is disabled or fails.
+	 * @param string $path
+	 * @return int|null
+	 */
+	protected function deviceOf(string $path): ?int
+	{
+		$stat = function_exists('stat') ? @stat($path) : false;
+		return $stat === false ? null : $stat['dev'];
+	}
+
+	/**
 	 * Moves everything in one folder into another, without a warning: a file replaces what has its name, a folder merges into a
 	 * folder of its name; a folder rename() cannot move (across a mount point) is made there and filled. What cannot be moved
-	 * stays behind. Links are moved, never followed.
+	 * stays behind. Links are moved, never followed; a link in the way that cannot be removed is left, never written through.
 	 * @param string $from
 	 * @param string $to
 	 * @return bool whether everything was moved
@@ -2402,6 +2439,10 @@ EOT;
 				}
 				if ($sourceDir || $targetDir || (function_exists('is_link') && is_link($target))) { // a folder over a file or a file over a folder: rename() replaces neither; a link goes first, as rename() across a mount point copies through it
 					$this->removeQuietly($target);
+					if (function_exists('is_link') && is_link($target)) { // it could not be removed: skipped and reported
+						$all = false;
+						continue;
+					}
 				}
 				$all = (@rename($source, $target) || $sourceDir && @mkdir($target, 0755) && $this->mergeInto($source, $target)) && $all; // mkdir() fails on a link left there, so it is never entered
 			}

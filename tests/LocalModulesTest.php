@@ -220,19 +220,22 @@ final class LocalModulesTest extends TestCase
 
 	/**
 	 * Runs installUpdateModuleAction() for the theme $name with the module ZIP at $zipPath; returns the alerts it left.
-	 * redirect() throws as the real one exits, so a failure branch does not run on into the next one. $tempPath, when
-	 * given, stands in for tempPath().
+	 * redirect() throws as the real one exits, so a failure branch does not run on into the next one. $tempPath and
+	 * $deviceOf, when given, stand in for tempPath() and deviceOf().
 	 */
-	private function install(string $name, string $zipPath, ?callable $tempPath = null): array
+	private function install(string $name, string $zipPath, ?callable $tempPath = null, ?callable $deviceOf = null): array
 	{
 		$wcms = $this->getMockBuilder(Wcms::class)
 			->setConstructorArgs(['data_test', 'files_test', 'database_test.js', $this->root])
-			->onlyMethods($tempPath === null ? ['redirect', 'getSingleModuleCachedData'] : ['redirect', 'getSingleModuleCachedData', 'tempPath'])
+			->onlyMethods(array_merge(['redirect', 'getSingleModuleCachedData'], $tempPath === null ? [] : ['tempPath'], $deviceOf === null ? [] : ['deviceOf']))
 			->getMock();
 		$wcms->method('getSingleModuleCachedData')->willReturn(['zip' => 'file://' . $zipPath]);
 		$wcms->method('redirect')->willThrowException(new RuntimeException('redirected'));
 		if ($tempPath !== null) {
 			$wcms->method('tempPath')->willReturnCallback($tempPath);
+		}
+		if ($deviceOf !== null) {
+			$wcms->method('deviceOf')->willReturnCallback($deviceOf);
 		}
 		$wcms->loggedIn = true;
 		unset($_SESSION['alert']);
@@ -765,6 +768,109 @@ final class LocalModulesTest extends TestCase
 		$this->assertSame('newcss', file_get_contents($this->root . '/themes/foo/css/style.css'));
 		$this->assertSame(['keep.txt'], array_values(array_diff(scandir($this->root . '/outside'), ['.', '..'])), 'nothing written through the link');
 		$this->assertSame('not part of any module', file_get_contents($this->root . '/outside/keep.txt'));
+	}
+
+	public function testAVolumeMountedInsideTheModuleStaysWhereItIsAndTheUpdateMergesIntoIt(): void
+	{
+		// A volume mounted on a module subfolder (a Docker -v on themes/sky/css) went with the rename aside, was emptied there and
+		// stayed mounted inside the remnant: after a remount the theme had an empty css/. A subfolder on another device now sends
+		// the update down the cross-device path, so the mount keeps its place and gets the new files. deviceOf() puts css/ on a
+		// device of its own; a stuck subfolder keeps css/ in place through the delete, as a mount point does.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		$css = $this->root . '/themes/foo/css';
+		foreach (['foo/', 'foo-master/'] as $top) {
+			mkdir($css . '/locked', 0777, true);
+			file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+			file_put_contents($css . '/style.css', 'oldcss');
+			file_put_contents($css . '/locked/keep.txt', 'cannot be removed');
+			chmod($css . '/locked', 0666);
+			try {
+				if (@file_get_contents($css . '/locked/keep.txt') !== false) {
+					$this->markTestSkipped('this user reads through a folder without search permission (root)');
+				}
+				$inode = fileinode($css);
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss', $top . 'css/print.css' => 'newprint']), null, static function (string $path) use ($css): int {
+					return $path === $css ? 2 : 1;
+				});
+				clearstatcache();
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $top . ' ' . json_encode($alerts));
+				$this->assertArrayNotHasKey('danger', $alerts, $top . ' nothing of the update was left out');
+				$this->assertSame($inode, fileinode($css), $top . ' css/ is the same folder, never moved aside');
+				$this->assertSame(['locked', 'print.css', 'style.css'], array_values(array_diff(scandir($css), ['.', '..'])), $top);
+				$this->assertSame('newcss', file_get_contents($css . '/style.css'), $top);
+				$this->assertSame('newprint', file_get_contents($css . '/print.css'), $top);
+				$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $top);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no aside copy holding css/, no staging or extracted folder is left');
+			} finally {
+				foreach (glob($this->root . '/themes/foo*/css/locked') ?: [] as $folder) {
+					chmod($folder, 0755);
+				}
+				exec('rm -rf ' . escapeshellarg($this->root . '/themes') . '/foo*');
+			}
+		}
+	}
+
+	public function testAVolumeMountedInsideTheModuleOnARamDiskStaysWhereItIsAndALinkOnItIsNeverWrittenThrough(): void
+	{
+		// The same through the real action on a real mount: an HFS+ RAM disk at themes/foo/css (macOS; CI has no hdiutil). Then a
+		// link on the volume that cannot be removed: rename() across a mount point copies through a link, so the merge skips it
+		// and reports it.
+		if (!class_exists('ZipArchive') || !is_executable('/usr/bin/hdiutil') || !is_executable('/sbin/newfs_hfs') || !is_executable('/usr/sbin/diskutil')) {
+			$this->markTestSkipped('needs the zip extension, hdiutil, newfs_hfs and diskutil (macOS)');
+		}
+		$css = $this->root . '/themes/foo/css';
+		mkdir($css, 0777, true);
+		$disk = trim((string) shell_exec('/usr/bin/hdiutil attach -nomount ram://8192 2>/dev/null'));
+		try {
+			if (strncmp($disk, '/dev/disk', 9) !== 0) {
+				$this->markTestSkipped('no RAM disk could be attached');
+			}
+			exec('/sbin/newfs_hfs -v wcmscss ' . escapeshellarg($disk) . ' 2>&1 && /usr/sbin/diskutil mount -mountPoint ' . escapeshellarg($css) . ' ' . escapeshellarg($disk) . ' 2>&1', $out, $rc);
+			clearstatcache();
+			if ($rc !== 0 || stat($css)['dev'] === stat($this->root . '/themes/foo')['dev']) {
+				$this->markTestSkipped('the RAM disk could not be mounted: ' . implode(' ', $out));
+			}
+			foreach (['foo/', 'foo-master/'] as $top) {
+				file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+				file_put_contents($css . '/style.css', 'oldcss');
+				clearstatcache();
+				[$inode, $device] = [fileinode($css), stat($css)['dev']];
+				$alerts = $this->install('foo', $this->moduleZip([$top . 'theme.php' => 'new', $top . 'css/style.css' => 'newcss', $top . 'css/print.css' => 'newprint']));
+				clearstatcache();
+
+				$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', $top . ' ' . json_encode($alerts));
+				$this->assertArrayNotHasKey('danger', $alerts, $top . ' nothing of the update was left out');
+				$this->assertSame($inode, fileinode($css), $top . ' css/ is the same folder, never moved aside');
+				$this->assertSame($device, stat($css)['dev'], $top . ' the volume is still mounted at css/');
+				$this->assertSame('newcss', file_get_contents($css . '/style.css'), $top);
+				$this->assertSame('newprint', file_get_contents($css . '/print.css'), $top);
+				$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'), $top);
+				$this->assertSame([], array_merge(glob($this->root . '/themes/foo.*') ?: [], glob($this->root . '/themes/foo-*') ?: []), $top . ' no aside copy holding css/, no staging or extracted folder is left');
+			}
+
+			mkdir($this->root . '/outside');
+			file_put_contents($this->root . '/outside/passwd', 'secret');
+			symlink($this->root . '/outside/passwd', $css . '/link.css');
+			exec('chflags -h uchg ' . escapeshellarg($css . '/link.css'));
+			mkdir($this->root . '/new');
+			file_put_contents($this->root . '/new/link.css', 'newcss');
+			$merge = new ReflectionMethod(Wcms::class, 'mergeInto');
+			if (PHP_VERSION_ID < 80100) {
+				$merge->setAccessible(true);
+			}
+
+			$this->assertFalse($merge->invoke($this->wcms, $this->root . '/new', $css), 'the link it cannot remove is reported');
+			$this->assertTrue(is_link($css . '/link.css'));
+			$this->assertSame('secret', file_get_contents($this->root . '/outside/passwd'), 'nothing written through the link');
+		} finally {
+			if (strncmp($disk, '/dev/disk', 9) === 0) {
+				// a mount carried along by a rename of its parent refuses a detach as busy until it is unmounted by force
+				exec('chflags -h nouchg ' . escapeshellarg($css . '/link.css') . ' 2>/dev/null; /sbin/umount -f ' . escapeshellarg($disk) . ' 2>/dev/null; /usr/bin/hdiutil detach ' . escapeshellarg($disk) . ' 2>&1');
+			}
+		}
 	}
 
 	public function testASitePathWithGlobCharactersSweepsOnlyItsOwnLeftovers(): void
