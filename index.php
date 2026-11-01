@@ -2590,10 +2590,10 @@ EOT;
 	 * (a dual-stack server reports every IPv4 client that way, and their /64 is the same). The file stores an HMAC of
 	 * that, never the address: its salt comes from this install's folder and password hash, neither readable from the
 	 * public side, so the file alone (public on a site whose .htaccess predates 3.7.0) identifies nobody; a password
-	 * change starts the counts afresh. No valid address and a private or reserved one, loopback included, give null and
-	 * no throttle: a private address at PHP means a proxy, a container network or a local health check in front, which
-	 * is every visitor at once, and one key for every request would let any visitor lock the owner out; a public
-	 * address is the connection's own client
+	 * change starts the counts afresh. No valid address and a local, private or shared-space one (isLocalOrSharedAddress)
+	 * give null and no throttle: such an address at PHP means a proxy, a container network or a local health check in
+	 * front, which is every visitor at once, and one key for every request would let any visitor lock the owner out; a
+	 * public address is the connection's own client
 	 * @return string|null
 	 */
 	private function loginThrottleKey(): ?string
@@ -2605,11 +2605,34 @@ EOT;
 		if (strlen($packed) === 16 && strncmp($packed, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
 			$packed = substr($packed, 12);
 		}
-		if (filter_var(inet_ntop($packed), FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+		if ($this->isLocalOrSharedAddress($packed)) {
 			return null;
 		}
 		$salt = hash('sha256', $this->rootDir . "\0" . $this->passwordHash(), true);
 		return hash_hmac('sha256', strlen($packed) === 4 ? $packed : substr($packed, 0, 8), $salt);
+	}
+
+	/**
+	 * A local, private or shared-space address at PHP means a proxy or container network in front, which is every
+	 * visitor at once; the list is written out (not PHP's private/reserved filter flags) so every PHP version agrees
+	 * @param string $ip the packed address, 4 or 16 bytes (inet_pton)
+	 * @return bool
+	 */
+	private function isLocalOrSharedAddress(string $ip): bool
+	{
+		$ranges = strlen($ip) === 4
+			? ['0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.0.0.0/24', '192.168.0.0/16', '198.18.0.0/15', '240.0.0.0/4']
+			: ['::/128', '::1/128', 'fc00::/7', 'fe80::/10'];
+		foreach ($ranges as $range) {
+			[$prefix, $bits] = explode('/', $range);
+			$prefix = inet_pton($prefix);
+			$bytes = intdiv((int)$bits, 8);
+			$mask = (0xff << (8 - (int)$bits % 8)) & 0xff;
+			if (strncmp($ip, $prefix, $bytes) === 0 && ($mask === 0 || (ord($ip[$bytes]) & $mask) === ord($prefix[$bytes]))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
