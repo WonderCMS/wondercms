@@ -227,6 +227,32 @@ final class InstallPasswordParagraphTest extends TestCase
 		$this->assertFalse(property_exists($this->onDisk()->pages, 'home'), 'the check does not recreate a deleted home page');
 	}
 
+	public function testAFailedWriteNeitherClaimsTheRemovalNorLogsOut(): void
+	{
+		// A read-only data folder (or a full disk): the paragraph stays on the public home page, so the admin must not read "that line is removed".
+		if (DIRECTORY_SEPARATOR !== '/' || (function_exists('posix_getuid') && posix_getuid() === 0)) {
+			$this->markTestSkipped('needs a POSIX permission check (not Windows, not root)');
+		}
+		$site = $this->site(); // a fresh install, built before the folder is locked
+		$before = $this->onDisk()->pages->home->content;
+		$password = $this->installPassword($before);
+		chmod($this->db(), 0444);
+		chmod(dirname($this->db()), 0555);
+		try {
+			$this->login($site, $password);
+		} finally {
+			chmod(dirname($this->db()), 0755);
+			chmod($this->db(), 0644);
+		}
+
+		$this->assertTrue($_SESSION['loggedIn'] ?? false, 'the admin is logged in');
+		$this->assertSame($before, $this->onDisk()->pages->home->content, 'the stored page still holds the paragraph: the next login tries again');
+		$alerts = json_encode($_SESSION['alert'] ?? []);
+		$this->assertStringNotContainsString('that line is removed', $alerts);
+		$this->assertCount(0, $this->passwordAlerts());
+		$this->assertStringContainsString('Your password is still shown on the public home page: the data folder could not be written. Fix its permissions, then log in again.', json_encode($_SESSION['alert']['danger'] ?? []));
+	}
+
 	public function testAVisitorRequestNeverRemovesTheParagraph(): void
 	{
 		$this->site();
