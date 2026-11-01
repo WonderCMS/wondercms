@@ -375,6 +375,59 @@ final class LocalModulesTest extends TestCase
 		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
 	}
 
+	public function testAStaleArchiveFolderLeftByAnEarlierUpdateIsClearedBeforeTheExtract(): void
+	{
+		// themes/foo-master is what an earlier update left when it was cut short; the new archive extracts to the same folder,
+		// so it is cleared first, or the leftover would merge into the module that goes live.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		mkdir($this->root . '/themes/foo-master/css', 0777, true);
+		file_put_contents($this->root . '/themes/foo-master/leftover.php', 'from a killed update');
+		file_put_contents($this->root . '/themes/foo-master/css/leftover.css', 'from a killed update');
+		$zipPath = $this->moduleZip(['foo-master/theme.php' => 'new', 'foo-master/css/style.css' => 'newcss']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('danger', $alerts);
+		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
+		$this->assertSame('newcss', file_get_contents($this->root . '/themes/foo/css/style.css'));
+		$this->assertFileDoesNotExist($this->root . '/themes/foo/leftover.php', 'the stale folder was cleared, not merged into');
+		$this->assertFileDoesNotExist($this->root . '/themes/foo/css/leftover.css');
+		$this->assertSame(['css', 'theme.php'], array_values(array_diff(scandir($this->root . '/themes/foo'), ['.', '..'])), 'only the archive\'s files');
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
+	}
+
+	public function testALinkWhereTheArchiveFolderWouldGoIsRemovedAndNeverFollowed(): void
+	{
+		// themes/foo-master points at a folder outside themes/: the link itself is removed before the extract, so nothing is
+		// written through it and nothing behind it is deleted.
+		if (!class_exists('ZipArchive') || DIRECTORY_SEPARATOR !== '/') {
+			$this->markTestSkipped('needs the zip extension and a file:// path without a drive letter');
+		}
+		mkdir($this->root . '/themes/foo', 0777, true);
+		file_put_contents($this->root . '/themes/foo/theme.php', 'old');
+		$outside = $this->root . '/outside';
+		mkdir($outside);
+		file_put_contents($outside . '/keep.txt', 'not the updater\'s to touch');
+		symlink($outside, $this->root . '/themes/foo-master');
+		$zipPath = $this->moduleZip(['foo-master/theme.php' => 'new']);
+
+		$alerts = $this->install('foo', $zipPath);
+
+		$this->assertSame('Successfully installed/updated foo.', $alerts['success'][0]['message'] ?? '', json_encode($alerts));
+		$this->assertArrayNotHasKey('danger', $alerts);
+		$this->assertFalse(is_link($this->root . '/themes/foo-master'), 'the link is gone');
+		$this->assertDirectoryDoesNotExist($this->root . '/themes/foo-master');
+		$this->assertSame('not the updater\'s to touch', file_get_contents($outside . '/keep.txt'), 'the link was unlinked, never followed');
+		$this->assertSame(['keep.txt'], array_values(array_diff(scandir($outside), ['.', '..'])), 'nothing was written through the link');
+		$this->assertFalse(is_link($this->root . '/themes/foo'), 'the live folder is a real folder, not the renamed link');
+		$this->assertSame('new', file_get_contents($this->root . '/themes/foo/theme.php'));
+	}
+
 	public function testTheFilesTabSortsNaturallyAndIgnoresCase(): void
 	{
 		foreach (['photo10.png', 'Photo2.png', 'photo1.png', 'apple.png'] as $name) {
