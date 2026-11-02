@@ -95,8 +95,8 @@ tag, rule 3 above; every push is read back through the API and recorded).
    and 2 hours after the merge (GitHub's raw cache is per edge; a stale edge serves the old file long after the
    first one matched). The later comparisons confirm the cache stayed right, they do not delay the canary. Check https://www.githubstatus.com
    before the news post: a GitHub incident during the first hours means sites download nothing, not a bad file.
-6. Canary: two sites, each clicked by the maintainer himself while logged in as that site's admin (the agent
-   prepares, watches and verifies; it never holds the admin passwords), one after the other: www.wondercms.com first, then robert.si
+6. Canary: two sites, each clicked by the maintainer himself while logged in as that site's admin (whoever
+   prepares and verifies the release never holds the admin passwords), one after the other: www.wondercms.com first, then robert.si
    (a custom theme, `skyPersonal`, so a theme that is not shipped with the release meets the new core too). Start
    robert.si only once wondercms.com has passed. On each site: confirm the live `index.php` is the stock previous
    release (compare its SHA-256; if it is not, stop and do not click: find out why the file differs first, since a
@@ -191,7 +191,7 @@ tag, rule 3 above; every push is read back through the API and recorded).
     repo's daily `wcms-modules.json` workflow is enabled and has run.
 11. Close the fixed issues with the commit links; fast-forward `develop` to `main`.
 12. Every remote write (a push, a workflow dispatch, a comment) is read back through the GitHub API before it is
-    recorded as done; a pipe after `git push` hides a rejected push. While a review panel is reading a snapshot,
+    recorded as done; a pipe after `git push` hides a rejected push. While a review is reading a snapshot,
     no remote action is taken.
 
 ## After the checklist
